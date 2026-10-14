@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FileForge — File Organizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #0d1b2e;
+            --silver: #d8dde8;
+            --blue: #2b7de9;
+            --orange: #e07018;
+            --dark: #060f1b;
+            --light: #ffffff;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(135deg, var(--navy) 0%, var(--dark) 100%);
+            color: var(--silver);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        header {
+            background: var(--navy);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2rem;
+        }
+
+        .brand { display: flex; align-items: center; gap: 0.75rem; }
+        .brand-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--blue), var(--orange));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1.25rem; color: white;
+            font-family: 'Exo 2', sans-serif;
+        }
+
+        .brand-text h1 {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 1.5rem; font-weight: 700; color: var(--light);
+        }
+        .brand-text span { color: var(--orange); font-weight: 600; }
+
+        .nav-actions { display: flex; gap: 1rem; align-items: center; }
+
+        .tabs { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
+        .tab {
+            padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.05);
+            border: none; border-radius: 8px; color: var(--silver);
+            cursor: pointer; font-size: 1rem; font-weight: 500;
+            transition: all 0.2s ease; border-bottom: 2px solid transparent;
+        }
+        .tab:hover { background: rgba(255,255,255,0.08); }
+        .tab.active { background: rgba(43,125,233,0.2); border-bottom-color: var(--blue); color: var(--light); }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1.5rem 2rem; }
+
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem; margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.05); border-radius: 12px; padding: 1.5rem;
+            border-left: 4px solid var(--blue); transition: transform 0.2s ease;
+        }
+        .stat-card:hover { transform: translateY(-2px); background: rgba(255,255,255,0.08); }
+        .stat-card.warning { border-left-color: var(--warning); }
+        .stat-card.danger { border-left-color: var(--danger); }
+        .stat-label { font-size: 0.875rem; color: var(--silver); opacity: 0.7; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: var(--light); font-family: 'Exo 2', sans-serif; }
+        .stat-sub { font-size: 0.875rem; color: var(--blue); margin-top: 0.5rem; }
+
+        .upload-section {
+            background: rgba(255,255,255,0.05); border-radius: 12px;
+            padding: 2rem; margin-bottom: 2rem; border: 2px dashed rgba(255,255,255,0.15);
+            text-align: center; transition: all 0.3s ease;
+        }
+        .upload-section.dragover { border-color: var(--blue); background: rgba(43,125,233,0.1); }
+        .upload-content { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+        .upload-icon {
+            width: 64px; height: 64px; background: rgba(43,125,233,0.2);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; color: var(--blue);
+        }
+        .upload-text { font-size: 1.25rem; color: var(--light); }
+        .upload-sub { color: var(--silver); opacity: 0.7; font-size: 0.9rem; }
+        .file-input { display: none; }
+
+        .btn {
+            padding: 0.75rem 1.5rem; border-radius: 8px; border: none;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 0.5rem;
+        }
+        .btn-primary { background: linear-gradient(135deg, var(--blue), #3b82f6); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(43,125,233,0.4); }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: var(--light); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+        .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
+
+        .toolbar {
+            display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+        }
+        .search-box { flex: 1; min-width: 250px; position: relative; }
+        .search-box input {
+            width: 100%; padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.2); color: var(--light); font-size: 1rem;
+        }
+        .search-box input:focus { outline: none; border-color: var(--blue); background: rgba(0,0,0,0.3); }
+        .search-box::before { content: '🔍'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: 0.5; }
+        .filter-select {
+            padding: 0.75rem 2rem 0.75rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.2); color: var(--light); font-size: 0.9rem; cursor: pointer;
+        }
+
+        .table-container {
+            background: rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden; overflow-x: auto; border: 1px solid rgba(255,255,255,0.1);
+        }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        th {
+            background: var(--navy); color: var(--light); padding: 1rem;
+            text-align: left; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255,255,255,0.1); position: sticky; top: 0;
+        }
+        td { padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--silver); font-size: 0.95rem; }
+        tr:hover td { background: rgba(255,255,255,0.05); }
+
+        .badge {
+            display: inline-flex; align-items: center; padding: 0.25rem 0.625rem; border-radius: 4px;
+            font-size: 0.8rem; font-weight: 500; text-transform: uppercase;
+        }
+        .badge-critical { background: rgba(231,76,60,0.2); color: var(--danger); }
+        .badge-warning { background: rgba(243,156,18,0.2); color: var(--warning); }
+        .badge-success { background: rgba(39,174,96,0.2); color: var(--success); }
+        .badge-neutral { background: rgba(255,255,255,0.1); color: var(--silver); }
+
+        .category { display: inline-flex; align-items: center; gap: 0.5rem; }
+        .category-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+
+        .actions { display: flex; gap: 0.5rem; }
+        .action-btn {
+            padding: 0.5rem 0.75rem; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.8rem; font-weight: 500; transition: all 0.2s ease;
+        }
+        .btn-move { background: var(--blue); color: white; }
+        .btn-move:hover { background: #1a68d6; }
+        .btn-archive { background: var(--orange); color: white; }
+        .btn-archive:hover { background: #c85e12; }
+        .btn-delete { background: var(--danger); color: white; }
+        .btn-delete:hover { background: #c0392b; }
+        .btn-view { background: rgba(255,255,255,0.1); color: var(--silver); }
+        .btn-view:hover { background: rgba(255,255,255,0.15); }
+
+        .empty-state { text-align: center; padding: 4rem 2rem; color: var(--silver); opacity: 0.6; }
+        .empty-state h3 { font-family: 'Exo 2', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--light); }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 2rem;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--navy); border-radius: 12px; width: 100%; max-width: 800px;
+            max-height: 90vh; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .modal-header {
+            padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h2 { font-family: 'Exo 2', sans-serif; color: var(--light); }
+        .close-btn {
+            background: none; border: none; color: var(--silver); font-size: 1.5rem;
+            cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+        }
+        .modal-body { padding: 1.5rem; overflow-y: auto; }
+        .detail-row {
+            display: grid; grid-template-columns: 150px 1fr; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .detail-label { color: var(--silver); opacity: 0.6; font-size: 0.9rem; }
+        .detail-value { color: var(--light); font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; word-break: break-all; }
+
+        .progress-container { background: rgba(0,0,0,0.3); border-radius: 8px; height: 6px; overflow: hidden; margin: 1rem 0; }
+        .progress-bar { background: linear-gradient(90deg, var(--blue), var(--orange)); height: 100%; width: 0%; transition: width 0.3s ease; }
+
+        .toast-container { position: fixed; bottom: 2rem; right: 2rem; z-index: 3000; display: flex; flex-direction: column; gap: 0.75rem; }
+        .toast {
+            background: var(--navy); padding: 1rem 1.5rem; border-radius: 8px; border-left: 4px solid var(--blue);
+            color: var(--silver); box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: slideIn 0.3s ease; display: flex; align-items: center; gap: 0.75rem;
+        }
+        .toast.success { border-left-color: var(--success); }
+        .toast.error { border-left-color: var(--danger); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        @media (max-width: 768px) {
+            .header-content { flex-direction: column; gap: 1rem; }
+            .search-box { min-width: 100%; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* ── Path Bar & Browser Modal ──────────────────────────────────── */
+        .path-bar { display: flex; gap: 0.5rem; align-items: center; width: 100%; max-width: 540px; margin: 0 auto; }
+        .path-input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); color: var(--silver); padding: 0.55rem 0.85rem; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
+        .path-input:focus { outline: none; border-color: var(--blue); }
+        .path-input::placeholder { color: rgba(216,221,232,0.25); }
+        .browser-modal { max-width: 560px; display: flex; flex-direction: column; max-height: 90vh; }
+        .browser-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem; padding: 0.6rem 0.85rem; background: rgba(0,0,0,0.25); border-radius: 6px; margin-bottom: 0.85rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; min-height: 2.2rem; }
+        .browser-breadcrumb .bc-sep { color: rgba(216,221,232,0.3); margin: 0 0.15rem; }
+        .browser-breadcrumb button { background: none; border: none; color: var(--blue); cursor: pointer; padding: 0 0.15rem; font-family: inherit; font-size: inherit; line-height: 1.4; }
+        .browser-breadcrumb button:hover { text-decoration: underline; }
+        .dir-list { max-height: 300px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; }
+        .dir-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.9rem; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.12s; }
+        .dir-item:last-child { border-bottom: none; }
+        .dir-item:hover { background: rgba(43,125,233,0.12); }
+        .dir-item-name { flex: 1; color: var(--silver); font-size: 0.88rem; }
+        .dir-nav-btn { background: none; border: none; color: rgba(216,221,232,0.35); font-size: 1rem; cursor: pointer; padding: 0 0.2rem; line-height: 1; flex-shrink: 0; }
+        .dir-nav-btn:hover { color: var(--blue); }
+        .dir-empty { padding: 1.5rem; text-align: center; color: rgba(216,221,232,0.35); font-size: 0.85rem; }
+        .browser-modal .modal-body { flex: 1; min-height: 0; overflow-y: auto; }
+        .browser-footer { display: flex; justify-content: space-between; align-items: center; padding: 0.9rem 1.5rem; border-top: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+        .browser-cur-path { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: rgba(216,221,232,0.45); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+
+        /* ── Settings Modal ─────────────────────────────────────────────── */
+        .settings-modal {
+            max-width: 960px; display: flex; flex-direction: column;
+            max-height: 90vh;
+            border-top: 3px solid transparent;
+            border-image: linear-gradient(90deg, var(--blue), var(--orange)) 1;
+        }
+        .settings-layout {
+            flex: 1; display: grid; grid-template-columns: 200px 1fr;
+            min-height: 0; overflow: hidden;
+        }
+        .settings-nav {
+            background: rgba(0,0,0,0.18);
+            border-right: 1px solid rgba(255,255,255,0.07);
+            overflow-y: auto; padding: 0.5rem 0;
+        }
+        .settings-nav-group {
+            padding: 0.5rem 1rem 0.2rem;
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em;
+            text-transform: uppercase; color: rgba(216,221,232,0.3);
+            font-family: 'Exo 2', sans-serif;
+        }
+        .settings-nav-item {
+            display: flex; align-items: center; gap: 0.625rem;
+            padding: 0.65rem 1.25rem; cursor: pointer;
+            color: rgba(216,221,232,0.62); font-size: 0.875rem;
+            border-left: 3px solid transparent;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            user-select: none;
+        }
+        .settings-nav-item:hover { background: rgba(255,255,255,0.045); color: var(--silver); }
+        .settings-nav-item.active {
+            border-left-color: var(--blue);
+            background: rgba(43,125,233,0.1); color: #fff; font-weight: 500;
+        }
+        .settings-nav-icon { width: 18px; text-align: center; font-size: 0.9rem; flex-shrink: 0; }
+        .settings-panel {
+            padding: 1.5rem 1.75rem; overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        .settings-panel::-webkit-scrollbar { width: 5px; }
+        .settings-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+        .settings-section-title {
+            display: flex; align-items: center; gap: 0.625rem;
+            font-family: 'Exo 2', sans-serif; font-size: 0.95rem; font-weight: 700;
+            color: #fff; margin-bottom: 1.25rem; padding-bottom: 0.625rem;
+            border-bottom: 1px solid rgba(43,125,233,0.35);
+        }
+        .form-row {
+            display: grid; grid-template-columns: 160px 1fr;
+            gap: 1.25rem; align-items: start;
+            padding: 0.8rem 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .form-row:last-child { border-bottom: none; }
+        .form-label { color: var(--silver); font-size: 0.875rem; padding-top: 0.45rem; line-height: 1.3; }
+        .form-label small {
+            display: block; color: rgba(216,221,232,0.38);
+            font-size: 0.72rem; margin-top: 0.275rem; line-height: 1.35;
+        }
+        .form-input, .form-select {
+            width: 100%; padding: 0.5rem 0.75rem;
+            background: rgba(0,0,0,0.28); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px; color: #fff;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.875rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none; border-color: var(--blue); background: rgba(0,0,0,0.38);
+            box-shadow: 0 0 0 3px rgba(43,125,233,0.15);
+        }
+        .form-input::placeholder { color: rgba(216,221,232,0.25); }
+        .form-select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%23d8dde8' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 0.75rem center;
+            padding-right: 2.25rem; cursor: pointer; appearance: none;
+        }
+        .form-select option { background: var(--navy); }
+        .form-textarea {
+            width: 100%; padding: 0.5rem 0.75rem;
+            background: rgba(0,0,0,0.28); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px; color: #fff;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;
+            line-height: 1.6; resize: vertical; min-height: 88px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-textarea:focus {
+            outline: none; border-color: var(--blue); background: rgba(0,0,0,0.38);
+            box-shadow: 0 0 0 3px rgba(43,125,233,0.15);
+        }
+        .toggle-row { display: flex; align-items: center; gap: 0.75rem; padding-top: 0.3rem; }
+        .toggle-switch { position: relative; width: 42px; height: 22px; flex-shrink: 0; }
+        .toggle-switch input { display: none; }
+        .toggle-track {
+            position: absolute; inset: 0;
+            background: rgba(255,255,255,0.14); border-radius: 22px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .toggle-track::before {
+            content: ''; position: absolute;
+            width: 16px; height: 16px; left: 3px; top: 3px;
+            background: rgba(255,255,255,0.7); border-radius: 50%; transition: transform 0.2s;
+        }
+        .toggle-switch input:checked + .toggle-track { background: var(--blue); }
+        .toggle-switch input:checked + .toggle-track::before { transform: translateX(20px); background: #fff; }
+        .toggle-label { font-size: 0.85rem; color: rgba(216,221,232,0.7); min-width: 52px; }
+        .range-wrap { display: flex; align-items: center; gap: 0.875rem; padding-top: 0.35rem; }
+        .range-wrap input[type="range"] { flex: 1; accent-color: var(--blue); cursor: pointer; }
+        .range-val {
+            min-width: 42px; text-align: right;
+            font-family: 'IBM Plex Mono', monospace; font-size: 0.875rem;
+            color: var(--blue); font-weight: 500;
+        }
+        .settings-footer {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.875rem 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.07);
+            background: rgba(0,0,0,0.12); flex-shrink: 0;
+        }
+        .settings-status {
+            flex: 1; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;
+            color: rgba(216,221,232,0.45);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            transition: color 0.2s;
+        }
+        .settings-status.ok   { color: var(--success); }
+        .settings-status.err  { color: var(--danger); }
+        .settings-status.warn { color: var(--warning); }
+        @media (max-width: 680px) {
+            .settings-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+            .settings-nav {
+                display: flex; overflow-x: auto; overflow-y: hidden;
+                border-right: none; border-bottom: 1px solid rgba(255,255,255,0.07);
+                padding: 0; scrollbar-width: none;
+            }
+            .settings-nav::-webkit-scrollbar { display: none; }
+            .settings-nav-group { display: none; }
+            .settings-nav-item {
+                flex-shrink: 0; flex-direction: column; gap: 0.2rem;
+                border-left: none; border-bottom: 3px solid transparent;
+                padding: 0.6rem 1rem; font-size: 0.75rem; text-align: center;
+            }
+            .settings-nav-item.active { border-left-color: transparent; border-bottom-color: var(--blue); }
+            .settings-nav-icon { width: auto; font-size: 1.1rem; }
+            .form-row { grid-template-columns: 1fr; gap: 0.4rem; }
+            .form-label { padding-top: 0; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="brand">
+                <div class="brand-icon">FF</div>
+                <div class="brand-text"><h1>FileForge<span>Organizer</span></h1></div>
+            </div>
+            <div class="nav-actions">
+                <button class="btn btn-primary" onclick="openBrowser()"><span>📁</span> Scan Files</button>
+                <button class="btn btn-secondary" onclick="showSettings()"><span>⚙️</span> Settings</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">Total Files</div><div class="stat-value" id="stat-total">0</div><div class="stat-sub" id="stat-size">0 B</div></div>
+            <div class="stat-card warning"><div class="stat-label">Duplicates</div><div class="stat-value" id="stat-duplicates">0</div><div class="stat-sub" id="stat-saved">0 B recoverable</div></div>
+            <div class="stat-card danger"><div class="stat-label">Stale Files</div><div class="stat-value" id="stat-stale">0</div><div class="stat-sub">Needs review</div></div>
+            <div class="stat-card"><div class="stat-label">Categories</div><div class="stat-value" id="stat-categories">0</div><div class="stat-sub">Types found</div></div>
+        </div>
+
+        <div class="upload-section" id="uploadArea">
+            <div class="upload-content">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Scan a Directory</div>
+                <div class="upload-sub">Enter a path or browse your filesystem</div>
+                <div class="path-bar">
+                    <input type="text" id="scanPath" class="path-input" placeholder="/home/user/Documents">
+                    <button class="btn btn-secondary" onclick="openBrowser()"><span>🗂</span> Browse</button>
+                    <button class="btn btn-primary" onclick="startScan()"><span>🔍</span> Scan</button>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center;">
+                    <label style="color: var(--silver); opacity: 0.7;"><input type="checkbox" id="includeSubdirs" checked> Include subdirectories</label>
+                    <label style="color: var(--silver); opacity: 0.7;"><input type="checkbox" id="enablePhase2"> Enable advanced analysis</label>
+                    <label style="color: var(--silver); opacity: 0.7;"><input type="checkbox" id="noClassify" checked> Quick scan (skip AI classification)</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progressContainer" style="display: none;"><div class="progress-bar" id="progressBar"></div></div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="files">All Files</button>
+            <button class="tab" data-tab="duplicates">Duplicates</button>
+            <button class="tab" data-tab="stale">Stale Files</button>
+            <button class="tab" data-tab="categories">By Category</button>
+        </div>
+
+        <div class="toolbar">
+            <div class="search-box"><input type="text" id="searchInput" placeholder="Search files, categories, or content..."></div>
+            <select class="filter-select" id="filterSelect"><option value="all">All Status</option><option value="normal">Normal</option><option value="duplicate">Duplicates Only</option><option value="stale">Stale Only</option></select>
+            <select class="filter-select" id="categoryFilter"><option value="all">All Categories</option><option value="document">Documents</option><option value="image">Images</option><option value="audio">Audio</option><option value="video">Video</option><option value="archive">Archives</option><option value="code">Code</option><option value="data">Data</option><option value="other">Other</option></select>
+            <button class="btn btn-secondary btn-sm" onclick="exportData()">Download JSON</button>
+        </div>
+
+        <div class="table-container">
+            <table id="fileTable">
+                <thead><tr><th>Name</th><th>Category</th><th>Size</th><th>Modified</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="fileTableBody"><tr><td colspan="6" class="empty-state"><h3>No files scanned yet</h3><p>Select a directory above to begin scanning</p></td></tr></tbody>
+            </table>
+        </div>
+    </main>
+
+    <div class="modal-overlay" id="fileModal"><div class="modal"><div class="modal-header"><h2 id="modalTitle">File Details</h2><button class="close-btn" onclick="closeModal()">&times;</button></div><div class="modal-body" id="modalBody"><p class="loading">Select a file to view details</p></div></div></div>
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal settings-modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="close-btn" onclick="closeSettings()" aria-label="Close">&times;</button>
+            </div>
+            <div class="settings-layout">
+                <nav class="settings-nav" id="settingsNav">
+                    <div class="settings-nav-group">Configuration</div>
+                    <div class="settings-nav-item active" onclick="switchSection('general')"><span class="settings-nav-icon">⚙</span><span>General</span></div>
+                    <div class="settings-nav-item" onclick="switchSection('ai')"><span class="settings-nav-icon">🤖</span><span>AI &amp; Models</span></div>
+                    <div class="settings-nav-item" onclick="switchSection('duplicates')"><span class="settings-nav-icon">📋</span><span>Duplicates</span></div>
+                    <div class="settings-nav-group">Rules</div>
+                    <div class="settings-nav-item" onclick="switchSection('staleness')"><span class="settings-nav-icon">🗓</span><span>Staleness</span></div>
+                    <div class="settings-nav-item" onclick="switchSection('ignore')"><span class="settings-nav-icon">🚫</span><span>Ignore Rules</span></div>
+                    <div class="settings-nav-group">Automation</div>
+                    <div class="settings-nav-item" onclick="switchSection('watch')"><span class="settings-nav-icon">👁</span><span>Watch</span></div>
+                    <div class="settings-nav-item" onclick="switchSection('schedule')"><span class="settings-nav-icon">⏰</span><span>Schedule</span></div>
+                </nav>
+                <div class="settings-panel" id="settingsPanel">
+                    <div class="empty-state" style="padding:3rem 2rem"><p>Loading…</p></div>
+                </div>
+            </div>
+            <div class="settings-footer">
+                <span class="settings-status" id="settingsStatus"></span>
+                <button class="btn btn-secondary btn-sm" onclick="closeSettings()">Cancel</button>
+                <button class="btn btn-primary btn-sm" onclick="saveSettings()"><span>💾</span> Save Settings</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="browserModal">
+        <div class="modal browser-modal">
+            <div class="modal-header">
+                <h2>Browse for Directory</h2>
+                <button class="close-btn" onclick="closeBrowser()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="browser-breadcrumb" id="browserBreadcrumb"></div>
+                <div class="dir-list" id="dirList">
+                    <div class="dir-empty">Loading…</div>
+                </div>
+            </div>
+            <div class="browser-footer">
+                <div class="browser-cur-path" id="browserCurPath"></div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="closeBrowser()">Cancel</button>
+                    <button class="btn btn-primary btn-sm" onclick="selectDirectory()">Select This Folder</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        let files = [];
+        let currentFilter = { type: 'files', search: '', category: 'all', status: 'all' };
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDatetime(dt) {
+            if (!dt) return 'Unknown';
+            return new Date(dt).toLocaleString();
+        }
+
+        function showToast(message, type) {
+            if (typeof type === 'undefined') type = 'success';
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 3000);
+        }
+
+        // ── Directory Browser ─────────────────────────────────────────────
+        var browserCurrentPath = '';
+
+        function openBrowser() {
+            document.getElementById('browserModal').classList.add('active');
+            var cur = document.getElementById('scanPath').value.trim();
+            fetchDirectory(cur || '~');
+        }
+
+        function closeBrowser() {
+            document.getElementById('browserModal').classList.remove('active');
+        }
+
+        async function fetchDirectory(path) {
+            document.getElementById('dirList').innerHTML = '<div class="dir-empty">Loading…</div>';
+            try {
+                var r = await fetch('/api/browse?path=' + encodeURIComponent(path));
+                if (!r.ok) { document.getElementById('dirList').innerHTML = '<div class="dir-empty">Cannot read directory.</div>'; return; }
+                var data = await r.json();
+                browserCurrentPath = data.path;
+                document.getElementById('browserCurPath').textContent = data.path;
+                renderBreadcrumb(data.path, data.parent);
+                renderDirList(data.entries, data.parent);
+            } catch (e) {
+                document.getElementById('dirList').innerHTML = '<div class="dir-empty">Server unavailable.</div>';
+            }
+        }
+
+        // Serialize a value as a JS literal that is safe inside a double-quoted HTML attribute.
+        // JSON.stringify wraps strings in " which would prematurely close onclick="...".
+        // Replacing " with &quot; lets the HTML parser decode it back to " before JS executes.
+        function jsq(val) { return JSON.stringify(val).replace(/"/g, '&quot;'); }
+
+        function renderBreadcrumb(path, parent) {
+            var parts = path.replace(/\\/g, '/').split('/').filter(Boolean);
+            var html = '';
+            if (parent !== null) {
+                html += '<button onclick="fetchDirectory(' + jsq(parent) + ')">..</button><span class="bc-sep">/</span>';
+            }
+            var accumulated = '';
+            parts.forEach(function(part, i) {
+                accumulated += (i === 0 ? '/' : '') + part + (i < parts.length - 1 ? '/' : '');
+                if (i < parts.length - 1) {
+                    html += '<button onclick="fetchDirectory(' + jsq(accumulated) + ')">' + escapeHtml(part) + '</button><span class="bc-sep">/</span>';
+                } else {
+                    html += '<span style="color:var(--silver)">' + escapeHtml(part) + '</span>';
+                }
+            });
+            document.getElementById('browserBreadcrumb').innerHTML = html;
+        }
+
+        function renderDirList(entries, parent) {
+            if (!entries.length) {
+                document.getElementById('dirList').innerHTML = '<div class="dir-empty">No subdirectories</div>';
+                return;
+            }
+            var html = entries.map(function(e) {
+                return '<div class="dir-item" onclick="selectEntry(' + jsq(e.path) + ')">'
+                    + '<span class="dir-item-icon">📁</span>'
+                    + '<span class="dir-item-name">' + escapeHtml(e.name) + '</span>'
+                    + '<button class="dir-nav-btn" onclick="event.stopPropagation(); fetchDirectory(' + jsq(e.path) + ')" title="Browse into folder">›</button>'
+                    + '</div>';
+            }).join('');
+            document.getElementById('dirList').innerHTML = html;
+        }
+
+        function selectEntry(path) {
+            browserCurrentPath = path;
+            document.getElementById('scanPath').value = path;
+            closeBrowser();
+        }
+
+        function selectDirectory() {
+            if (browserCurrentPath) {
+                document.getElementById('scanPath').value = browserCurrentPath;
+            }
+            closeBrowser();
+        }
+
+        // ── Real scan (async job + poll) ─────────────────────────────────
+        var _activeScanJob = null;
+        var _pollTimer = null;
+
+        async function startScan() {
+            var path = document.getElementById('scanPath').value.trim();
+            if (!path) { showToast('Enter a directory path first', 'error'); return; }
+            if (_activeScanJob) { showToast('A scan is already running', 'warn'); return; }
+            var phase2 = document.getElementById('enablePhase2').checked;
+            var noClassify = document.getElementById('noClassify').checked;
+
+            var progressEl = document.getElementById('progressBar');
+            document.getElementById('progressContainer').style.display = 'block';
+            progressEl.style.width = '5%';
+
+            try {
+                var r = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ directories: [path], phase_2: phase2, no_classify: noClassify })
+                });
+                if (!r.ok) {
+                    var err = await r.json();
+                    throw new Error(err.detail || 'Failed to start scan');
+                }
+                var data = await r.json();
+                _activeScanJob = data.job_id;
+                showToast('Scan started…', 'success');
+                _pollScan(progressEl);
+            } catch (e) {
+                document.getElementById('progressContainer').style.display = 'none';
+                showToast('Scan error: ' + e.message, 'error');
+            }
+        }
+
+        function _pollScan(progressEl) {
+            if (!_activeScanJob) return;
+            var elapsed = 0;
+            _pollTimer = setInterval(async function() {
+                elapsed += 3;
+                // Grow progress bar up to 90% while running
+                var pct = Math.min(90, 5 + elapsed * 1.5);
+                progressEl.style.width = pct + '%';
+                try {
+                    var r = await fetch('/api/job/' + _activeScanJob);
+                    if (!r.ok) return;
+                    var job = await r.json();
+                    if (job.status === 'complete') {
+                        clearInterval(_pollTimer);
+                        _activeScanJob = null;
+                        progressEl.style.width = '100%';
+                        setTimeout(function() { document.getElementById('progressContainer').style.display = 'none'; }, 600);
+                        if (job.session_id) {
+                            await loadSession(job.session_id);
+                        } else {
+                            showToast('Scan complete — no session data found', 'warn');
+                        }
+                    } else if (job.status === 'error') {
+                        clearInterval(_pollTimer);
+                        _activeScanJob = null;
+                        document.getElementById('progressContainer').style.display = 'none';
+                        showToast('Scan failed: ' + (job.error || 'unknown error'), 'error');
+                    }
+                } catch (e) { /* network blip — keep polling */ }
+            }, 3000);
+        }
+
+        // Shared helper: convert an API record to a local file object
+        function _recordFromApi(rec) {
+            return {
+                id: String(rec.id || Math.random().toString(36).substr(2, 9)),
+                path: String(rec.path || ''),
+                name: rec.name || '',
+                size_bytes: rec.size_bytes || 0,
+                modified_at: rec.modified_at || null,
+                category: rec.category || null,
+                sha256: rec.sha256 || null,
+                is_duplicate: !!rec.is_duplicate,
+                duplicate_of: rec.duplicate_of ? String(rec.duplicate_of) : null,
+                is_stale: !!rec.is_stale,
+                stale_reason: rec.stale_reason || null,
+                content_snippet: rec.content_snippet || null,
+            };
+        }
+
+        var _sessionTotal = 0;
+
+        function _applyRecords(records, total) {
+            files = (records || []).map(_recordFromApi);
+            _sessionTotal = total || files.length;
+            updateStats();
+            renderTable();
+        }
+
+        async function loadSession(sessionId) {
+            try {
+                var r = await fetch('/api/session/' + sessionId + '?limit=500&offset=0');
+                if (!r.ok) { showToast('Could not load session results', 'error'); return; }
+                var data = await r.json();
+                _applyRecords(data.records, data.total);
+                var msg = 'Scan complete: ' + (data.total || files.length).toLocaleString() + ' files found';
+                if (data.total > files.length) {
+                    msg += ' — showing first ' + files.length.toLocaleString();
+                }
+                showToast(msg, 'success');
+            } catch (e) {
+                showToast('Failed to load results: ' + e.message, 'error');
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('stat-total').textContent = (_sessionTotal || files.length).toLocaleString();
+            var totalSize = files.reduce(function(sum, f) { return sum + f.size_bytes; }, 0);
+            document.getElementById('stat-size').textContent = formatBytes(totalSize);
+            var duplicates = files.filter(function(f) { return f.is_duplicate; });
+            document.getElementById('stat-duplicates').textContent = duplicates.length;
+            var savedSize = duplicates.reduce(function(sum, f) { return sum + f.size_bytes; }, 0);
+            document.getElementById('stat-saved').textContent = formatBytes(savedSize);
+            var stale = files.filter(function(f) { return f.is_stale; });
+            document.getElementById('stat-stale').textContent = stale.length;
+            var categories = new Set(files.map(function(f) { return f.category || 'Other'; }));
+            document.getElementById('stat-categories').textContent = categories.size;
+        }
+
+        function renderTable() {
+            var tbody = document.getElementById('fileTableBody');
+            var filter = currentFilter;
+
+            var filtered = files.filter(function(f) {
+                if (filter.search) {
+                    var searchLower = filter.search.toLowerCase();
+                    var matchesName = f.name.toLowerCase().includes(searchLower);
+                    var matchesCategory = f.category ? f.category.toLowerCase().includes(searchLower) : false;
+                    var matchesPath = f.path.toLowerCase().includes(searchLower);
+                    if (!matchesName && !matchesCategory && !matchesPath) return false;
+                }
+                if (filter.category !== 'all' && normalizeCategoryKey(f.category) !== filter.category) return false;
+                if (filter.status === 'duplicate' && !f.is_duplicate) return false;
+                if (filter.status === 'stale' && !f.is_stale) return false;
+                if (filter.status === 'normal' && (f.is_duplicate || f.is_stale)) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><h3>No files match your filters</h3><p>Try adjusting your search or filter criteria</p></td></tr>';
+                return;
+            }
+
+            var html = '';
+            filtered.forEach(function(f) {
+                var badges = '';
+                if (f.is_duplicate) badges += '<span class="badge badge-warning">Duplicate</span> ';
+                if (f.is_stale) badges += '<span class="badge badge-critical">Stale</span> ';
+                if (!f.is_duplicate && !f.is_stale) badges += '<span class="badge badge-success">OK</span>';
+
+                html += '<tr data-file-id="' + escapeHtml(f.id) + '">';
+                html += '<td><div style="font-weight: 500;">' + escapeHtml(f.name) + '</div>';
+                html += '<div style="font-size: 0.8rem; color: var(--silver); opacity: 0.5; font-family: \'IBM Plex Mono\', monospace;">' + escapeHtml(f.path) + '</div></td>';
+                html += '<td><span class="category"><span class="category-dot" style="background: ' + escapeHtml(getCategoryColor(f.category)) + '"></span>' + escapeHtml(f.category || 'Uncategorized') + '</span></td>';
+                html += '<td>' + formatBytes(f.size_bytes) + '</td>';
+                html += '<td>' + formatDatetime(f.modified_at) + '</td>';
+                html += '<td>' + badges + '</td>';
+                html += '<td><div class="actions">';
+                html += '<button class="action-btn btn-view" onclick="viewFile(\'' + escapeHtml(f.id) + '\')">👁️</button>';
+                if (f.is_duplicate) {
+                    html += '<button class="action-btn btn-delete" onclick="deleteFile(\'' + escapeHtml(f.id) + '\')">Delete</button>';
+                } else {
+                    html += '<button class="action-btn btn-move" onclick="moveFile(\'' + escapeHtml(f.id) + '\')">Move</button>';
+                    html += '<button class="action-btn btn-archive" onclick="archiveFile(\'' + escapeHtml(f.id) + '\')">Archive</button>';
+                }
+                if (f.is_stale) {
+                    html += '<button class="action-btn btn-delete" onclick="trashFile(\'' + escapeHtml(f.id) + '\')">Trash</button>';
+                }
+                html += '</div></td>';
+                html += '</tr>';
+            });
+            tbody.innerHTML = html;
+        }
+
+        function getCategoryColor(category) {
+            if (!category) return '#7f8c8d';
+            var top = category.split('/')[0];
+            var colors = { 'Documents': '#27ae60', 'Images': '#e74c3c', 'Audio': '#e67e22', 'Video': '#9b59b6', 'Archives': '#34495e', 'Code': '#3498db', 'Data': '#f39c12', 'Other': '#95a5a6' };
+            return colors[top] || '#7f8c8d';
+        }
+
+        // Normalize a raw category path to the canonical lowercase singular key used by the filter dropdown.
+        function normalizeCategoryKey(category) {
+            if (!category) return 'other';
+            var top = category.split('/')[0].toLowerCase();
+            // Strip common plural suffix so "Documents"→"document", "Images"→"image", etc.
+            return top.replace(/s$/, '');
+        }
+
+        function escapeHtml(str) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/[&<>"']/g, function(m) {
+                var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+                return map[m];
+            });
+        }
+
+        document.querySelectorAll('.tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+                tab.classList.add('active');
+                var tabName = tab.dataset.tab;
+                currentFilter.type = tabName;
+                if (tabName === 'duplicates') currentFilter.status = 'duplicate';
+                else if (tabName === 'stale') currentFilter.status = 'stale';
+                else currentFilter.status = 'all';
+                document.getElementById('filterSelect').value = currentFilter.status;
+                renderTable();
+            });
+        });
+
+        document.getElementById('searchInput').addEventListener('input', function(e) { currentFilter.search = e.target.value; renderTable(); });
+        document.getElementById('categoryFilter').addEventListener('change', function(e) { currentFilter.category = e.target.value; renderTable(); });
+        document.getElementById('filterSelect').addEventListener('change', function(e) { currentFilter.status = e.target.value; renderTable(); });
+
+        function viewFile(id) {
+            var file = files.find(function(f) { return f.id === id; });
+            if (!file) return;
+            document.getElementById('modalTitle').textContent = file.name;
+            var badges = '';
+            if (file.is_duplicate) badges += '<span class="badge badge-warning">Duplicate</span> ';
+            if (file.is_stale) badges += '<span class="badge badge-critical">Stale</span> ';
+            if (!file.is_duplicate && !file.is_stale) badges += '<span class="badge badge-success">Normal</span>';
+
+            var html = '';
+            html += '<div class="detail-row"><div class="detail-label">File Path</div><div class="detail-value">' + escapeHtml(file.path) + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">Size</div><div class="detail-value">' + formatBytes(file.size_bytes) + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">Category</div><div class="detail-value">' + (file.category || 'Uncategorized') + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">Modified</div><div class="detail-value">' + formatDatetime(file.modified_at) + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">Status</div><div class="detail-value">' + badges + '</div></div>';
+            if (file.is_duplicate) html += '<div class="detail-row"><div class="detail-label">Duplicate Of</div><div class="detail-value">' + escapeHtml(file.duplicate_of) + '</div></div>';
+            if (file.is_stale) html += '<div class="detail-row"><div class="detail-label">Stale Reason</div><div class="detail-value">' + escapeHtml(file.stale_reason) + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">SHA-256</div><div class="detail-value">' + (file.sha256 || 'Not computed') + '</div></div>';
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('fileModal').classList.add('active');
+        }
+
+        function closeModal() { document.getElementById('fileModal').classList.remove('active'); }
+
+        // ── Settings ─────────────────────────────────────────────────────
+        var FF_SECTIONS = ['general','ai','duplicates','staleness','ignore','watch','schedule'];
+        var ffSettings = null;
+        var ffSection = 'general';
+
+        function getDefaultSettings() {
+            return {
+                general: { scan_dirs: ['~/Documents'], output_dir: '~/.fileforge', max_depth: -1, max_extract_size: 52428800 },
+                ai: { classification_model: 'qwen3:4b', embedding_model: 'nomic-embed-text', ollama_url: 'http://localhost:11434', snippet_length: 2000, category_hints: '' },
+                duplicates: { similarity_threshold: 0.92, semantic_dedup: true },
+                staleness: { stale_days: 365, detect_versions: true, junk_patterns: ['Thumbs.db','.DS_Store','desktop.ini','~$*','*.tmp'], temp_patterns: ['*.bak','*.swp','*.log','*.orig'] },
+                ignore: { patterns: ['.git','node_modules','__pycache__','.venv','*.iso','*.vmdk'] },
+                watch: { watch_dirs: ['~/Documents'], scan_delay_seconds: 60, auto_act: false, debounce_patterns: ['*.tmp','*.swp','~*'] },
+                schedule: { enabled: false, schedule_cron: '0 2 * * *', run_phase_2: true, auto_act: false }
+            };
+        }
+
+        function setStatus(msg, cls) {
+            var el = document.getElementById('settingsStatus');
+            el.textContent = msg;
+            el.className = 'settings-status' + (cls ? ' ' + cls : '');
+        }
+
+        async function showSettings() {
+            ffSettings = getDefaultSettings();
+            ffSection = 'general';
+            syncNavActive();
+            document.getElementById('settingsPanel').innerHTML = '<div class="empty-state" style="padding:3rem 2rem"><p>Loading…</p></div>';
+            document.getElementById('settingsStatus').textContent = '';
+            document.getElementById('settingsStatus').className = 'settings-status';
+            document.getElementById('settingsModal').classList.add('active');
+            try {
+                var r = await fetch('/api/config');
+                if (r.ok) { ffSettings = await r.json(); setStatus('Loaded from server', 'ok'); }
+                else { setStatus('Server error — using defaults', 'warn'); }
+            } catch (_) {
+                var stored = localStorage.getItem('fileforge_settings');
+                if (stored) { try { ffSettings = JSON.parse(stored); } catch (_) {} }
+                setStatus('Server offline — using local settings', 'warn');
+            }
+            renderSettingsPanel();
+        }
+
+        function syncNavActive() {
+            document.querySelectorAll('#settingsNav .settings-nav-item').forEach(function(el, i) {
+                el.classList.toggle('active', FF_SECTIONS[i] === ffSection);
+            });
+        }
+
+        function switchSection(id) {
+            flushForm();
+            ffSection = id;
+            syncNavActive();
+            renderSettingsPanel();
+        }
+
+        function flushForm() {
+            if (!ffSettings) return;
+            document.getElementById('settingsPanel').querySelectorAll('[data-cfg]').forEach(function(el) {
+                var parts = el.getAttribute('data-cfg').split('.');
+                var sec = parts[0], key = parts[1], type = parts[2];
+                if (!ffSettings[sec]) return;
+                if (type === 'bool') {
+                    ffSettings[sec][key] = el.checked;
+                } else if (type === 'int') {
+                    var n = parseInt(el.value, 10);
+                    if (!isNaN(n)) ffSettings[sec][key] = n;
+                } else if (type === 'float') {
+                    var f = parseFloat(el.value);
+                    if (!isNaN(f)) ffSettings[sec][key] = f;
+                } else if (type === 'list') {
+                    ffSettings[sec][key] = el.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+                } else {
+                    ffSettings[sec][key] = el.value;
+                }
+            });
+        }
+
+        function renderSettingsPanel() {
+            if (!ffSettings) return;
+            var c = ffSettings, html = '';
+            if (ffSection === 'general') {
+                html = sTitle('⚙ General') +
+                    tRow('output_dir','general','Output Directory', c.general.output_dir,'str','Where FileForge stores its database and reports') +
+                    tRow('max_depth','general','Max Scan Depth', c.general.max_depth,'int','-1 scans all subdirectories; 0 scans the root only') +
+                    tRow('max_extract_size','general','Max Extract Size (B)', c.general.max_extract_size,'int','Content extraction is skipped above this file size');
+            } else if (ffSection === 'ai') {
+                html = sTitle('🤖 AI & Models') +
+                    tRow('ollama_url','ai','Ollama URL', c.ai.ollama_url,'str','REST endpoint for your Ollama instance') +
+                    tRow('classification_model','ai','Classification Model', c.ai.classification_model,'str','Ollama model used to classify files by content') +
+                    tRow('embedding_model','ai','Embedding Model', c.ai.embedding_model,'str','Ollama model used for near-duplicate embedding vectors') +
+                    tRow('snippet_length','ai','Snippet Length (chars)', c.ai.snippet_length,'int','Characters of file content sent to the classifier') +
+                    tRow('category_hints','ai','Category Hints', c.ai.category_hints,'str','Optional extra instructions appended to the classification prompt');
+            } else if (ffSection === 'duplicates') {
+                html = sTitle('📋 Duplicates') +
+                    rRow('similarity_threshold','duplicates','Similarity Threshold', c.duplicates.similarity_threshold,0,1,0.01,'Cosine similarity cutoff for near-duplicate detection (0–1)') +
+                    bRow('semantic_dedup','duplicates','Semantic Dedup', c.duplicates.semantic_dedup,'Use embedding vectors to detect near-duplicates (requires nomic-embed-text)');
+            } else if (ffSection === 'staleness') {
+                html = sTitle('🗓 Staleness') +
+                    tRow('stale_days','staleness','Stale Threshold (days)', c.staleness.stale_days,'int','Files unmodified for longer than this are flagged stale') +
+                    bRow('detect_versions','staleness','Detect Versions', c.staleness.detect_versions,'Flag older file versions when a newer versioned file exists alongside') +
+                    lRow('junk_patterns','staleness','Junk Patterns', c.staleness.junk_patterns,'Glob patterns, one per line — matched files are marked for trash') +
+                    lRow('temp_patterns','staleness','Temp Patterns', c.staleness.temp_patterns,'Backup and temp file patterns, one per line');
+            } else if (ffSection === 'ignore') {
+                html = sTitle('🚫 Ignore Rules') +
+                    lRow('patterns','ignore','Ignored Patterns', c.ignore.patterns,'Directories and glob patterns to skip entirely, one per line');
+            } else if (ffSection === 'watch') {
+                html = sTitle('👁 Watch Mode') +
+                    lRow('watch_dirs','watch','Watch Directories', c.watch.watch_dirs,'Directories to monitor for changes, one per line') +
+                    tRow('scan_delay_seconds','watch','Scan Delay (s)', c.watch.scan_delay_seconds,'int','Wait this many seconds after the last change before scanning') +
+                    bRow('auto_act','watch','Auto-Act', c.watch.auto_act,'Automatically execute organize actions without confirmation') +
+                    lRow('debounce_patterns','watch','Debounce Patterns', c.watch.debounce_patterns,'Patterns that never trigger a scan, one per line');
+            } else if (ffSection === 'schedule') {
+                html = sTitle('⏰ Schedule') +
+                    bRow('enabled','schedule','Enable Scheduled Scans', c.schedule.enabled,'Run automated scans on the configured cron schedule') +
+                    tRow('schedule_cron','schedule','Cron Expression', c.schedule.schedule_cron,'str','Standard 5-field cron — default runs at 02:00 daily') +
+                    bRow('run_phase_2','schedule','Run Phase 2 Analysis', c.schedule.run_phase_2,'Include embedding and staleness analysis in scheduled runs') +
+                    bRow('auto_act','schedule','Auto-Act on Schedule', c.schedule.auto_act,'Automatically execute organize actions from scheduled scans');
+            }
+            document.getElementById('settingsPanel').innerHTML = html;
+        }
+
+        function sTitle(t) { return '<div class="settings-section-title">' + t + '</div>'; }
+
+        function tRow(key, sec, label, value, type, hint) {
+            var v = (value === null || value === undefined) ? '' : String(value);
+            return '<div class="form-row"><div class="form-label">' + escapeHtml(label) +
+                '<small>' + escapeHtml(hint) + '</small></div><div>' +
+                '<input class="form-input" data-cfg="' + sec + '.' + key + '.' + type +
+                '" value="' + escapeHtml(v) + '"></div></div>';
+        }
+
+        function lRow(key, sec, label, values, hint) {
+            var lines = Array.isArray(values) ? values.join('\n') : '';
+            return '<div class="form-row"><div class="form-label">' + escapeHtml(label) +
+                '<small>' + escapeHtml(hint) + '</small></div><div>' +
+                '<textarea class="form-textarea" data-cfg="' + sec + '.' + key + '.list">' +
+                escapeHtml(lines) + '</textarea></div></div>';
+        }
+
+        function bRow(key, sec, label, value, hint) {
+            var chk = value ? 'checked' : '';
+            var lbl = value ? 'Enabled' : 'Disabled';
+            return '<div class="form-row"><div class="form-label">' + escapeHtml(label) +
+                '<small>' + escapeHtml(hint) + '</small></div><div><div class="toggle-row">' +
+                '<label class="toggle-switch"><input type="checkbox" data-cfg="' + sec + '.' + key + '.bool" ' + chk +
+                ' onchange="this.parentElement.nextElementSibling.textContent=this.checked?\'Enabled\':\'Disabled\'">' +
+                '<span class="toggle-track"></span></label>' +
+                '<span class="toggle-label">' + lbl + '</span></div></div></div>';
+        }
+
+        function rRow(key, sec, label, value, min, max, step, hint) {
+            var pct = Math.round(value * 100) + '%';
+            return '<div class="form-row"><div class="form-label">' + escapeHtml(label) +
+                '<small>' + escapeHtml(hint) + '</small></div><div><div class="range-wrap">' +
+                '<input type="range" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value +
+                '" data-cfg="' + sec + '.' + key + '.float"' +
+                ' oninput="this.nextElementSibling.textContent=Math.round(this.value*100)+\'%\'">' +
+                '<span class="range-val">' + pct + '</span></div></div></div>';
+        }
+
+        async function saveSettings() {
+            flushForm();
+            try {
+                var r = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(ffSettings)
+                });
+                if (r.ok) {
+                    var data = await r.json();
+                    setStatus('Saved to ' + data.path, 'ok');
+                    showToast('Settings saved', 'success');
+                    setTimeout(closeSettings, 700);
+                } else {
+                    var err = await r.json();
+                    setStatus((err.detail || 'Save failed'), 'err');
+                }
+            } catch (_) {
+                localStorage.setItem('fileforge_settings', JSON.stringify(ffSettings));
+                setStatus('Server offline — saved to browser storage', 'warn');
+                showToast('Saved locally', 'warning');
+            }
+        }
+
+        function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+        function moveFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File would be moved to organized folder: ' + file.name, 'success'); }
+        function archiveFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File archived: ' + file.name, 'success'); }
+        function trashFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File sent to trash: ' + file.name, 'warning'); }
+        function deleteFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File permanently deleted: ' + file.name, 'warning'); }
+
+        function exportData() {
+            var json = JSON.stringify(files, null, 2);
+            var blob = new Blob([json], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'fileforge-scan-' + new Date().toISOString().split('T')[0] + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Exported data to JSON file', 'success');
+        }
+
+        document.getElementById('fileModal').addEventListener('click', function(e) { if (e.target.id === 'fileModal') closeModal(); });
+        document.getElementById('settingsModal').addEventListener('click', function(e) { if (e.target.id === 'settingsModal') closeSettings(); });
+
+        var uploadArea = document.getElementById('uploadArea');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function(eventName) { uploadArea.addEventListener(eventName, function(e) { e.preventDefault(); e.stopPropagation(); }); });
+        ['dragenter', 'dragover'].forEach(function(eventName) { uploadArea.addEventListener(eventName, function() { uploadArea.classList.add('dragover'); }); });
+        ['dragleave', 'drop'].forEach(function(eventName) { uploadArea.addEventListener(eventName, function() { uploadArea.classList.remove('dragover'); }); });
+        function simulateScan(fileList) {
+            // Accept dropped files — show a toast; full scan is directory-based
+            var names = fileList.map(function(f) { return f.name; }).join(', ');
+            showToast('Dropped ' + fileList.length + ' file(s): ' + names.slice(0, 80) + '. Use Browse to scan a directory.', 'success');
+        }
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            var filesList = Array.from(e.dataTransfer.files).map(function(f) { return { path: f.webkitRelativePath || f.name, name: f.name, size: f.size, lastModified: f.lastModified, type: f.type }; });
+            simulateScan(filesList);
+        });
+
+        // On page load, load the most recent session (first 500 records)
+        (async function initLatestSession() {
+            try {
+                var r = await fetch('/api/sessions');
+                if (!r.ok) return;
+                var data = await r.json();
+                if (data.sessions && data.sessions.length > 0) {
+                    var latest = data.sessions[0];
+                    var sr = await fetch('/api/session/' + latest.id + '?limit=500&offset=0');
+                    if (sr.ok) {
+                        var sdata = await sr.json();
+                        _applyRecords(sdata.records, sdata.total);
+                        if (sdata.total > (sdata.records || []).length) {
+                            showToast(
+                                'Large session: showing first 500 of ' +
+                                sdata.total.toLocaleString() + ' files',
+                                'warning'
+                            );
+                        }
+                    }
+                }
+            } catch (_) {
+                // Server may not be available yet — silently skip
+            }
+        })();
+
+        updateStats();
+    </script>
+</body>
+</html>

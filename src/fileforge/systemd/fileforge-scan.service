@@ -1,0 +1,12 @@
+[Unit]
+Description=FileForge Automated File Organization Service
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/fileforge scan %h/Documents --phase-2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

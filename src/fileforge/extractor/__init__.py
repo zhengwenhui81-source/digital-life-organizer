@@ -1,0 +1,58 @@
+"""Content extraction dispatcher — routes files to the right extractor."""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+from fileforge.extractor import docx as _docx
+from fileforge.extractor import image as _image
+from fileforge.extractor import pdf as _pdf
+from fileforge.extractor import text as _text
+from fileforge.extractor import xlsx as _xlsx
+
+_log = logging.getLogger(__name__)
+
+# Map extension → extractor module. Expand as phases add more extractors.
+_DISPATCH: dict[str, object] = {}
+
+for ext in _text.TEXT_EXTENSIONS:
+    _DISPATCH[ext] = _text
+
+_DISPATCH[".docx"] = _docx
+_DISPATCH[".pdf"] = _pdf
+_DISPATCH[".xlsx"] = _xlsx
+_DISPATCH[".xlsm"] = _xlsx
+
+for ext in _image.IMAGE_EXTENSIONS:
+    _DISPATCH[ext] = _image
+
+
+def extract_snippet(path: Path, max_chars: int = 2000) -> str | None:
+    """Extract a content snippet from a file using the appropriate extractor.
+
+    Args:
+        path: Path to the file to extract from.
+        max_chars: Maximum characters in the returned snippet.
+
+    Returns:
+        Extracted text, or None if the file type is unsupported or unreadable.
+    """
+    ext = path.suffix.lower()
+    module = _DISPATCH.get(ext)
+    if module is None:
+        return None
+    try:
+        return module.extract(path, max_chars=max_chars)
+    except PermissionError:
+        _log.warning("Permission denied reading %s", path)
+        return None
+    except UnicodeDecodeError:
+        _log.debug("Cannot decode %s as text (binary file?)", path)
+        return None
+    except OSError as e:
+        _log.warning("OS error reading %s: %s", path, e)
+        return None
+    except Exception:
+        _log.error("Unexpected error extracting %s", path, exc_info=True)
+        return None
