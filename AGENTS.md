@@ -134,3 +134,45 @@ Examples:
 - `fix(agent): handle failed tool call`
 - `test(version): add version grouping cases`
 - `docs(api): update tool contract`
+
+## 9. External Reference Projects
+
+The only upstream codebase currently integrated into this repository is FileForge.
+
+The following repositories are reference-only and are primarily intended for Developer A / backend Agent development.
+
+### AI-File-Organizer-Agent
+
+Use as a reference for:
+- Agent planning flow
+- plan preview
+- user approval before file operations
+- tool-calling workflow
+- Plan → Approve → Execute interaction pattern
+
+Do NOT:
+- copy the entire project into this repository
+- replace the existing FileForge architecture with it
+- introduce its dependencies unless a specific feature requires them
+
+### Cairn
+
+Use as a reference for:
+- file tool interface design
+- semantic file search patterns
+- MCP-style filesystem tools
+- read/search/move/tag tool abstractions
+
+Do NOT:
+- migrate Cairn wholesale
+- introduce MCP as a mandatory MVP dependency
+- replace existing FileForge file operations when they can be reused
+
+### Developer B
+
+Developer B does not need to study or integrate these repositories for frontend work.
+
+Developer B should primarily rely on:
+- existing FileForge frontend
+- `API_CONTRACT.md`
+- backend APIs implemented by Developer A
