@@ -14,7 +14,10 @@ The project is based on an existing file-management codebase and should reuse wo
 
 ## 2. Code Ownership
 
-### Developer A — Agent Core
+### Developer A — Agent Core / Backend Orchestration
+
+Branch: `feature/agent-core`
+
 Owns:
 - `src/fileforge/agent/**`
 - `src/fileforge/tools/**`
@@ -23,30 +26,63 @@ Owns:
 
 Responsible for:
 - Planner
-- Tool Calling
+- Tool Calling / Tool Router
 - Executor
 - Approval Gate
 - Verification
 - task state and execution flow
+- Agent API endpoints
 
-Must not modify Developer B owned paths unless explicitly agreed.
+Developer A decides **what to do and in what order**. Developer A should call shared document-intelligence tools rather than reimplementing their algorithms.
 
-### Developer B — Document Intelligence & Product Integration
+Must not modify Developer B or Developer C owned paths unless explicitly agreed.
+
+### Developer B — Frontend / Product Experience
+
+Branch: `feature/frontend`
+
+Owns:
+- `frontend/**`
+- `demo/**`
+- frontend mock data and UI integration code
+
+Responsible for:
+- Agent workspace UI
+- natural-language task input
+- plan/progress display
+- version/conflict/missing-item presentation
+- approval controls
+- final result/package presentation
+- loading/error states
+- frontend API integration
+- demo presentation data
+
+Developer B does not implement Agent Core or document-analysis algorithms.
+
+Must not modify Developer A or Developer C owned paths unless explicitly agreed.
+
+### Developer C — Document Intelligence / Backend Tools
+
+Branch: `feature/document-intelligence`
+
 Owns:
 - `src/fileforge/document/**`
 - `src/fileforge/package/**`
-- `frontend/**`
-- `demo/**`
+- document-intelligence tests
 
 Responsible for:
-- document parsing
+- document parsing and normalization
 - version grouping and comparison
+- semantic change summaries
 - conflict detection
 - requirement extraction
-- package generation
-- frontend integration and demo data
+- missing-material matching
+- package generation logic
+- document-intelligence ToolResult outputs
 
-Must not modify Developer A owned paths unless explicitly agreed.
+Developer C decides **how a specific file-analysis task is performed**. Developer C does not control Agent planning or execution order.
+
+Must not modify Developer A or Developer B owned paths unless explicitly agreed.
 
 ## 3. Shared Interfaces
 
@@ -60,7 +96,9 @@ The following are shared contracts and may not be renamed or changed unilaterall
 - public tool names
 - API request/response payloads
 
-Any shared-interface change must be reflected in `API_CONTRACT.md` first and agreed by both developers.
+Any shared-interface change must be reflected in `API_CONTRACT.md` first and agreed by the team before implementation.
+
+Developer A and Developer C must integrate through the shared tool contracts. Developer B consumes the stable backend API and must not invent a second set of field names for mock data.
 
 ## 4. AI Coding Rules
 
@@ -75,15 +113,16 @@ Before editing code, every AI coding agent must:
 During implementation:
 1. Reuse existing FileForge functionality whenever possible.
 2. Do not rewrite working upstream modules without a concrete reason.
-3. Do not modify files owned by the other developer unless explicitly requested.
+3. Do not modify files owned by another developer unless explicitly requested.
 4. Do not rename public interfaces without approval.
 5. Do not add dependencies unless necessary.
 6. Do not perform broad refactors while implementing a feature.
 7. Keep changes minimal and scoped to the requested task.
-8. Add or update tests for new logic.
+8. Add or update tests for new backend logic.
+9. Frontend mock data must follow `API_CONTRACT.md` exactly.
 
 After implementation:
-1. Run relevant tests.
+1. Run relevant tests or frontend checks.
 2. List changed files.
 3. Explain why each file changed.
 4. Report any shared-interface/API changes.
@@ -114,21 +153,23 @@ Primary branches:
 - `main`: stable milestone/demo branch
 - `dev`: integration branch
 - `feature/agent-core`: Developer A
-- `feature/document-intelligence`: Developer B
+- `feature/frontend`: Developer B
+- `feature/document-intelligence`: Developer C
 
 Workflow:
 1. Work on your assigned feature branch.
 2. Commit small, focused changes.
-3. Push the branch.
-4. Open a pull request into `dev`.
-5. The other developer reviews before merge.
+3. Push only your assigned feature branch during normal development.
+4. Open a pull request into `dev` after a coherent feature or milestone is ready.
+5. At least one other developer reviews before merge.
 6. Merge `dev` into `main` only for stable milestones.
 
 ### Direct Push Restrictions
 
 - Direct pushes to `main` and `dev` are forbidden for normal development.
 - Developer A must develop and push only on `feature/agent-core` unless the team explicitly agrees otherwise.
-- Developer B must develop and push only on `feature/document-intelligence` unless the team explicitly agrees otherwise.
+- Developer B must develop and push only on `feature/frontend` unless the team explicitly agrees otherwise.
+- Developer C must develop and push only on `feature/document-intelligence` unless the team explicitly agrees otherwise.
 - All normal feature integration must go through Pull Requests into `dev`.
 - `main` may only receive stable milestone/demo changes from `dev`.
 - AI coding agents must never switch to, commit to, or push directly to `main` or `dev` as part of normal feature work.
@@ -137,9 +178,11 @@ Workflow:
 
 Examples:
 - `feat(agent): add structured planner`
-- `feat(document): add docx parser`
+- `feat(tools): wrap file search tool`
+- `feat(document): add normalized parser`
 - `feat(version): add version grouping`
 - `feat(package): add package builder`
+- `feat(frontend): add agent workspace`
 - `fix(agent): handle failed tool call`
 - `test(version): add version grouping cases`
 - `docs(api): update tool contract`
@@ -148,9 +191,13 @@ Examples:
 
 The only upstream codebase currently integrated into this repository is FileForge.
 
-The following repositories are reference-only and are primarily intended for Developer A / backend Agent development.
+### FileForge
+
+FileForge is the actual codebase used as the project foundation. All developers should reuse existing FileForge functionality before creating replacements.
 
 ### AI-File-Organizer-Agent
+
+Reference-only, primarily for Developer A.
 
 Use as a reference for:
 - Agent planning flow
@@ -166,6 +213,8 @@ Do NOT:
 
 ### Cairn
 
+Reference-only, primarily for Developer A.
+
 Use as a reference for:
 - file tool interface design
 - semantic file search patterns
@@ -179,9 +228,14 @@ Do NOT:
 
 ### Developer B
 
-Developer B does not need to study or integrate these repositories for frontend work.
+Developer B does not need to study or integrate AI-File-Organizer-Agent or Cairn for frontend work.
 
 Developer B should primarily rely on:
 - existing FileForge frontend
 - `API_CONTRACT.md`
 - backend APIs implemented by Developer A
+- document-analysis results exposed through the shared backend contract
+
+### Developer C
+
+Developer C should primarily study and reuse FileForge extractors, analysis modules and file actions relevant to document intelligence. AI-File-Organizer-Agent and Cairn are optional references, not required dependencies for Developer C.
