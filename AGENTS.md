@@ -124,6 +124,15 @@ Workflow:
 5. The other developer reviews before merge.
 6. Merge `dev` into `main` only for stable milestones.
 
+### Direct Push Restrictions
+
+- Direct pushes to `main` and `dev` are forbidden for normal development.
+- Developer A must develop and push only on `feature/agent-core` unless the team explicitly agrees otherwise.
+- Developer B must develop and push only on `feature/document-intelligence` unless the team explicitly agrees otherwise.
+- All normal feature integration must go through Pull Requests into `dev`.
+- `main` may only receive stable milestone/demo changes from `dev`.
+- AI coding agents must never switch to, commit to, or push directly to `main` or `dev` as part of normal feature work.
+
 ## 8. Commit Convention
 
 Examples:
