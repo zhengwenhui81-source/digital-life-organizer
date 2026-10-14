@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FileForge — File Organizer</title>
+    <title>Digital Life Organizer — Agent Workbench</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -388,23 +388,112 @@
             .form-row { grid-template-columns: 1fr; gap: 0.4rem; }
             .form-label { padding-top: 0; }
         }
+
+        /* Agent workspace: extends existing FileForge components. */
+        [hidden] { display: none !important; }
+        body { background: var(--dark); }
+        .brand-icon, .btn-primary, .progress-bar { background: var(--blue); }
+        .brand-text h1 { font-size: 1.3rem; }
+        .brand-text small { color: var(--silver); opacity: .7; }
+        .workspace-nav { display: flex; gap: .5rem; margin: 1.5rem 0; flex-wrap: wrap; }
+        .workspace-nav button { background: rgba(255,255,255,.05); color: var(--silver); }
+        .workspace-nav button[aria-selected="true"] { background: rgba(43,125,233,.2); color: white; }
+        .agent-card { padding: 1.4rem; margin-bottom: 1rem; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: rgba(255,255,255,.04); min-width: 0; }
+        .agent-card h2 { font-size: 1.1rem; color: white; margin-bottom: .8rem; }
+        .agent-card h3 { font-size: 1rem; color: white; margin-bottom: .6rem; }
+        .agent-label { display: block; margin: .8rem 0 .35rem; }
+        .agent-path { display: flex; gap: .5rem; }
+        .agent-path input { min-width: 0; }
+        .agent-footer { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-top: 1rem; }
+        .agent-note { font-size: .85rem; opacity: .75; }
+        .agent-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1rem; }
+        .agent-panel { padding: 1rem; background: rgba(0,0,0,.15); border-radius: 8px; min-width: 0; }
+        .agent-step { display: grid; grid-template-columns: 1.5rem minmax(0,1fr) auto; gap: .7rem; align-items: start; padding: .8rem 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+        .agent-step small { display: block; opacity: .75; overflow-wrap: anywhere; }
+        .agent-step[data-status="completed"] .step-symbol { color: var(--success); }
+        .agent-step[data-status="running"] .step-symbol { color: var(--blue); }
+        .agent-step[data-status="failed"] .step-symbol { color: var(--danger); }
+        .agent-step[data-status="awaiting_approval"] .step-symbol { color: var(--warning); }
+        .approval-card { border-left: 4px solid var(--warning); }
+        .agent-error { color: var(--danger); margin-top: .75rem; }
+        .agent-item { margin: .65rem 0; overflow-wrap: anywhere; }
+        .agent-path-text { font-family: 'IBM Plex Mono', monospace; overflow-wrap: anywhere; font-size: .85rem; }
+        .agent-summary { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .agent-summary strong { display: block; color: white; }
+        button:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+        @media (max-width: 900px) { .agent-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 600px) {
+            header { padding: 1rem; } .container { padding-left: .75rem; padding-right: .75rem; }
+            .agent-card { padding: 1rem; } .agent-path { flex-wrap: wrap; }
+            .agent-step { grid-template-columns: 1.2rem minmax(0,1fr); }
+            .agent-step > .badge { grid-column: 2; justify-self: start; }
+        }
     </style>
 </head>
 <body>
     <header>
         <div class="header-content">
             <div class="brand">
-                <div class="brand-icon">FF</div>
-                <div class="brand-text"><h1>FileForge<span>Organizer</span></h1></div>
+                <div class="brand-icon">DL</div>
+                <div class="brand-text"><h1>Digital Life Organizer</h1><small>Local AI File Agent</small></div>
             </div>
             <div class="nav-actions">
-                <button class="btn btn-primary" onclick="openBrowser()"><span>📁</span> Scan Files</button>
+                <button class="btn btn-primary" onclick="switchWorkspaceView('files'); openBrowser()"><span>📁</span> Scan Files</button>
                 <button class="btn btn-secondary" onclick="showSettings()"><span>⚙️</span> Settings</button>
             </div>
         </div>
     </header>
 
     <main class="container">
+        <nav class="workspace-nav" aria-label="Workspace views">
+            <button id="agentViewTab" class="btn" role="tab" aria-selected="true" aria-controls="agentWorkspace" onclick="switchWorkspaceView('agent')">Agent Workspace</button>
+            <button id="filesViewTab" class="btn" role="tab" aria-selected="false" aria-controls="filesWorkspace" onclick="switchWorkspaceView('files')">Files</button>
+        </nav>
+        <section id="agentWorkspace" aria-labelledby="agentViewTab">
+            <div class="agent-card">
+                <h2>1. Task Input</h2>
+                <p class="agent-note">Goal → Plan → Analysis → Approval → Result</p>
+                <label class="agent-label" for="agentWorkspacePath">Workspace</label>
+                <div class="agent-path">
+                    <input id="agentWorkspacePath" class="form-input" placeholder="E:\Hackthon\demo\sample_workspace">
+                    <button id="agentBrowse" class="btn btn-secondary" onclick="openBrowser('agentWorkspacePath')">Browse</button>
+                </div>
+                <label class="agent-label" for="agentGoal">Natural Language Goal</label>
+                <textarea id="agentGoal" class="form-textarea" rows="6" placeholder="帮我准备生成式人工智能黑客松报名资料。
+根据比赛通知找到需要提交的文件，
+同一材料如果有多个版本选择最新版本，
+检查不同通知有没有冲突，
+缺少的材料告诉我，
+最后生成一个报名资料包。
+执行文件操作前先让我确认。"></textarea>
+                <div class="agent-footer">
+                    <label for="agentMode">Mode</label>
+                    <select id="agentMode" class="filter-select"><option value="mock">Mock Mode</option><option value="real">Real API (not available)</option></select>
+                    <label for="agentScenario">Mock scenario</label>
+                    <select id="agentScenario" class="filter-select"><option value="happy">Happy path</option><option value="failed">Analysis failure</option></select>
+                    <button id="runAgent" class="btn btn-primary" disabled onclick="runAgent()">Run Agent</button>
+                    <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Mock Mode</span>
+                </div>
+                <p id="agentModeNote" class="agent-note">Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。</p>
+                <p id="agentError" class="agent-error" role="alert" hidden></p>
+            </div>
+            <div class="agent-card"><h2>2. Agent Plan</h2><div id="agentPlan" aria-live="polite"><p class="agent-note">运行任务后显示计划。</p></div></div>
+            <div class="agent-card"><h2>3. Analysis Results</h2>
+                <div class="agent-grid">
+                    <div class="agent-panel"><h3>Version Groups</h3><div id="agentVersions" class="agent-note">等待分析结果。</div></div>
+                    <div class="agent-panel"><h3>Conflicts</h3><div id="agentConflicts" class="agent-note">等待分析结果。</div></div>
+                    <div class="agent-panel"><h3>Required Materials</h3><div id="agentMaterials" class="agent-note">等待材料清单。</div></div>
+                </div>
+            </div>
+            <div class="agent-card approval-card"><h2>4. Pending Actions · User Approval</h2>
+                <p class="agent-note">文件操作需要明确确认。当前仅模拟 COPY 与 MOVE / ARCHIVE。</p>
+                <div id="agentActions">等待操作预览。</div>
+                <div class="agent-footer"><button id="rejectAgent" class="btn btn-secondary" disabled onclick="decideAgent(false)">Cancel</button><button id="approveAgent" class="btn btn-primary" disabled onclick="decideAgent(true)">Approve &amp; Execute</button></div>
+            </div>
+            <div class="agent-card"><h2>5. Final Result</h2><div id="agentFinal">等待任务完成。</div><button id="copyPackagePath" class="btn btn-secondary btn-sm" hidden onclick="copyPackagePath()">Copy Path</button></div>
+        </section>
+        <section id="filesWorkspace" hidden aria-labelledby="filesViewTab">
+
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-label">Total Files</div><div class="stat-value" id="stat-total">0</div><div class="stat-sub" id="stat-size">0 B</div></div>
             <div class="stat-card warning"><div class="stat-label">Duplicates</div><div class="stat-value" id="stat-duplicates">0</div><div class="stat-sub" id="stat-saved">0 B recoverable</div></div>
@@ -452,6 +541,7 @@
                 <tbody id="fileTableBody"><tr><td colspan="6" class="empty-state"><h3>No files scanned yet</h3><p>Select a directory above to begin scanning</p></td></tr></tbody>
             </table>
         </div>
+        </section>
     </main>
 
     <div class="modal-overlay" id="fileModal"><div class="modal"><div class="modal-header"><h2 id="modalTitle">File Details</h2><button class="close-btn" onclick="closeModal()">&times;</button></div><div class="modal-body" id="modalBody"><p class="loading">Select a file to view details</p></div></div></div>
@@ -501,14 +591,110 @@
                 <div class="browser-cur-path" id="browserCurPath"></div>
                 <div style="display:flex;gap:0.5rem;">
                     <button class="btn btn-secondary btn-sm" onclick="closeBrowser()">Cancel</button>
-                    <button class="btn btn-primary btn-sm" onclick="selectDirectory()">Select This Folder</button>
+                    <button id="browserSelect" class="btn btn-primary btn-sm" disabled onclick="selectDirectory()">Select This Folder</button>
                 </div>
             </div>
         </div>
     </div>
     <div class="toast-container" id="toastContainer"></div>
 
+    <script src="/static/agent-mock.js"></script>
+    <script src="/static/agent-api.js"></script>
     <script>
+        // State
+        const agentState = { task: null, busy: false, timer: null, report: null };
+        const byId = id => document.getElementById(id);
+        function switchWorkspaceView(view) {
+            byId('agentWorkspace').hidden = view !== 'agent';
+            byId('filesWorkspace').hidden = view !== 'files';
+            byId('agentViewTab').setAttribute('aria-selected', String(view === 'agent'));
+            byId('filesViewTab').setAttribute('aria-selected', String(view === 'files'));
+        }
+        // Rendering
+        function updateAgentControls() {
+            byId('runAgent').disabled = agentState.busy || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
+            ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario'].forEach(id => byId(id).disabled = agentState.busy);
+            byId('runAgent').textContent = agentState.busy ? 'Running…' : 'Run Agent';
+            const awaiting = agentState.task && agentState.task.status === 'awaiting_approval';
+            byId('approveAgent').disabled = byId('rejectAgent').disabled = !awaiting || agentState.decisionBusy;
+            byId('agentScenario').hidden = byId('agentMode').value !== 'mock';
+        }
+        function agentError(message) {
+            byId('agentError').hidden = !message;
+            byId('agentError').textContent = message || '';
+            if (message) showToast(message, 'error');
+        }
+        function renderAgent(snapshot) {
+            agentState.task = snapshot.task;
+            byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (AgentAPI.mode === 'mock' ? 'Mock Mode' : 'Real API');
+            const symbols = {pending:'○',running:'●',completed:'✓',failed:'✕',awaiting_approval:'⚠',skipped:'－'};
+            byId('agentPlan').innerHTML = snapshot.plan.steps.map(step => '<div class="agent-step" data-status="' + escapeHtml(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + escapeHtml(step.description) + '<small>' + escapeHtml(step.tool) + ' · ' + escapeHtml(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + escapeHtml(step.risk) + '</span></div>').join('');
+            const result = tool => snapshot.results.find(r => r.tool === tool && r.success);
+            const versions = result('compare_versions'), conflicts = result('detect_conflicts'), materials = result('extract_requirements');
+            if (versions) byId('agentVersions').innerHTML = versions.data.groups.map(group => group.documents.map(doc => '<div class="agent-item">' + escapeHtml(doc.filename) + (doc.file_id === group.newest_candidate ? ' <span class="badge badge-success">Latest</span>' : '') + '<small style="display:block">' + escapeHtml(doc.modified_time) + '</small></div>').join('') + group.changes.map(change => '<p>' + escapeHtml(change) + '</p>').join('')).join('');
+            if (conflicts) byId('agentConflicts').innerHTML = conflicts.data.conflicts.map(c => '<p><span class="badge badge-warning">报名截止日期存在冲突</span></p>' + c.values.map(v => '<div class="agent-item">' + escapeHtml(v.source) + '<br><strong>' + escapeHtml(v.value) + '</strong></div>').join('') + '<p>Recommendation: ' + escapeHtml(c.recommendation) + '</p>').join('');
+            if (materials) byId('agentMaterials').innerHTML = materials.data.required_documents.map(name => '<div class="agent-item">' + (snapshot.missing_items.includes(name) ? '⚠ ' + escapeHtml(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + escapeHtml(name)) + '</div>').join('');
+            if (snapshot.operations.length) byId('agentActions').innerHTML = snapshot.operations.map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + escapeHtml(o.source) + '<br>→ ' + escapeHtml(o.destination) + '</p></div>').join('');
+            updateAgentControls();
+        }
+        function renderAgentReport(report) {
+            agentState.report = report;
+            const counts = [['Found Files',report.found_files.length],['Version Groups',report.version_groups.length],['Conflicts',report.conflicts.length],['Missing Items',report.missing_items.length],['Operations',report.operations.length]];
+            byId('agentFinal').innerHTML = '<h3 style="color:var(--success)">Task Completed · Mock</h3><div class="agent-summary">' + counts.map(([label,count]) => '<div>' + label + '<strong>' + count + '</strong></div>').join('') + '</div><p>' + escapeHtml(report.summary) + '</p><p class="agent-label">Package Path (Mock)</p><p class="agent-path-text">' + escapeHtml(report.package_path) + '</p>';
+            byId('copyPackagePath').hidden = false;
+        }
+        // Event handlers
+        async function pollAgent() {
+            try {
+                const snapshot = await AgentAPI.getTask(agentState.task.task_id);
+                renderAgent(snapshot);
+                if (snapshot.task.status === 'completed') {
+                    renderAgentReport(await AgentAPI.getReport(snapshot.task.task_id));
+                    agentState.busy = false; updateAgentControls();
+                } else if (snapshot.task.status === 'failed') {
+                    agentState.busy = false; agentError(snapshot.error || 'Task failed'); updateAgentControls();
+                } else if (snapshot.task.status !== 'awaiting_approval') {
+                    agentState.timer = setTimeout(pollAgent, 800);
+                }
+            } catch (error) {
+                agentState.busy = false; agentError(error.message); updateAgentControls();
+            }
+        }
+        async function runAgent() {
+            if (agentState.busy) return;
+            if (!byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim()) { agentError('请填写 Workspace 和 Goal。'); return; }
+            agentState.busy = true; agentState.task = null; agentState.report = null; clearTimeout(agentState.timer); agentError('');
+            ['agentVersions','agentConflicts','agentMaterials'].forEach(id => byId(id).textContent = '等待分析结果。');
+            byId('agentActions').textContent = '等待操作预览。'; byId('agentFinal').textContent = '等待任务完成。'; byId('copyPackagePath').hidden = true;
+            byId('agentPlan').textContent = '正在创建任务…'; updateAgentControls();
+            try {
+                AgentAPI.setMode(byId('agentMode').value);
+                agentState.task = await AgentAPI.createTask({user_goal: byId('agentGoal').value.trim(), workspace: byId('agentWorkspacePath').value.trim(), scenario: byId('agentScenario').value});
+                byId('agentTaskStatus').textContent = agentState.task.status + ' · Mock Mode';
+                agentState.timer = setTimeout(pollAgent, 600);
+            } catch (error) {
+                agentState.busy = false; byId('agentPlan').textContent = '未能创建任务。'; byId('agentTaskStatus').textContent = 'Request failed · ' + byId('agentMode').value; agentError(error.message); updateAgentControls();
+            }
+        }
+        async function decideAgent(approve) {
+            if (agentState.decisionBusy || !agentState.task || agentState.task.status !== 'awaiting_approval') return;
+            agentState.decisionBusy = true; updateAgentControls();
+            try {
+                agentState.task = await AgentAPI[approve ? 'approveTask' : 'rejectTask'](agentState.task.task_id);
+                await pollAgent();
+            } catch (error) { agentError(error.message); }
+            finally { agentState.decisionBusy = false; updateAgentControls(); }
+        }
+        async function copyPackagePath() {
+            try { await navigator.clipboard.writeText(agentState.report.package_path); showToast('Package path copied', 'success'); }
+            catch (error) { agentError('无法复制路径，请手动复制显示的 Package Path。'); }
+        }
+        ['agentWorkspacePath','agentGoal'].forEach(id => byId(id).addEventListener('input', updateAgentControls));
+        byId('agentMode').addEventListener('change', () => {
+            byId('agentModeNote').textContent = byId('agentMode').value === 'mock' ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。' : 'Real API 尚未实现。运行将显示明确错误，不会自动切换到 Mock。';
+            updateAgentControls();
+        });
+        // Existing FileForge logic
         let files = [];
         let currentFilter = { type: 'files', search: '', category: 'all', status: 'all' };
 
@@ -536,10 +722,13 @@
 
         // ── Directory Browser ─────────────────────────────────────────────
         var browserCurrentPath = '';
+        var browserTargetInput = 'scanPath';
 
-        function openBrowser() {
+        function openBrowser(targetInput) {
+            browserTargetInput = targetInput || 'scanPath';
+            browserCurrentPath = '';
             document.getElementById('browserModal').classList.add('active');
-            var cur = document.getElementById('scanPath').value.trim();
+            var cur = document.getElementById(browserTargetInput).value.trim();
             fetchDirectory(cur || '~');
         }
 
@@ -548,12 +737,15 @@
         }
 
         async function fetchDirectory(path) {
+            browserCurrentPath = '';
+            document.getElementById('browserSelect').disabled = true;
             document.getElementById('dirList').innerHTML = '<div class="dir-empty">Loading…</div>';
             try {
                 var r = await fetch('/api/browse?path=' + encodeURIComponent(path));
                 if (!r.ok) { document.getElementById('dirList').innerHTML = '<div class="dir-empty">Cannot read directory.</div>'; return; }
                 var data = await r.json();
                 browserCurrentPath = data.path;
+                document.getElementById('browserSelect').disabled = false;
                 document.getElementById('browserCurPath').textContent = data.path;
                 renderBreadcrumb(data.path, data.parent);
                 renderDirList(data.entries, data.parent);
@@ -565,22 +757,20 @@
         // Serialize a value as a JS literal that is safe inside a double-quoted HTML attribute.
         // JSON.stringify wraps strings in " which would prematurely close onclick="...".
         // Replacing " with &quot; lets the HTML parser decode it back to " before JS executes.
-        function jsq(val) { return JSON.stringify(val).replace(/"/g, '&quot;'); }
+        function jsq(val) { return escapeHtml(JSON.stringify(val)); }
 
         function renderBreadcrumb(path, parent) {
-            var parts = path.replace(/\\/g, '/').split('/').filter(Boolean);
+            var normalized = path.replace(/\\/g, '/');
+            var drive = /^[A-Za-z]:\//.test(normalized);
+            var unc = normalized.startsWith('//');
+            var parts = normalized.split('/').filter(Boolean);
             var html = '';
-            if (parent !== null) {
-                html += '<button onclick="fetchDirectory(' + jsq(parent) + ')">..</button><span class="bc-sep">/</span>';
-            }
-            var accumulated = '';
+            if (parent !== null) html += '<button onclick="fetchDirectory(' + jsq(parent) + ')">..</button><span class="bc-sep">/</span>';
+            var accumulated = drive ? '' : unc ? '//' : normalized.startsWith('/') ? '/' : '';
             parts.forEach(function(part, i) {
-                accumulated += (i === 0 ? '/' : '') + part + (i < parts.length - 1 ? '/' : '');
-                if (i < parts.length - 1) {
-                    html += '<button onclick="fetchDirectory(' + jsq(accumulated) + ')">' + escapeHtml(part) + '</button><span class="bc-sep">/</span>';
-                } else {
-                    html += '<span style="color:var(--silver)">' + escapeHtml(part) + '</span>';
-                }
+                accumulated += part + (i < parts.length - 1 || (drive && i === 0) ? '/' : '');
+                if (i < parts.length - 1) html += '<button onclick="fetchDirectory(' + jsq(accumulated) + ')">' + escapeHtml(part) + '</button><span class="bc-sep">/</span>';
+                else html += '<span>' + escapeHtml(part) + '</span>';
             });
             document.getElementById('browserBreadcrumb').innerHTML = html;
         }
@@ -602,13 +792,15 @@
 
         function selectEntry(path) {
             browserCurrentPath = path;
-            document.getElementById('scanPath').value = path;
+            document.getElementById(browserTargetInput).value = path;
+            updateAgentControls();
             closeBrowser();
         }
 
         function selectDirectory() {
             if (browserCurrentPath) {
-                document.getElementById('scanPath').value = browserCurrentPath;
+                document.getElementById(browserTargetInput).value = browserCurrentPath;
+                updateAgentControls();
             }
             closeBrowser();
         }
@@ -777,15 +969,7 @@
                 html += '<td>' + badges + '</td>';
                 html += '<td><div class="actions">';
                 html += '<button class="action-btn btn-view" onclick="viewFile(\'' + escapeHtml(f.id) + '\')">👁️</button>';
-                if (f.is_duplicate) {
-                    html += '<button class="action-btn btn-delete" onclick="deleteFile(\'' + escapeHtml(f.id) + '\')">Delete</button>';
-                } else {
-                    html += '<button class="action-btn btn-move" onclick="moveFile(\'' + escapeHtml(f.id) + '\')">Move</button>';
-                    html += '<button class="action-btn btn-archive" onclick="archiveFile(\'' + escapeHtml(f.id) + '\')">Archive</button>';
-                }
-                if (f.is_stale) {
-                    html += '<button class="action-btn btn-delete" onclick="trashFile(\'' + escapeHtml(f.id) + '\')">Trash</button>';
-                }
+                html += '<button class="action-btn" disabled title="Not available in Agent MVP">File operations unavailable</button>';
                 html += '</div></td>';
                 html += '</tr>';
             });
@@ -845,12 +1029,12 @@
             var html = '';
             html += '<div class="detail-row"><div class="detail-label">File Path</div><div class="detail-value">' + escapeHtml(file.path) + '</div></div>';
             html += '<div class="detail-row"><div class="detail-label">Size</div><div class="detail-value">' + formatBytes(file.size_bytes) + '</div></div>';
-            html += '<div class="detail-row"><div class="detail-label">Category</div><div class="detail-value">' + (file.category || 'Uncategorized') + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">Category</div><div class="detail-value">' + escapeHtml(file.category || 'Uncategorized') + '</div></div>';
             html += '<div class="detail-row"><div class="detail-label">Modified</div><div class="detail-value">' + formatDatetime(file.modified_at) + '</div></div>';
             html += '<div class="detail-row"><div class="detail-label">Status</div><div class="detail-value">' + badges + '</div></div>';
             if (file.is_duplicate) html += '<div class="detail-row"><div class="detail-label">Duplicate Of</div><div class="detail-value">' + escapeHtml(file.duplicate_of) + '</div></div>';
             if (file.is_stale) html += '<div class="detail-row"><div class="detail-label">Stale Reason</div><div class="detail-value">' + escapeHtml(file.stale_reason) + '</div></div>';
-            html += '<div class="detail-row"><div class="detail-label">SHA-256</div><div class="detail-value">' + (file.sha256 || 'Not computed') + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">SHA-256</div><div class="detail-value">' + escapeHtml(file.sha256 || 'Not computed') + '</div></div>';
             document.getElementById('modalBody').innerHTML = html;
             document.getElementById('fileModal').classList.add('active');
         }
@@ -967,14 +1151,14 @@
                 html = sTitle('👁 Watch Mode') +
                     lRow('watch_dirs','watch','Watch Directories', c.watch.watch_dirs,'Directories to monitor for changes, one per line') +
                     tRow('scan_delay_seconds','watch','Scan Delay (s)', c.watch.scan_delay_seconds,'int','Wait this many seconds after the last change before scanning') +
-                    bRow('auto_act','watch','Auto-Act', c.watch.auto_act,'Automatically execute organize actions without confirmation') +
+                    '<p class="agent-note">Auto-Act: Not available in Agent MVP</p>' +
                     lRow('debounce_patterns','watch','Debounce Patterns', c.watch.debounce_patterns,'Patterns that never trigger a scan, one per line');
             } else if (ffSection === 'schedule') {
                 html = sTitle('⏰ Schedule') +
                     bRow('enabled','schedule','Enable Scheduled Scans', c.schedule.enabled,'Run automated scans on the configured cron schedule') +
                     tRow('schedule_cron','schedule','Cron Expression', c.schedule.schedule_cron,'str','Standard 5-field cron — default runs at 02:00 daily') +
                     bRow('run_phase_2','schedule','Run Phase 2 Analysis', c.schedule.run_phase_2,'Include embedding and staleness analysis in scheduled runs') +
-                    bRow('auto_act','schedule','Auto-Act on Schedule', c.schedule.auto_act,'Automatically execute organize actions from scheduled scans');
+                    '<p class="agent-note">Auto-Act: Not available in Agent MVP</p>';
             }
             document.getElementById('settingsPanel').innerHTML = html;
         }
@@ -1043,10 +1227,10 @@
         }
 
         function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
-        function moveFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File would be moved to organized folder: ' + file.name, 'success'); }
-        function archiveFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File archived: ' + file.name, 'success'); }
-        function trashFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File sent to trash: ' + file.name, 'warning'); }
-        function deleteFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File permanently deleted: ' + file.name, 'warning'); }
+        function moveFile(id) { showToast('Not available in Agent MVP', 'warning'); }
+        function archiveFile(id) { showToast('Not available in Agent MVP', 'warning'); }
+        function trashFile(id) { showToast('Not available in Agent MVP', 'warning'); }
+        function deleteFile(id) { showToast('Not available in Agent MVP', 'warning'); }
 
         function exportData() {
             var json = JSON.stringify(files, null, 2);
