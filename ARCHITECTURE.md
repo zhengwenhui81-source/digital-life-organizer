@@ -11,13 +11,15 @@ Core flow:
 ```text
 User Goal
    ↓
-Planner
+Frontend Task Workspace
    ↓
-Search / Scan
+Agent Core
    ↓
-Document Intelligence
+Planner / Tool Routing
    ↓
-Version & Conflict Analysis
+Document Intelligence + FileForge Tools
+   ↓
+Version / Conflict / Requirement Analysis
    ↓
 Action Plan
    ↓
@@ -40,20 +42,22 @@ Final Package / Report
 6. No automatic delete or overwrite.
 7. Focus on one stable end-to-end demo before adding optional features.
 8. Prefer explainable intermediate results over hidden autonomous behavior.
+9. Keep Frontend, Agent Orchestration and Document Intelligence as separate responsibilities connected through shared contracts.
 
 ## 3. High-Level Modules
 
 ```text
 Digital Life Organizer
 │
-├── Frontend
+├── Frontend / Product Experience
 │   ├── natural-language task input
 │   ├── plan/progress display
 │   ├── conflict/version display
 │   ├── approval UI
+│   ├── loading/error handling
 │   └── final result display
 │
-├── Agent Layer
+├── Agent Core / Orchestration
 │   ├── Planner
 │   ├── Tool Router
 │   ├── Executor
@@ -81,8 +85,9 @@ Digital Life Organizer
 
 ## 4. Responsibility Split
 
-### Agent Core
-Responsible for deciding **what to do next**.
+### Developer A — Agent Core
+
+Responsible for deciding **what to do next and in what order**.
 
 Inputs:
 - user goal
@@ -96,11 +101,16 @@ Outputs:
 - execution status
 - verification result
 
-### Document Intelligence
-Responsible for understanding **what the files mean**.
+Developer A owns orchestration, not the internal algorithms of document-intelligence tools.
+
+### Developer C — Document Intelligence
+
+Responsible for understanding **what the files mean and how a file-analysis task is performed**.
 
 Inputs:
-- file paths / parsed documents
+- file paths
+- parsed documents
+- task requirements
 
 Outputs:
 - normalized document content
@@ -108,9 +118,44 @@ Outputs:
 - semantic differences
 - conflicts
 - requirement checklist
-- package generation results
+- missing-item results
+- package-generation results
 
-## 5. Risk Model
+Developer C exposes these capabilities through the shared contracts so Agent Core can call them without depending on private implementation details.
+
+### Developer B — Frontend
+
+Responsible for presenting **what the Agent is doing and what the user must decide**.
+
+Inputs:
+- Task / Plan / ToolResult / FinalReport APIs
+
+Outputs:
+- task submission UI
+- progress visualization
+- version/conflict/missing-item cards
+- approval interaction
+- final package/report presentation
+
+Developer B must not duplicate backend decision logic in the browser. Mock data must use the same contract as the real backend.
+
+## 5. Integration Direction
+
+The intended dependency direction is:
+
+```text
+Frontend (Developer B)
+        ↓ API
+Agent Core (Developer A)
+        ↓ Tool Contract
+Document Intelligence (Developer C)
+        ↓
+FileForge / Local File System
+```
+
+Integration should preserve this direction. Avoid direct frontend dependencies on internal document-intelligence modules.
+
+## 6. Risk Model
 
 ### LOW
 Can execute automatically:
@@ -138,7 +183,7 @@ Forbidden in MVP:
 - overwrite
 - destructive batch modification
 
-## 6. MVP Demo Scenario
+## 7. MVP Demo Scenario
 
 Primary demo prompt:
 
@@ -158,7 +203,7 @@ Expected flow:
 11. Archive old versions only if explicitly approved.
 12. Verify the package and produce a final report.
 
-## 7. Non-Goals for First MVP
+## 8. Non-Goals for First MVP
 
 Do not prioritize:
 - multi-agent orchestration
@@ -170,7 +215,7 @@ Do not prioritize:
 - autonomous destructive actions
 - complex real-time background monitoring
 
-## 8. Future Extensions
+## 9. Future Extensions
 
 Possible later additions:
 - MCP server exposing file tools
