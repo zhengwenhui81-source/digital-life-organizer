@@ -1,0 +1,62 @@
+name: Import FileForge Upstream
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/import-fileforge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Clone FileForge upstream
+        run: |
+          git clone --depth 1 --branch master https://github.com/bitsandbots/fileforge.git /tmp/fileforge
+
+      - name: Import FileForge source while preserving project governance files
+        run: |
+          rsync -a \
+            --exclude '.git/' \
+            --exclude 'AGENTS.md' \
+            --exclude 'CLAUDE.md' \
+            --exclude 'README.md' \
+            /tmp/fileforge/ ./
+
+          mkdir -p docs/upstream
+          cp /tmp/fileforge/README.md docs/upstream/FILEFORGE_README.md
+          cp /tmp/fileforge/AGENTS.md docs/upstream/FILEFORGE_AGENTS.md
+
+          UPSTREAM_SHA=$(git -C /tmp/fileforge rev-parse HEAD)
+          cat > docs/upstream/FILEFORGE_SOURCE.md <<EOF
+          # FileForge Upstream Source
+
+          - Repository: https://github.com/bitsandbots/fileforge
+          - Branch: master
+          - Imported commit: ${UPSTREAM_SHA}
+          - License: MIT (see repository LICENSE)
+
+          This project uses FileForge as its open-source base. Top-level project governance files such as AGENTS.md and README.md are maintained by the Digital Life Organizer team and are not overwritten during import.
+          EOF
+
+      - name: Commit imported base
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'chore: import FileForge upstream base'
+          git push origin HEAD:dev
