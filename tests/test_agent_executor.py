@@ -79,6 +79,34 @@ def test_results_are_available_to_argument_resolver(tmp_path: Path) -> None:
         assert results[0]["data"]["files"][0]["filename"] == "source.txt"
         return {"source": str(source), "destination": str(tmp_path / "copy.txt")}
 
+    execute(state, ToolRouter(), resolver=resolve)
+    assert state["status"] == "awaiting_approval"
     execute(state, ToolRouter(), approve_all=True, resolver=resolve)
     assert state["status"] == "completed"
     assert (tmp_path / "copy.txt").exists()
+
+
+def test_approval_executes_displayed_arguments(tmp_path: Path) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("content")
+    plan = _plan(tmp_path)
+    plan["steps"][1]["arguments"] = {}
+    state = create_execution(plan)
+
+    def preview(step: dict, results: list[dict]) -> dict:
+        if step["tool"] == "list_files":
+            return step["arguments"]
+        return {"source": str(source), "destination": str(tmp_path / "approved.txt")}
+
+    execute(state, ToolRouter(), resolver=preview)
+    assert state["pending_operations"][0]["arguments"]["destination"].endswith(
+        "approved.txt"
+    )
+
+    def changed(step: dict, results: list[dict]) -> dict:
+        return {"source": str(source), "destination": str(tmp_path / "changed.txt")}
+
+    execute(state, ToolRouter(), approve_all=True, resolver=changed)
+    assert state["status"] == "completed"
+    assert (tmp_path / "approved.txt").exists()
+    assert not (tmp_path / "changed.txt").exists()

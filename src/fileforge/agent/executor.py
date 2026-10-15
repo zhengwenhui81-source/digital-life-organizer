@@ -99,9 +99,15 @@ def execute(
     """Run pending steps until completion, failure, or a medium-risk step."""
     if state["status"] in {"completed", "failed"}:
         return state
+    if state["status"] == "awaiting_approval" and not approve_all:
+        return state
+    approved_preview = {
+        item["step_id"]: item for item in state["pending_operations"]
+    } if approve_all else {}
     state["status"] = "executing"
     state["pending_operations"] = []
-    for step in state["plan"]["steps"]:
+    steps = state["plan"]["steps"]
+    for index, step in enumerate(steps):
         if step["status"] == "completed":
             continue
         if step["status"] not in {"pending", "awaiting_approval"}:
@@ -109,21 +115,36 @@ def execute(
         name = step["tool"]
         if name not in TOOL_RISKS or step["risk"] != TOOL_RISKS[name]:
             raise ValueError("Execution contains an invalid tool risk")
-        if step["risk"] == "medium" and not approve_all:
-            step["status"] = "awaiting_approval"
+        if step["risk"] == "medium" and step["step_id"] not in approved_preview:
+            preview = []
+            for candidate in steps[index:]:
+                if candidate["risk"] != "medium":
+                    break
+                arguments = (
+                    resolver(candidate, state["results"])
+                    if resolver else candidate["arguments"]
+                )
+                if not isinstance(arguments, dict):
+                    raise ValueError("Resolver must return tool arguments")
+                item = deepcopy(candidate)
+                item["arguments"] = deepcopy(arguments)
+                item["status"] = "awaiting_approval"
+                preview.append(item)
+                candidate["status"] = "awaiting_approval"
             state["status"] = "awaiting_approval"
-            state["pending_operations"] = [
-                deepcopy(s) for s in state["plan"]["steps"]
-                if s["risk"] == "medium" and s["status"] != "completed"
-            ]
+            state["pending_operations"] = preview
             return state
         arguments = (
-            resolver(step, state["results"]) if resolver else step["arguments"]
+            approved_preview[step["step_id"]]["arguments"]
+            if step["step_id"] in approved_preview
+            else resolver(step, state["results"]) if resolver else step["arguments"]
         )
         if not isinstance(arguments, dict):
             raise ValueError("Resolver must return tool arguments")
         step["status"] = "running"
-        result = router.call(name, arguments, approved=approve_all)
+        result = router.call(
+            name, arguments, approved=step["step_id"] in approved_preview
+        )
         state["results"].append(result)
         if not result["success"]:
             step["status"] = "failed"
