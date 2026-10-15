@@ -123,6 +123,13 @@ Outputs:
 
 Developer C exposes these capabilities through the shared contracts so Agent Core can call them without depending on private implementation details.
 
+The document-reading layer generates path-based `Document.file_id` values as
+specified in [API_CONTRACT.md](API_CONTRACT.md#path-based-document-identity).
+This requires no file registry, database schema change, or extra Agent parameter.
+Identity tracking across moves/renames is outside this first version. The current
+public `fileforge.document.read_document(path)` implementation supports TXT only;
+PDF, DOCX, and XLSX integration remains planned.
+
 ### Developer B — Frontend
 
 Responsible for presenting **what the Agent is doing and what the user must decide**.
