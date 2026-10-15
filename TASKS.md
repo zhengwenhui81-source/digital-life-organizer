@@ -9,7 +9,7 @@ This file tracks the MVP development plan for the four-developer Vibe Coding wor
 - [x] Create `feature/agent-core`
 - [x] Create `feature/document-intelligence`
 - [x] Create `feature/frontend`
-- [ ] Create `feature/task-intelligence`
+- [x] Create `feature/task-intelligence`
 - [x] Add shared collaboration rules
 - [x] Add architecture definition
 - [x] Add API contract
