@@ -98,6 +98,18 @@ The following are shared contracts and may not be renamed or changed unilaterall
 
 Any shared-interface change must be reflected in `API_CONTRACT.md` first and agreed by the team before implementation.
 
+Confirmed collaboration decisions must also be reflected in this `AGENTS.md`
+and relevant architecture, task, or usage documentation. Keep complete interface
+rules in `API_CONTRACT.md`; other documents should link to them rather than
+maintain duplicate specifications. Mark only implemented and verified task scope
+as complete.
+
+Document identity follows the confirmed
+[path-based Document identity contract](API_CONTRACT.md#path-based-document-identity).
+The document-reading layer owns ID generation; callers use `read_document(path)`
+without supplying an ID. IDs identify normalized paths, so consumers must not
+assume identity survives moving or renaming a file or changing environments.
+
 Developer A and Developer C must integrate through the shared tool contracts. Developer B consumes the stable backend API and must not invent a second set of field names for mock data.
 
 ## 4. AI Coding Rules
