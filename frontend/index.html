@@ -428,6 +428,43 @@
             .agent-step { grid-template-columns: 1.2rem minmax(0,1fr); }
             .agent-step > .badge { grid-column: 2; justify-self: start; }
         }
+
+        /* Demo presentation refinements; existing layout and palette retained. */
+        .header-content, .nav-actions { flex-wrap: wrap; }
+        .brand-text, .agent-footer > *, .agent-step > div { min-width: 0; }
+        .agent-footer .filter-select { max-width: 100%; }
+        .agent-card { overflow-wrap: anywhere; }
+        .agent-note { color: var(--silver); }
+        .agent-placeholder { color: var(--silver); opacity: .55; padding: .65rem 0; font-size: .9rem; }
+        .agent-error { color: var(--silver); padding: 1rem 1.2rem; border: 1px solid rgba(231,76,60,.35); border-left: 4px solid var(--danger); border-radius: 8px; background: rgba(231,76,60,.07); }
+        .agent-error strong { display: block; color: var(--danger); margin-bottom: .3rem; }
+        .agent-error[data-kind="409"] { border-color: rgba(243,156,18,.4); background: rgba(243,156,18,.06); }
+        .agent-error[data-kind="409"] strong { color: var(--warning); }
+        #agentTaskStatus { font-size: .85rem; padding: .25rem .6rem; border-radius: 5px; background: rgba(43,125,233,.12); }
+        #agentWorkspacePath { font-family: 'IBM Plex Mono', monospace; font-size: .85rem; }
+        .agent-path-text, .agent-card pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
+        .agent-path .btn { flex-shrink: 0; white-space: nowrap; }
+        .result-card[data-completed="true"] { border-color: rgba(39,174,96,.45); border-top: 3px solid var(--success); background: rgba(39,174,96,.045); }
+        .result-heading { font-size: 1.4rem !important; color: var(--success) !important; }
+        .result-summary { margin: .6rem 0 1.2rem; }
+        .result-path { padding: 1rem; border: 1px solid rgba(43,125,233,.3); background: rgba(43,125,233,.08); border-radius: 8px; margin: .8rem 0 1rem; }
+        .result-path .agent-label { margin-top: 0; font-size: .8rem; color: var(--silver); }
+        .result-path .agent-path-text { color: var(--light); font-size: .95rem; }
+        .result-warning { color: var(--warning); margin: .8rem 0; }
+        .agent-summary { gap: .6rem; }
+        .agent-summary > div { padding: .6rem .85rem; background: rgba(255,255,255,.035); border-radius: 6px; font-size: .8rem; }
+        .agent-summary strong { font-size: 1.3rem; }
+        #copyPackagePath { margin-top: .3rem; }
+        button:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+        button:disabled { box-shadow: none !important; }
+        @media (min-width: 901px) and (max-width: 1400px) {
+            header { padding: .7rem 1.5rem; }
+            .workspace-nav { margin: 1rem 0; }
+            .agent-card { padding: 1.1rem; }
+            #agentGoal { min-height: 120px; height: 138px; }
+            .agent-footer { gap: .6rem; }
+            .agent-footer .btn, .agent-footer .filter-select { padding: .6rem .9rem; font-size: .9rem; }
+        }
     </style>
 </head>
 <body>
@@ -469,29 +506,29 @@
                 <div class="agent-footer">
                     <label for="agentMode">Mode</label>
                     <select id="agentMode" class="filter-select"><option value="mock">Mock Mode</option><option value="real">Real Mode</option></select>
-                    <label for="agentScenario">Mock scenario</label>
+                    <label id="agentScenarioLabel" for="agentScenario">Mock Scenario</label>
                     <select id="agentScenario" class="filter-select"><option value="happy">Happy path</option><option value="failed">Analysis failure</option></select>
                     <button id="runAgent" class="btn btn-primary" disabled onclick="runAgent()">Run Agent</button>
                     <button id="refreshAgent" class="btn btn-secondary btn-sm" disabled onclick="pollAgent()">Refresh Task Status</button>
                     <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Mock Mode</span>
                 </div>
                 <p id="agentModeNote" class="agent-note">Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。</p>
-                <p id="agentError" class="agent-error" role="alert" hidden></p>
+                <div id="agentError" class="agent-error" role="alert" hidden><strong id="agentErrorTitle"></strong><span id="agentErrorDetail"></span></div>
             </div>
-            <div class="agent-card"><h2>2. Agent Plan</h2><div id="agentPlan" aria-live="polite"><p class="agent-note">运行任务后显示计划。</p></div></div>
+            <div class="agent-card"><h2>2. Agent Plan</h2><div id="agentPlan" aria-live="polite"><p class="agent-placeholder">Run a task to see the execution plan.</p></div></div>
             <div class="agent-card"><h2>3. Analysis Results</h2>
                 <div class="agent-grid">
-                    <div class="agent-panel"><h3>Version Groups</h3><div id="agentVersions" class="agent-note">等待分析结果。</div></div>
-                    <div class="agent-panel"><h3>Conflicts</h3><div id="agentConflicts" class="agent-note">等待分析结果。</div></div>
-                    <div class="agent-panel"><h3>Required Materials</h3><div id="agentMaterials" class="agent-note">等待材料清单。</div></div>
+                    <div class="agent-panel"><h3>Version Groups</h3><div id="agentVersions" class="agent-placeholder">Analysis results will appear here.</div></div>
+                    <div class="agent-panel"><h3>Conflicts</h3><div id="agentConflicts" class="agent-placeholder">Analysis results will appear here.</div></div>
+                    <div class="agent-panel"><h3>Required Materials</h3><div id="agentMaterials" class="agent-placeholder">Analysis results will appear here.</div></div>
                 </div>
             </div>
             <div class="agent-card approval-card"><h2>4. Pending Actions · User Approval</h2>
-                <p class="agent-note">文件操作需要明确确认。当前仅模拟 COPY 与 MOVE / ARCHIVE。</p>
-                <div id="agentActions">等待操作预览。</div>
-                <div class="agent-footer"><button id="rejectAgent" class="btn btn-secondary" disabled onclick="decideAgent(false)">Cancel</button><button id="approveAgent" class="btn btn-primary" disabled onclick="decideAgent(true)">Approve &amp; Execute</button></div>
+                <p class="agent-note">Review the source and destination before approving any file operations.</p>
+                <div id="agentActions" class="agent-placeholder">No file operations are waiting for approval.</div>
+                <div class="agent-footer"><button id="rejectAgent" class="btn btn-secondary" disabled onclick="decideAgent(false)">Reject</button><button id="approveAgent" class="btn btn-primary" disabled onclick="decideAgent(true)">Approve &amp; Execute</button></div>
             </div>
-            <div class="agent-card"><h2>5. Final Result</h2><div id="agentFinal">等待任务完成。</div><button id="copyPackagePath" class="btn btn-secondary btn-sm" hidden onclick="copyPackagePath()">Copy Path</button></div>
+            <div id="agentFinalCard" class="agent-card result-card"><h2>5. Final Result</h2><div id="agentFinal" class="agent-placeholder">Final report will appear after the task completes.</div><button id="copyPackagePath" class="btn btn-primary" hidden onclick="copyPackagePath()">Copy Path</button></div>
         </section>
         <section id="filesWorkspace" hidden aria-labelledby="filesViewTab">
 
@@ -603,7 +640,7 @@
     <script src="/static/agent-api.js"></script>
     <script>
         // State
-        const agentState = {task: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false};
+        const agentState = {task: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null};
         const byId = id => document.getElementById(id);
         const agentArray = value => Array.isArray(value) ? value.filter(item => item != null) : [];
         const agentText = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
@@ -629,18 +666,43 @@
             const locked = agentState.busy || agentState.pollInFlight || agentState.decisionBusy;
             byId('runAgent').disabled = locked || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
             ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario'].forEach(id => byId(id).disabled = locked);
-            byId('runAgent').textContent = agentState.busy ? 'Running…' : 'Run Agent';
+            byId('runAgent').textContent = agentState.busy ? 'Running...' : 'Run Agent';
             const awaiting = agentState.task?.status === 'awaiting_approval';
             const preview = agentState.snapshot?.preview_id;
             const hasPreview = agentState.mode === 'mock' || (typeof preview === 'string' && preview.length > 0);
             byId('approveAgent').disabled = byId('rejectAgent').disabled = !awaiting || !hasPreview || !agentState.approvalValid || agentState.decisionBusy || agentState.pollInFlight;
             byId('refreshAgent').disabled = !agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode;
+            byId('approveAgent').textContent = agentState.decisionBusy && agentState.decisionAction === 'approve' ? 'Executing...' : 'Approve & Execute';
+            byId('rejectAgent').textContent = agentState.decisionBusy && agentState.decisionAction === 'reject' ? 'Rejecting...' : 'Reject';
             byId('agentScenario').hidden = byId('agentMode').value !== 'mock';
+            byId('agentScenarioLabel').hidden = byId('agentMode').value !== 'mock';
         }
-        function agentError(message) {
-            byId('agentError').hidden = !message;
-            byId('agentError').textContent = message || '';
-            if (message) showToast(message, 'error');
+        function agentError(message, title) {
+            const detail = agentText(message);
+            const status = detail.match(/HTTP (400|404|409|500|501)/)?.[1];
+            const titles = {'400':'Invalid task request · HTTP 400','404':'Agent endpoint not found · HTTP 404','409':'Task state changed · HTTP 409','500':'Agent server error · HTTP 500','501':'Agent endpoint unavailable · HTTP 501'};
+            byId('agentError').hidden = !detail;
+            byId('agentError').dataset.kind = status || '';
+            byId('agentErrorTitle').textContent = title || titles[status] || (/unavailable|network|fetch|timed out/i.test(detail) ? 'Backend unavailable' : 'Task needs attention');
+            // Keep errors readable; the existing network inspector retains full responses.
+            byId('agentErrorDetail').textContent = detail.length > 700 ? detail.slice(0,700) + '…' : detail;
+        }
+        function resetAgentPresentation() {
+            clearTimeout(agentState.copyTimer);
+            agentState.report = null;
+            byId('agentPlan').innerHTML = '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
+            ['agentVersions','agentConflicts','agentMaterials'].forEach(id => {
+                byId(id).textContent = 'Analysis results will appear here.';
+                byId(id).classList.add('agent-placeholder');
+            });
+            byId('agentActions').textContent = 'No file operations are waiting for approval.';
+            byId('agentActions').classList.add('agent-placeholder');
+            byId('agentFinal').textContent = 'Final report will appear after the task completes.';
+            byId('agentFinal').classList.add('agent-placeholder');
+            byId('agentFinalCard').dataset.completed = 'false';
+            byId('copyPackagePath').hidden = true;
+            byId('copyPackagePath').textContent = 'Copy Path';
+            agentError('');
         }
         function agentDetails(value) {
             return value == null ? '<p class="agent-note">结果结构尚未提供。</p>' : '<pre style="white-space:pre-wrap;overflow-wrap:anywhere">' + agentEscape(value) + '</pre>';
@@ -653,34 +715,44 @@
             const mock = agentState.mode === 'mock';
             byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (mock ? 'Mock Mode' : 'Real Mode');
             const symbols = {pending:'○',running:'●',completed:'✓',failed:'✕',awaiting_approval:'⚠',skipped:'－'};
-            byId('agentPlan').innerHTML = agentArray(snapshot.plan?.steps).map(step => '<div class="agent-step" data-status="' + agentEscape(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + agentEscape(step.description) + '<small>' + agentEscape(step.tool) + ' · ' + agentEscape(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + agentEscape(step.risk) + '</span></div>').join('') || '<p class="agent-note">等待后端提供 Plan。</p>';
+            byId('agentPlan').innerHTML = agentArray(snapshot.plan?.steps).map(step => '<div class="agent-step" data-status="' + agentEscape(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + agentEscape(step.description) + '<small>' + agentEscape(step.tool) + ' · ' + agentEscape(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + agentEscape(step.risk) + '</span></div>').join('') || '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
             const results = agentArray(snapshot.results);
             const result = tool => results.filter(r => r.tool === tool).at(-1);
             const versions = result('compare_versions'), conflicts = result('detect_conflicts'), materials = result('extract_requirements');
-            ['agentVersions','agentConflicts','agentMaterials'].forEach(id => byId(id).textContent = '等待分析结果。');
+            ['agentVersions','agentConflicts','agentMaterials'].forEach(id => byId(id).textContent = 'Analysis results will appear here.');
             if (versions) {
+                byId('agentVersions').classList.remove('agent-placeholder');
                 byId('agentVersions').innerHTML = versions.success && Array.isArray(versions.data?.groups) ? agentArray(versions.data.groups).map(group =>
                     agentArray(group.documents).map(doc => '<div class="agent-item">' + agentEscape(doc.filename) + (mock && doc.file_id === group.newest_candidate ? ' <span class="badge badge-success">Latest</span>' : '') + '<small style="display:block">' + agentEscape(doc.modified_time) + '</small></div>').join('') +
                     (mock ? agentArray(group.changes).map(change => '<p>' + agentEscape(change) + '</p>').join('') : '<p class="agent-note">候选版本与变更结构待确认，显示后端原始详情：</p>' + agentDetails({newest_candidate: group.newest_candidate, changes: group.changes}))
                 ).join('') || '暂无版本组。' : agentDetails(versions.error || versions.data);
             }
+            if (conflicts) byId('agentConflicts').classList.remove('agent-placeholder');
+            if (materials) byId('agentMaterials').classList.remove('agent-placeholder');
             if (conflicts) byId('agentConflicts').innerHTML = conflicts.success && Array.isArray(conflicts.data?.conflicts) ? agentArray(conflicts.data.conflicts).map(c => '<p><span class="badge badge-warning">' + agentEscape(c.field) + '</span></p>' + agentArray(c.values).map(v => '<div class="agent-item">' + agentEscape(v.source) + '<br><strong>' + agentEscape(v.value) + '</strong></div>').join('') + '<p>Recommendation: ' + agentEscape(c.recommendation) + '</p>').join('') || '未检测到冲突。' : agentDetails(conflicts.error || conflicts.data);
             if (materials) byId('agentMaterials').innerHTML = materials.success && Array.isArray(materials.data?.required_documents) ? agentArray(materials.data.required_documents).map(name => '<div class="agent-item">' + (mock ? (agentArray(snapshot.missing_items).includes(name) ? '⚠ ' + agentEscape(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + agentEscape(name)) : '• ' + agentEscape(name)) + '</div>').join('') + (mock ? '' : '<p class="agent-note">匹配与缺失结果结构尚未提供。</p>') : agentDetails(materials.error || materials.data);
             if (mock) {
-                byId('agentActions').innerHTML = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('') || '等待操作预览。';
+                byId('agentActions').innerHTML = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('') || 'No file operations are waiting for approval.';
             } else {
                 const operations = agentArray(snapshot.pending_operations);
-                byId('agentActions').innerHTML = operations.map(step => '<div class="agent-item"><span class="badge badge-warning">' + agentEscape(step.tool) + '</span> Risk: ' + agentEscape(step.risk) + '<p>' + agentEscape(step.description) + '</p><small>' + agentEscape(step.step_id) + ' · ' + agentEscape(step.status) + '</small>' + agentDetails(step.arguments) + '</div>').join('') || '后端尚未提供待审批操作。';
+                byId('agentActions').innerHTML = operations.map(step => '<div class="agent-item"><span class="badge badge-warning">' + agentEscape(step.tool) + '</span> Risk: ' + agentEscape(step.risk) + '<p>' + agentEscape(step.description) + '</p><small>' + agentEscape(step.step_id) + ' · ' + agentEscape(step.status) + '</small>' + agentDetails(step.arguments) + '</div>').join('') || 'No file operations are waiting for approval.';
                 if (snapshot.task.status === 'awaiting_approval') byId('agentActions').innerHTML += '<p class="agent-note">' + (typeof snapshot.preview_id === 'string' && snapshot.preview_id ? 'Preview: ' + agentEscape(snapshot.preview_id) : '缺少 preview_id，不能提交审批。请刷新任务状态。') + '</p>';
             }
+            byId('agentActions').classList.toggle('agent-placeholder', !agentArray(mock ? snapshot.operations : snapshot.pending_operations).length);
             updateAgentControls();
         }
         function renderAgentReport(report) {
             if (!report || report.task_id !== agentState.task.task_id || report.status !== 'completed') throw new Error('Invalid FinalReport response');
             agentState.report = report;
             const mock = agentState.mode === 'mock';
-            const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],['Conflicts',report.conflicts],['Missing Items',report.missing_items],['Operations',report.operations]];
-            byId('agentFinal').innerHTML = '<h3 style="color:var(--success)">Task Completed' + (mock ? ' · Mock' : '') + '</h3><div class="agent-summary">' + counts.map(([label,items]) => '<div>' + label + '<strong>' + (Array.isArray(items) ? items.length : '—') + '</strong></div>').join('') + '</div><p>' + agentEscape(report.summary) + '</p><p class="agent-label">Package Path' + (mock ? ' (Mock)' : '') + '</p><p class="agent-path-text">' + agentEscape(report.package_path || '尚未提供') + '</p>';
+            byId('agentFinalCard').dataset.completed = 'true';
+            byId('agentFinal').classList.remove('agent-placeholder');
+            const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],['Missing Items',report.missing_items],['Conflicts',report.conflicts],['Operations',report.operations]];
+            const warnings = [['Missing Items',report.missing_items],['Conflicts',report.conflicts]].filter(([,items]) => agentArray(items).length);
+            byId('agentFinal').innerHTML = '<h3 class="result-heading">✓ Task Completed' + (mock ? ' · Mock' : '') + '</h3><p class="result-summary">' + agentEscape(report.summary) + '</p>' +
+                (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">No package path provided.</p>') +
+                warnings.map(([label,items]) => '<p class="result-warning">⚠ ' + items.length + ' ' + label + ' — review the analysis before submitting materials.</p>').join('') +
+                '<div class="agent-summary">' + counts.filter(([,items]) => Array.isArray(items) && items.length).map(([label,items]) => '<div>' + label + '<strong>' + items.length + '</strong></div>').join('') + '</div>';
             byId('copyPackagePath').hidden = typeof report.package_path !== 'string' || !report.package_path;
         }
         // Event handlers: one sequential timeout loop, never setInterval.
@@ -697,8 +769,9 @@
                 }
             } else if (status === 'failed') {
                 stopAgentPolling();
+                byId('agentFinal').classList.remove('agent-placeholder');
                 byId('agentFinal').textContent = agentState.userRejected ? 'Task stopped — 用户拒绝了待执行的文件操作。' : 'Task failed';
-                agentError(snapshot.error || (agentState.userRejected ? '用户拒绝了待执行的文件操作。' : 'Task failed'));
+                agentError(snapshot.error || (agentState.userRejected ? '用户拒绝了待执行的文件操作。' : 'Task failed'), agentState.userRejected ? 'Task stopped' : 'Task failed');
             } else if (status === 'awaiting_approval') stopAgentPolling();
             else scheduleAgentPolling();
         }
@@ -723,8 +796,7 @@
             stopAgentPolling(); agentState.generation++;
             Object.assign(agentState, {busy: true, task: null, snapshot: null, report: null, userRejected: false, approvalValid: false, mode: byId('agentMode').value});
             agentError('');
-            ['agentVersions','agentConflicts','agentMaterials'].forEach(id => byId(id).textContent = '等待分析结果。');
-            byId('agentActions').textContent = '等待操作预览。'; byId('agentFinal').textContent = '等待任务完成。'; byId('copyPackagePath').hidden = true;
+            resetAgentPresentation();
             byId('agentPlan').textContent = '正在创建任务…'; updateAgentControls();
             try {
                 AgentAPI.setMode(agentState.mode);
@@ -740,7 +812,7 @@
             if (agentState.decisionBusy || agentState.pollInFlight || !agentState.approvalValid || agentState.task?.status !== 'awaiting_approval') return;
             const previewId = agentState.snapshot?.preview_id;
             if (agentState.mode === 'real' && (typeof previewId !== 'string' || !previewId)) { agentError('缺少 preview_id，请刷新任务状态。'); return; }
-            stopAgentPolling(); agentState.decisionBusy = true; agentState.approvalValid = false; updateAgentControls(); agentError('');
+            stopAgentPolling(); agentState.decisionAction = approve ? 'approve' : 'reject'; agentState.decisionBusy = true; agentState.approvalValid = false; updateAgentControls(); agentError('');
             try {
                 const snapshot = await AgentAPI[approve ? 'approveTask' : 'rejectTask'](agentState.task.task_id, previewId);
                 agentState.userRejected = !approve;
@@ -748,19 +820,34 @@
             } catch (error) {
                 // Never repeat a mutation: refresh only, especially after stale approval.
                 if (error.status === 409) {
+                    agentError('HTTP 409 · The approval preview is no longer current. Refreshing the latest task state.');
                     try { await applyAgentSnapshot(await AgentAPI.getTask(agentState.task.task_id)); }
                     catch (refreshError) { agentState.busy = false; agentState.approvalValid = false; agentError(refreshError.message); }
-                    agentError('当前审批预览已失效或任务状态已改变，请检查最新操作。');
+                    agentError('HTTP 409 · The approval preview is no longer current. Refreshing the latest task state. 请检查最新操作。');
                 } else { agentError(error.message + '；请先刷新任务状态，确认操作结果。'); }
-            } finally { agentState.decisionBusy = false; updateAgentControls(); }
+            } finally { agentState.decisionBusy = false; agentState.decisionAction = null; updateAgentControls(); }
         }
         async function copyPackagePath() {
             if (!agentState.report?.package_path) return;
-            try { await navigator.clipboard.writeText(agentState.report.package_path); showToast('Package path copied', 'success'); }
+            try {
+                const path = agentState.report.package_path;
+                await navigator.clipboard.writeText(path);
+                if (agentState.report?.package_path !== path) return;
+                clearTimeout(agentState.copyTimer);
+                byId('copyPackagePath').textContent = 'Copied';
+                agentState.copyTimer = setTimeout(() => { byId('copyPackagePath').textContent = 'Copy Path'; }, 1800);
+            }
             catch (error) { agentError('无法复制路径，请手动复制显示的 Package Path。'); }
         }
         ['agentWorkspacePath','agentGoal'].forEach(id => byId(id).addEventListener('input', updateAgentControls));
         byId('agentMode').addEventListener('change', () => {
+            // Mode is locked during active work; clear only the idle view.
+            if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
+            stopAgentPolling(); agentState.generation++;
+            Object.assign(agentState, {task: null, snapshot: null, report: null, approvalValid: false, userRejected: false, mode: byId('agentMode').value});
+            AgentAPI.setMode(agentState.mode);
+            resetAgentPresentation();
+            byId('agentTaskStatus').textContent = 'Ready · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
             byId('agentModeNote').textContent = byId('agentMode').value === 'mock' ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。' : 'Real Mode：调用正式 Agent API。接口不可用时显示真实错误，不会切换至 Mock。';
             updateAgentControls();
         });
