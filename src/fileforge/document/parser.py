@@ -1,4 +1,4 @@
-"""TXT-only document parsing with path-based document identity."""
+"""Document parsing with path-based document identity."""
 
 from __future__ import annotations
 
@@ -10,24 +10,27 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fileforge.extractor import text
+from fileforge.extractor import docx, pdf, text, xlsx
 
 
 def read_document(path: str) -> dict[str, Any]:
-    """Return a TXT Document in the shared ToolResult envelope.
+    """Return a Document in the shared ToolResult envelope.
 
     Identity uses the resolved absolute target path, not file contents.
-    Only TXT is supported. Task workspace authorization belongs to the caller.
+    Supports TXT, PDF text layers, DOCX body paragraphs and XLSX cell values.
+    No OCR, DOCX tables or spreadsheet formula calculation is performed.
+    Task workspace authorization belongs to the caller.
     """
-    return _read_txt(path)
+    return _read_document(path)
 
 
-def _read_txt(path: str) -> dict[str, Any]:
-    """Read a complete TXT file using FileForge's existing decoding behavior.
+def _read_document(path: str) -> dict[str, Any]:
+    """Read a complete supported file using FileForge's existing decoding behavior.
 
     No 2000-character snippet limit is applied: sys.maxsize is the maximum
     representable Python string length. The existing extractor reads all bytes,
-    detects encoding with chardet and uses replacement decoding for bad bytes.
+    detects encoding with chardet and uses replacement decoding for bad bytes
+    for TXT. Other formats reuse their respective FileForge extractors.
     Empty/whitespace-only content is an explicit failure, as in the extractor.
     The caller must enforce the task workspace boundary before invoking this
     low-level reader. This function never writes the source file.
@@ -39,16 +42,46 @@ def _read_txt(path: str) -> dict[str, Any]:
         info = source.stat()
         if not stat.S_ISREG(info.st_mode):
             return _failure("Path is not a regular file")
-        if source.suffix.lower() != ".txt":
-            return _failure("Unsupported document format; only TXT is supported")
-        content = text.extract(source, max_chars=sys.maxsize)
-        if content is None:
-            return _failure("Document is empty or contains only whitespace")
+        extension = source.suffix.lower()
+        extractor = {".txt": text, ".pdf": pdf, ".docx": docx, ".xlsx": xlsx}.get(
+            extension
+        )
+        if extractor is None:
+            return _failure(
+                "Unsupported document format; supported: TXT, PDF, DOCX, XLSX"
+            )
+        try:
+            content = extractor.extract(source, max_chars=sys.maxsize)
+        except PermissionError:
+            return _failure("Permission denied reading document")
+        except OSError as exc:
+            return _failure(f"Document read or parse failed: {exc}")
+        except Exception as exc:
+            # Third-party parsers expose different exception types. Preserve
+            # failure rather than using extract_snippet's ambiguous None.
+            return _failure(f"Document parsing failed ({type(exc).__name__}): {exc}")
+        if content is None or not content.strip():
+            if extension == ".txt":
+                return _failure("Document is empty or contains only whitespace")
+            if extension == ".xlsx":
+                return _failure(
+                    "No extractable cell values found in XLSX; formulas use cached "
+                    "results only and cells without cached results are omitted"
+                )
+            if extension == ".docx":
+                return _failure(
+                    "No extractable text found in DOCX body paragraphs; "
+                    "tables, headers and footers are not read"
+                )
+            return _failure(
+                "No extractable text found in PDF text layer; OCR is not performed; "
+                "this result does not determine whether the file is scanned"
+            )
         document = {
             "file_id": file_id,
             "path": str(source),
             "filename": source.name,
-            "extension": ".txt",
+            "extension": extension,
             "text": content,
             "size": info.st_size,
             "modified_time": datetime.fromtimestamp(info.st_mtime, tz=UTC).isoformat(),
@@ -64,7 +97,7 @@ def _read_txt(path: str) -> dict[str, Any]:
         "success": True,
         "tool": "read_document",
         "data": {"document": document},
-        "message": "TXT document read successfully",
+        "message": "Document read successfully",
         "error": None,
     }
 

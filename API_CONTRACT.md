@@ -102,12 +102,35 @@ Rules for the first version:
   failed `ToolResult` envelope: `success=false`, `tool="read_document"`, `data=null`,
   a readable `message` and `error`. No partial successful Document is returned.
 - Keep the public input `{ "path": string }` and existing Document/ToolResult
-  fields unchanged. The first implementation supports TXT only, preserves the
-  existing decoder behavior, and reads the full text without the 2000-character
-  snippet default. Other formats remain unsupported by this entry point.
+  fields unchanged. Supported formats and extraction scope are defined below;
+  all use this same identity rule and envelope.
 
-C1 remains incomplete until its other required formats and tasks are implemented
-and verified.
+### read_document extraction scope
+
+`read_document(path)` supports exactly `.txt`, `.pdf`, `.docx`, and `.xlsx`
+(case-insensitive extensions). It reuses FileForge extractors with an explicit
+full-text limit (`sys.maxsize`), rather than the 2000-character snippet default.
+The complete readable content is held in memory; this is not a streaming reader.
+
+| Format | Supported content | Limits |
+| --- | --- | --- |
+| TXT | Full decoded text using the existing encoding detection and replacement behavior | Whitespace-only/empty content fails |
+| PDF | Text layer across all pages | No OCR or guaranteed table/layout reconstruction; no text does not establish that a file is scanned |
+| DOCX | Body paragraphs in order | Tables, headers, footers, images and other Office content are not read; this is not complete Office extraction |
+| XLSX | Cell values across worksheets in workbook order, with sheet-name headers | Read-only, `data_only=True`; formula caches may be stale, missing caches are omitted, and formulas are never calculated; styles, charts and cell coordinates are not preserved |
+
+XLSM remains unsupported by this public entry point, even though the upstream
+extractor can handle it. Source files are never saved or modified by the reader.
+Parser exceptions and read failures return failed `ToolResult` envelopes with
+readable errors. Successful parsing with no supported text/cell values also
+returns a failed envelope, explicitly describing the absence of extractable
+content rather than reporting a parse error. No partial successful Document is
+returned for an exception. Mixed XLSX content may succeed while uncached formula
+cells are omitted; callers must not assume a complete set of calculated values.
+
+These scope limits apply even to successful Documents. C1 progress and outstanding
+verification are tracked in `TASKS.md`; recognizing four extensions alone does
+not establish complete C1 acceptance.
 
 ### ToolResult
 

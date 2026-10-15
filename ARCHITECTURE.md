@@ -127,8 +127,13 @@ The document-reading layer generates path-based `Document.file_id` values as
 specified in [API_CONTRACT.md](API_CONTRACT.md#path-based-document-identity).
 This requires no file registry, database schema change, or extra Agent parameter.
 Identity tracking across moves/renames is outside this first version. The current
-public `fileforge.document.read_document(path)` implementation supports TXT only;
-PDF, DOCX, and XLSX integration remains planned.
+public `fileforge.document.read_document(path)` dispatches TXT, PDF, DOCX and XLSX
+to existing FileForge extractors, sharing path normalization, ID generation,
+Document assembly and failure envelopes. It reads without the snippet default.
+Extraction covers PDF text layers, DOCX body paragraphs and XLSX cached cell
+values with sheet names; OCR, DOCX tables and spreadsheet calculation remain
+outside scope. See [extraction scope](API_CONTRACT.md#read_document-extraction-scope)
+for complete limitations. No second parser framework or identity service is added.
 
 ### Developer B — Frontend
 
