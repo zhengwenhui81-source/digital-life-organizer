@@ -75,6 +75,40 @@ Allowed PlanStep `status` values:
 }
 ```
 
+### Path-based Document identity
+
+**Status: active, confirmed by the team through the project owner in this session.**
+
+Rules for the first version:
+- The document-reading layer generates `file_id`; no registration service,
+  database table, or additional Agent/public request parameter is introduced.
+- No shared path-normalization helper currently exists. Expand the input using
+  `Path(path).expanduser().resolve()`, resolving relative components and symbolic
+  links to the absolute target path. Use that target for reading and for the
+  Document's `path`, `filename`, and `extension` fields.
+- For ID generation, apply the host's `os.path.normcase()` to the resolved path
+  string (Windows system case/separator normalization; Linux preserves case).
+  Encode that string as UTF-8, then set `file_id` to `"file_"` plus the full
+  lowercase hexadecimal SHA-256 digest (64 hex characters). Do not use Python's
+  built-in `hash()` or random UUIDs.
+- Repeated reads and content changes at the same normalized path preserve the
+  ID. Moving, renaming, or copying to a different normalized path changes the ID.
+  Symbolic links resolving to the same target share the target's ID. A spelling
+  change that normalizes to the same path does not change identity.
+- Stability is limited to consistent path rules in the same runtime environment;
+  IDs are not portable identities across computers, operating systems, or mount
+  locations. This does not implement identity tracking after file moves.
+- Path-resolution, UTF-8 path-encoding, or file-read failure returns the existing
+  failed `ToolResult` envelope: `success=false`, `tool="read_document"`, `data=null`,
+  a readable `message` and `error`. No partial successful Document is returned.
+- Keep the public input `{ "path": string }` and existing Document/ToolResult
+  fields unchanged. The first implementation supports TXT only, preserves the
+  existing decoder behavior, and reads the full text without the 2000-character
+  snippet default. Other formats remain unsupported by this entry point.
+
+C1 remains incomplete until its other required formats and tasks are implemented
+and verified.
+
 ### ToolResult
 
 Every public tool must return this envelope.
@@ -215,7 +249,7 @@ All file changes remain guarded by the backend approval gate. The MVP must not e
 
 ## 5. Public Tool Names
 
-MVP public tools are fixed as follows:
+MVP public tools are fixed as follows.
 
 ### Read-only / analysis tools
 - `list_files`
