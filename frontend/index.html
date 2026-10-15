@@ -468,10 +468,11 @@
 执行文件操作前先让我确认。"></textarea>
                 <div class="agent-footer">
                     <label for="agentMode">Mode</label>
-                    <select id="agentMode" class="filter-select"><option value="mock">Mock Mode</option><option value="real">Real API (not available)</option></select>
+                    <select id="agentMode" class="filter-select"><option value="mock">Mock Mode</option><option value="real">Real Mode</option></select>
                     <label for="agentScenario">Mock scenario</label>
                     <select id="agentScenario" class="filter-select"><option value="happy">Happy path</option><option value="failed">Analysis failure</option></select>
                     <button id="runAgent" class="btn btn-primary" disabled onclick="runAgent()">Run Agent</button>
+                    <button id="refreshAgent" class="btn btn-secondary btn-sm" disabled onclick="pollAgent()">Refresh Task Status</button>
                     <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Mock Mode</span>
                 </div>
                 <p id="agentModeNote" class="agent-note">Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。</p>
@@ -602,21 +603,38 @@
     <script src="/static/agent-api.js"></script>
     <script>
         // State
-        const agentState = { task: null, busy: false, timer: null, report: null };
+        const agentState = {task: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false};
         const byId = id => document.getElementById(id);
+        const agentArray = value => Array.isArray(value) ? value.filter(item => item != null) : [];
+        const agentText = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
+        const agentEscape = value => escapeHtml(agentText(value));
+        const agentActiveStatuses = ['created','planning','executing','verifying'];
         function switchWorkspaceView(view) {
             byId('agentWorkspace').hidden = view !== 'agent';
             byId('filesWorkspace').hidden = view !== 'files';
             byId('agentViewTab').setAttribute('aria-selected', String(view === 'agent'));
             byId('filesViewTab').setAttribute('aria-selected', String(view === 'files'));
         }
+        function stopAgentPolling() { clearTimeout(agentState.timer); agentState.timer = null; }
+        function scheduleAgentPolling() {
+            stopAgentPolling();
+            agentState.timer = setTimeout(() => { agentState.timer = null; pollAgent(); }, 1000);
+        }
+        function validateAgentTask(task) {
+            if (!task || typeof task.task_id !== 'string' || !task.task_id || ![...agentActiveStatuses,'awaiting_approval','completed','failed'].includes(task.status)) throw new Error('Invalid Agent Task response');
+            if (agentState.task && agentState.task.task_id !== task.task_id) throw new Error('Task response does not match the current task');
+        }
         // Rendering
         function updateAgentControls() {
-            byId('runAgent').disabled = agentState.busy || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
-            ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario'].forEach(id => byId(id).disabled = agentState.busy);
+            const locked = agentState.busy || agentState.pollInFlight || agentState.decisionBusy;
+            byId('runAgent').disabled = locked || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
+            ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario'].forEach(id => byId(id).disabled = locked);
             byId('runAgent').textContent = agentState.busy ? 'Running…' : 'Run Agent';
-            const awaiting = agentState.task && agentState.task.status === 'awaiting_approval';
-            byId('approveAgent').disabled = byId('rejectAgent').disabled = !awaiting || agentState.decisionBusy;
+            const awaiting = agentState.task?.status === 'awaiting_approval';
+            const preview = agentState.snapshot?.preview_id;
+            const hasPreview = agentState.mode === 'mock' || (typeof preview === 'string' && preview.length > 0);
+            byId('approveAgent').disabled = byId('rejectAgent').disabled = !awaiting || !hasPreview || !agentState.approvalValid || agentState.decisionBusy || agentState.pollInFlight;
+            byId('refreshAgent').disabled = !agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode;
             byId('agentScenario').hidden = byId('agentMode').value !== 'mock';
         }
         function agentError(message) {
@@ -624,74 +642,126 @@
             byId('agentError').textContent = message || '';
             if (message) showToast(message, 'error');
         }
+        function agentDetails(value) {
+            return value == null ? '<p class="agent-note">结果结构尚未提供。</p>' : '<pre style="white-space:pre-wrap;overflow-wrap:anywhere">' + agentEscape(value) + '</pre>';
+        }
         function renderAgent(snapshot) {
+            validateAgentTask(snapshot?.task);
             agentState.task = snapshot.task;
-            byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (AgentAPI.mode === 'mock' ? 'Mock Mode' : 'Real API');
+            agentState.snapshot = snapshot;
+            agentState.approvalValid = snapshot.task.status === 'awaiting_approval';
+            const mock = agentState.mode === 'mock';
+            byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (mock ? 'Mock Mode' : 'Real Mode');
             const symbols = {pending:'○',running:'●',completed:'✓',failed:'✕',awaiting_approval:'⚠',skipped:'－'};
-            byId('agentPlan').innerHTML = snapshot.plan.steps.map(step => '<div class="agent-step" data-status="' + escapeHtml(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + escapeHtml(step.description) + '<small>' + escapeHtml(step.tool) + ' · ' + escapeHtml(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + escapeHtml(step.risk) + '</span></div>').join('');
-            const result = tool => snapshot.results.find(r => r.tool === tool && r.success);
+            byId('agentPlan').innerHTML = agentArray(snapshot.plan?.steps).map(step => '<div class="agent-step" data-status="' + agentEscape(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + agentEscape(step.description) + '<small>' + agentEscape(step.tool) + ' · ' + agentEscape(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + agentEscape(step.risk) + '</span></div>').join('') || '<p class="agent-note">等待后端提供 Plan。</p>';
+            const results = agentArray(snapshot.results);
+            const result = tool => results.filter(r => r.tool === tool).at(-1);
             const versions = result('compare_versions'), conflicts = result('detect_conflicts'), materials = result('extract_requirements');
-            if (versions) byId('agentVersions').innerHTML = versions.data.groups.map(group => group.documents.map(doc => '<div class="agent-item">' + escapeHtml(doc.filename) + (doc.file_id === group.newest_candidate ? ' <span class="badge badge-success">Latest</span>' : '') + '<small style="display:block">' + escapeHtml(doc.modified_time) + '</small></div>').join('') + group.changes.map(change => '<p>' + escapeHtml(change) + '</p>').join('')).join('');
-            if (conflicts) byId('agentConflicts').innerHTML = conflicts.data.conflicts.map(c => '<p><span class="badge badge-warning">报名截止日期存在冲突</span></p>' + c.values.map(v => '<div class="agent-item">' + escapeHtml(v.source) + '<br><strong>' + escapeHtml(v.value) + '</strong></div>').join('') + '<p>Recommendation: ' + escapeHtml(c.recommendation) + '</p>').join('');
-            if (materials) byId('agentMaterials').innerHTML = materials.data.required_documents.map(name => '<div class="agent-item">' + (snapshot.missing_items.includes(name) ? '⚠ ' + escapeHtml(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + escapeHtml(name)) + '</div>').join('');
-            if (snapshot.operations.length) byId('agentActions').innerHTML = snapshot.operations.map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + escapeHtml(o.source) + '<br>→ ' + escapeHtml(o.destination) + '</p></div>').join('');
+            ['agentVersions','agentConflicts','agentMaterials'].forEach(id => byId(id).textContent = '等待分析结果。');
+            if (versions) {
+                byId('agentVersions').innerHTML = versions.success && Array.isArray(versions.data?.groups) ? agentArray(versions.data.groups).map(group =>
+                    agentArray(group.documents).map(doc => '<div class="agent-item">' + agentEscape(doc.filename) + (mock && doc.file_id === group.newest_candidate ? ' <span class="badge badge-success">Latest</span>' : '') + '<small style="display:block">' + agentEscape(doc.modified_time) + '</small></div>').join('') +
+                    (mock ? agentArray(group.changes).map(change => '<p>' + agentEscape(change) + '</p>').join('') : '<p class="agent-note">候选版本与变更结构待确认，显示后端原始详情：</p>' + agentDetails({newest_candidate: group.newest_candidate, changes: group.changes}))
+                ).join('') || '暂无版本组。' : agentDetails(versions.error || versions.data);
+            }
+            if (conflicts) byId('agentConflicts').innerHTML = conflicts.success && Array.isArray(conflicts.data?.conflicts) ? agentArray(conflicts.data.conflicts).map(c => '<p><span class="badge badge-warning">' + agentEscape(c.field) + '</span></p>' + agentArray(c.values).map(v => '<div class="agent-item">' + agentEscape(v.source) + '<br><strong>' + agentEscape(v.value) + '</strong></div>').join('') + '<p>Recommendation: ' + agentEscape(c.recommendation) + '</p>').join('') || '未检测到冲突。' : agentDetails(conflicts.error || conflicts.data);
+            if (materials) byId('agentMaterials').innerHTML = materials.success && Array.isArray(materials.data?.required_documents) ? agentArray(materials.data.required_documents).map(name => '<div class="agent-item">' + (mock ? (agentArray(snapshot.missing_items).includes(name) ? '⚠ ' + agentEscape(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + agentEscape(name)) : '• ' + agentEscape(name)) + '</div>').join('') + (mock ? '' : '<p class="agent-note">匹配与缺失结果结构尚未提供。</p>') : agentDetails(materials.error || materials.data);
+            if (mock) {
+                byId('agentActions').innerHTML = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('') || '等待操作预览。';
+            } else {
+                const operations = agentArray(snapshot.pending_operations);
+                byId('agentActions').innerHTML = operations.map(step => '<div class="agent-item"><span class="badge badge-warning">' + agentEscape(step.tool) + '</span> Risk: ' + agentEscape(step.risk) + '<p>' + agentEscape(step.description) + '</p><small>' + agentEscape(step.step_id) + ' · ' + agentEscape(step.status) + '</small>' + agentDetails(step.arguments) + '</div>').join('') || '后端尚未提供待审批操作。';
+                if (snapshot.task.status === 'awaiting_approval') byId('agentActions').innerHTML += '<p class="agent-note">' + (typeof snapshot.preview_id === 'string' && snapshot.preview_id ? 'Preview: ' + agentEscape(snapshot.preview_id) : '缺少 preview_id，不能提交审批。请刷新任务状态。') + '</p>';
+            }
             updateAgentControls();
         }
         function renderAgentReport(report) {
+            if (!report || report.task_id !== agentState.task.task_id || report.status !== 'completed') throw new Error('Invalid FinalReport response');
             agentState.report = report;
-            const counts = [['Found Files',report.found_files.length],['Version Groups',report.version_groups.length],['Conflicts',report.conflicts.length],['Missing Items',report.missing_items.length],['Operations',report.operations.length]];
-            byId('agentFinal').innerHTML = '<h3 style="color:var(--success)">Task Completed · Mock</h3><div class="agent-summary">' + counts.map(([label,count]) => '<div>' + label + '<strong>' + count + '</strong></div>').join('') + '</div><p>' + escapeHtml(report.summary) + '</p><p class="agent-label">Package Path (Mock)</p><p class="agent-path-text">' + escapeHtml(report.package_path) + '</p>';
-            byId('copyPackagePath').hidden = false;
+            const mock = agentState.mode === 'mock';
+            const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],['Conflicts',report.conflicts],['Missing Items',report.missing_items],['Operations',report.operations]];
+            byId('agentFinal').innerHTML = '<h3 style="color:var(--success)">Task Completed' + (mock ? ' · Mock' : '') + '</h3><div class="agent-summary">' + counts.map(([label,items]) => '<div>' + label + '<strong>' + (Array.isArray(items) ? items.length : '—') + '</strong></div>').join('') + '</div><p>' + agentEscape(report.summary) + '</p><p class="agent-label">Package Path' + (mock ? ' (Mock)' : '') + '</p><p class="agent-path-text">' + agentEscape(report.package_path || '尚未提供') + '</p>';
+            byId('copyPackagePath').hidden = typeof report.package_path !== 'string' || !report.package_path;
         }
-        // Event handlers
+        // Event handlers: one sequential timeout loop, never setInterval.
+        async function applyAgentSnapshot(snapshot) {
+            renderAgent(snapshot);
+            const status = snapshot.task.status;
+            agentState.busy = agentActiveStatuses.includes(status) || status === 'awaiting_approval';
+            if (status === 'completed') {
+                stopAgentPolling();
+                try { renderAgentReport(await AgentAPI.getReport(snapshot.task.task_id)); }
+                catch (error) {
+                    byId('agentFinal').textContent = error.status === 409 ? '最终报告尚未生成，请刷新任务状态。' : '最终报告加载失败，请刷新任务状态。';
+                    agentError(error.message);
+                }
+            } else if (status === 'failed') {
+                stopAgentPolling();
+                byId('agentFinal').textContent = agentState.userRejected ? 'Task stopped — 用户拒绝了待执行的文件操作。' : 'Task failed';
+                agentError(snapshot.error || (agentState.userRejected ? '用户拒绝了待执行的文件操作。' : 'Task failed'));
+            } else if (status === 'awaiting_approval') stopAgentPolling();
+            else scheduleAgentPolling();
+        }
         async function pollAgent() {
+            if (!agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode) return;
+            stopAgentPolling();
+            agentState.pollInFlight = true; agentState.approvalValid = false; updateAgentControls();
+            const generation = agentState.generation;
+            agentError('');
             try {
                 const snapshot = await AgentAPI.getTask(agentState.task.task_id);
-                renderAgent(snapshot);
-                if (snapshot.task.status === 'completed') {
-                    renderAgentReport(await AgentAPI.getReport(snapshot.task.task_id));
-                    agentState.busy = false; updateAgentControls();
-                } else if (snapshot.task.status === 'failed') {
-                    agentState.busy = false; agentError(snapshot.error || 'Task failed'); updateAgentControls();
-                } else if (snapshot.task.status !== 'awaiting_approval') {
-                    agentState.timer = setTimeout(pollAgent, 800);
-                }
+                if (generation !== agentState.generation) return;
+                await applyAgentSnapshot(snapshot);
             } catch (error) {
-                agentState.busy = false; agentError(error.message); updateAgentControls();
-            }
+                stopAgentPolling(); agentState.busy = false; agentState.approvalValid = false;
+                agentError(error.message + '；自动轮询已停止，可刷新任务状态。');
+            } finally { agentState.pollInFlight = false; updateAgentControls(); }
         }
         async function runAgent() {
-            if (agentState.busy) return;
+            if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             if (!byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim()) { agentError('请填写 Workspace 和 Goal。'); return; }
-            agentState.busy = true; agentState.task = null; agentState.report = null; clearTimeout(agentState.timer); agentError('');
+            stopAgentPolling(); agentState.generation++;
+            Object.assign(agentState, {busy: true, task: null, snapshot: null, report: null, userRejected: false, approvalValid: false, mode: byId('agentMode').value});
+            agentError('');
             ['agentVersions','agentConflicts','agentMaterials'].forEach(id => byId(id).textContent = '等待分析结果。');
             byId('agentActions').textContent = '等待操作预览。'; byId('agentFinal').textContent = '等待任务完成。'; byId('copyPackagePath').hidden = true;
             byId('agentPlan').textContent = '正在创建任务…'; updateAgentControls();
             try {
-                AgentAPI.setMode(byId('agentMode').value);
-                agentState.task = await AgentAPI.createTask({user_goal: byId('agentGoal').value.trim(), workspace: byId('agentWorkspacePath').value.trim(), scenario: byId('agentScenario').value});
-                byId('agentTaskStatus').textContent = agentState.task.status + ' · Mock Mode';
-                agentState.timer = setTimeout(pollAgent, 600);
+                AgentAPI.setMode(agentState.mode);
+                const task = await AgentAPI.createTask(byId('agentGoal').value.trim(), byId('agentWorkspacePath').value.trim(), byId('agentScenario').value);
+                validateAgentTask(task); agentState.task = task;
+                byId('agentTaskStatus').textContent = task.status + ' · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
+                scheduleAgentPolling();
             } catch (error) {
-                agentState.busy = false; byId('agentPlan').textContent = '未能创建任务。'; byId('agentTaskStatus').textContent = 'Request failed · ' + byId('agentMode').value; agentError(error.message); updateAgentControls();
-            }
+                agentState.busy = false; byId('agentPlan').textContent = '未能创建任务。'; byId('agentTaskStatus').textContent = 'Request failed · ' + agentState.mode; agentError(error.message);
+            } finally { updateAgentControls(); }
         }
         async function decideAgent(approve) {
-            if (agentState.decisionBusy || !agentState.task || agentState.task.status !== 'awaiting_approval') return;
-            agentState.decisionBusy = true; updateAgentControls();
+            if (agentState.decisionBusy || agentState.pollInFlight || !agentState.approvalValid || agentState.task?.status !== 'awaiting_approval') return;
+            const previewId = agentState.snapshot?.preview_id;
+            if (agentState.mode === 'real' && (typeof previewId !== 'string' || !previewId)) { agentError('缺少 preview_id，请刷新任务状态。'); return; }
+            stopAgentPolling(); agentState.decisionBusy = true; agentState.approvalValid = false; updateAgentControls(); agentError('');
             try {
-                agentState.task = await AgentAPI[approve ? 'approveTask' : 'rejectTask'](agentState.task.task_id);
-                await pollAgent();
-            } catch (error) { agentError(error.message); }
-            finally { agentState.decisionBusy = false; updateAgentControls(); }
+                const snapshot = await AgentAPI[approve ? 'approveTask' : 'rejectTask'](agentState.task.task_id, previewId);
+                agentState.userRejected = !approve;
+                await applyAgentSnapshot(snapshot);
+            } catch (error) {
+                // Never repeat a mutation: refresh only, especially after stale approval.
+                if (error.status === 409) {
+                    try { await applyAgentSnapshot(await AgentAPI.getTask(agentState.task.task_id)); }
+                    catch (refreshError) { agentState.busy = false; agentState.approvalValid = false; agentError(refreshError.message); }
+                    agentError('当前审批预览已失效或任务状态已改变，请检查最新操作。');
+                } else { agentError(error.message + '；请先刷新任务状态，确认操作结果。'); }
+            } finally { agentState.decisionBusy = false; updateAgentControls(); }
         }
         async function copyPackagePath() {
+            if (!agentState.report?.package_path) return;
             try { await navigator.clipboard.writeText(agentState.report.package_path); showToast('Package path copied', 'success'); }
             catch (error) { agentError('无法复制路径，请手动复制显示的 Package Path。'); }
         }
         ['agentWorkspacePath','agentGoal'].forEach(id => byId(id).addEventListener('input', updateAgentControls));
         byId('agentMode').addEventListener('change', () => {
-            byId('agentModeNote').textContent = byId('agentMode').value === 'mock' ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。' : 'Real API 尚未实现。运行将显示明确错误，不会自动切换到 Mock。';
+            byId('agentModeNote').textContent = byId('agentMode').value === 'mock' ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。' : 'Real Mode：调用正式 Agent API。接口不可用时显示真实错误，不会切换至 Mock。';
             updateAgentControls();
         });
         // Existing FileForge logic

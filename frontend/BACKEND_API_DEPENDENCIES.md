@@ -2,6 +2,44 @@
 
 The Agent HTTP contract is now defined in `API_CONTRACT.md`. The current Agent Workbench may continue to use Mock Mode during frontend-only development, but Real Mode must integrate only with the agreed endpoints and response envelopes below. Existing FileForge `/api/browse`, scan, session and configuration endpoints remain unchanged.
 
+## Frontend implementation status
+
+Real Mode now calls all five agreed endpoints through `agent-api.js`:
+`createTask(userGoal, workspace)`, `getTask(taskId)`,
+`approveTask(taskId, previewId)`, `rejectTask(taskId, previewId)` and
+`getReport(taskId)`. Requests use JSON and retain HTTP status on errors.
+Invalid JSON, unexpected success status, unavailable backend and a 15-second
+request timeout produce visible errors. No request automatically falls back to
+Mock Mode; mutation requests are never automatically retried.
+
+The workbench polls sequentially every 1000 ms for created/planning/executing/
+verifying. It pauses at awaiting_approval, stops at failed/completed, and only
+fetches FinalReport after a completed snapshot. A Refresh Task Status button
+allows recovery after transport errors or a report that is not ready (409).
+Refreshing clears the scheduled poll; in-flight guards prevent concurrent loops
+and repeated task/approval submissions.
+
+Real approval displays `pending_operations` PlanSteps and their exact arguments,
+and submits the associated nonempty `preview_id`. A 409 triggers one snapshot
+refresh with a stale-preview message and does not repeat approval or rejection.
+Other approval errors disable the old preview until the user refreshes status,
+because the backend may have accepted the operation before the connection failed.
+
+Real rendering tolerates absent optional data and shows unfrozen nested version
+data as escaped details. It does not interpret Mock candidate IDs, infer missing
+materials, or invent file-operation paths. Mock-specific adaptation stays in the
+frontend mode branches; `agent-mock.js` remains unchanged. The optional third
+createTask argument selects the Mock scenario and is never sent to the real API.
+
+Verification: Node syntax checks and fetch-stub/DOM checks cover Mock happy path,
+reject/failure, Real polling and exact payloads, approval 409 refresh, report 409
+recovery, missing optional fields, HTTP 400/404/409/500, invalid JSON, unreachable
+backend, and repeated Run/Approve/Refresh clicks. A local FileForge HTTP check
+also verified root/static scripts/health/browse return 200 and Real createTask
+returns the backend's actual 404 without using Mock. The temporary server was
+stopped. Actual Agent execution and browser visual/clipboard behavior still
+require integration verification.
+
 ## Agreed Agent HTTP API
 
 | Adapter method | HTTP API | Expected result |
