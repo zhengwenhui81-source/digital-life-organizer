@@ -8,6 +8,7 @@ from fileforge.tools.files import (
     move_file,
     search_files,
 )
+from fileforge.tools.verification import verify_result
 
 __all__ = [
     "copy_file",
@@ -16,5 +17,6 @@ __all__ = [
     "list_files",
     "move_file",
     "search_files",
+    "verify_result",
 ]
 

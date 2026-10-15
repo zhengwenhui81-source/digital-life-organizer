@@ -14,6 +14,7 @@ from fileforge.tools import (
     list_files,
     move_file,
     search_files,
+    verify_result,
 )
 
 Tool = Callable[..., dict[str, Any]]
@@ -31,6 +32,7 @@ class ToolRouter:
             "create_folder": create_folder,
             "copy_file": copy_file,
             "move_file": move_file,
+            "verify_result": verify_result,
         }
         for name, function in (extra_tools or {}).items():
             if name not in TOOL_RISKS:
