@@ -1,0 +1,11 @@
+{
+  "task_id": "fixture_task_001",
+  "status": "completed",
+  "found_files": [],
+  "version_groups": [],
+  "conflicts": [],
+  "missing_items": [],
+  "operations": [],
+  "package_path": "",
+  "summary": "仅用于前端渲染的完成报告示例，不代表实际资料包或工作区分析结果。"
+}

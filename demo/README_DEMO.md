@@ -3,6 +3,22 @@
 本目录仅用于 Digital Life Organizer 演示。人物、单位、经历、通知及证件内容均为虚构，
 不得用于真实报名或身份核验。不包含真实身份证号码、学号、电话或地址。
 
+## Clone 后一键准备
+
+从仓库根目录运行（Python 3.11+，仅标准库，不需要安装项目依赖）：
+
+```powershell
+python demo/prepare_demo_workspace.py
+```
+
+脚本以自身位置定位 sample_workspace，与当前终端工作目录无关；也可通过绝对路径运行。
+它预先检查全部九份输入是否存在且为普通文件，再恢复固定 mtime 并验证。
+重复运行结果一致，不改内容，保留 atime，不删除文件，不创建目录或 Hackathon_Package。
+缺失文件或符号链接会报错并退出，不补造材料。脚本不会清理先前演示产生的额外文件；
+正式演示前请检查是否使用了未受污染的新 clone。它只恢复时间，不代表后端分析成功。
+
+前端回归步骤见 [FRONTEND_DEMO_CHECKLIST.md](FRONTEND_DEMO_CHECKLIST.md)。
+
 ## 演示任务
 
 帮我准备生成式人工智能黑客松报名资料。根据比赛通知找到需要提交的文件，
@@ -22,7 +38,8 @@
 | 身份证.pdf | 明示无效的身份材料示意页 |
 | 个人简历.docx | 个人背景，通知不要求提交 |
 | 会议记录.txt | 无关的课程例会记录，UTF-8 |
-| README_DEMO.md | 开发说明，不属于报名材料 |
+
+sample_workspace 内只有上表九份材料。README、准备脚本、回归清单和 fixtures 均放在 demo/ 外层。
 
 ## 人工验收预期
 
@@ -40,33 +57,25 @@
 
 ## 避免答案泄露
 
-README_DEMO.md 包含预期答案。正式 Agent 分析应通过已有且受支持的排除规则排除它，
-不把它当通知或材料来源。若当前系统没有排除能力，请明确说明运行中含有答案说明，
-不能据此宣称通过独立分析验收；不要为此加入文件名特判。
+README_DEMO.md 包含人工验收答案，不应作为 Agent 输入，否则可能泄露版本候选、冲突与缺失项。
+它已放在 demo/ 外层。Agent Workspace 必须精确选择 demo/sample_workspace，不能选择整个 demo/，
+这样无需依赖额外排除功能，也不会读取说明文件或 JSON fixtures。不要加入文件名特判。
 
 ## 版本时间与跨机器复现
 
-DOCX 内部 modified 属性记录了对应版本时间。本机文件 mtime 已设置为：
+DOCX 内部 modified 属性包含版本元数据；版本场景使用准备脚本恢复的文件系统 mtime：
 初版 2026-10-11 10:00、最终版 2026-10-14 16:30，均为 Asia/Shanghai。
 Git 不保留文件系统 mtime，新 checkout 后两版时间可能接近。
-如需验证基于 mtime 的选择，可从仓库根目录运行以下标准库脚本，仅恢复这两份演示文件的时间：
+每次 clone、checkout、解压或重新复制资料后，执行上述准备命令恢复全部九份输入的时间。
+脚本使用带 +08:00 偏移的固定时间，不依赖本机时区或额外 tzdata 包；日期可能在本机
+文件管理器中按当地时区显示，但对应时间点相同。完整时间表见 prepare_demo_workspace.py。
 
-```python
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-import os
+## 前端 fixtures
 
-root = Path("demo/sample_workspace")
-zone = timezone(timedelta(hours=8))
-for name, value in [
-    ("项目介绍_v1.docx", "2026-10-11T10:00:00"),
-    ("项目介绍_最终版.docx", "2026-10-14T16:30:00"),
-]:
-    stamp = datetime.fromisoformat(value).replace(tzinfo=zone).timestamp()
-    os.utime(root / name, (stamp, stamp))
-```
-
-不要对真实用户文件使用这段时间恢复脚本。
+demo/fixtures/ 中四个 task_*.json 是 TaskSnapshot；final_report.json 是独立 FinalReport。
+它们仅用于人工检查或临时 fetch stub，前端不会自动加载，不属于正式 Mock 流程，
+也不能作为真实 Agent 结果或发送给实际审批接口。路径为虚构示例，不随 clone 位置变化。
+具体用途及加载方式见前端回归清单。
 
 ## 当前能力边界
 
