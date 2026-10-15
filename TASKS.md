@@ -72,14 +72,21 @@ Branch: `feature/document-intelligence`
 
 ### Phase C1 — Document Parser
 MVP priority:
-- [ ] Inspect and reuse FileForge extractors first
-- [ ] TXT
+- [x] Inspect and reuse the FileForge text extractor for TXT
+- [x] TXT full-text `read_document(path)` with standard `Document` / `ToolResult`
+- [x] TXT path-based IDs, encoding/error handling, and source-preservation tests
 - [ ] PDF
 - [ ] DOCX
 - [ ] XLSX
-- [ ] Normalize parsed output to `Document`
-- [ ] Add unsupported-format handling
-- [ ] Add parser tests
+- [ ] Inspect and reuse the remaining format extractors
+- [ ] Normalize remaining formats to `Document`
+- [ ] Extend format/error handling as remaining formats are integrated
+- [ ] Add parser tests for remaining formats
+
+TXT scope is implemented and verified on `feature/document-intelligence` in PR #2;
+this does not complete C1 or its multi-format integration milestone. ID behavior
+follows [API_CONTRACT.md](API_CONTRACT.md#path-based-document-identity).
+Windows execution remains unverified.
 
 Optional later:
 - [ ] OCR / image text extraction
