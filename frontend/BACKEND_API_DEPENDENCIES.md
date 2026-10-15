@@ -1,52 +1,88 @@
 # Backend API Dependencies
 
-The current Agent Workbench explicitly runs in Mock Mode. Real mode fails with a
-clear error until the team agrees on the HTTP contract. No guessed routes are
-called and no automatic fallback is used. Existing FileForge `/api/browse`, scan,
-session and configuration endpoints remain unchanged.
+The Agent HTTP contract is now defined in `API_CONTRACT.md`. The current Agent Workbench may continue to use Mock Mode during frontend-only development, but Real Mode must integrate only with the agreed endpoints and response envelopes below. Existing FileForge `/api/browse`, scan, session and configuration endpoints remain unchanged.
 
-## Required capabilities (Developer A)
+## Agreed Agent HTTP API
 
-| Adapter method | Required behavior |
-| --- | --- |
-| createTask | Accept `user_goal`, `workspace`; return `Task` |
-| getTask | Return Task, Plan and intermediate ToolResult data; define error details |
-| approveTask | Bind approval to the displayed operations; reject stale/duplicate approval |
-| rejectTask | Define rejection status, skipped steps and retry semantics |
-| getReport | Return FinalReport after verification |
+| Adapter method | HTTP API | Expected result |
+| --- | --- | --- |
+| `createTask` | `POST /api/agent/tasks` | `202`, `Task` |
+| `getTask` | `GET /api/agent/tasks/{task_id}` | `200`, `TaskSnapshot` |
+| `approveTask` | `POST /api/agent/tasks/{task_id}/approve` with `{preview_id}` | `200`, `TaskSnapshot` |
+| `rejectTask` | `POST /api/agent/tasks/{task_id}/reject` with `{preview_id}` | `200`, `TaskSnapshot` |
+| `getReport` | `GET /api/agent/tasks/{task_id}/report` | `200`, `FinalReport` after completion |
 
-HTTP paths, request/response envelopes, persistence and polling behavior must be
-agreed in API_CONTRACT.md before real integration. Approval must be enforced by
-the backend. High-risk operations, deletion and overwrite are forbidden.
+Real Mode must not invent additional analysis endpoints. The frontend should poll `getTask` and render progress from the returned `TaskSnapshot`.
+
+## TaskSnapshot integration
+
+The agreed snapshot shape is:
+
+```json
+{
+  "task": {},
+  "plan": {},
+  "results": [],
+  "pending_operations": [],
+  "preview_id": null,
+  "error": null
+}
+```
+
+Frontend responsibilities:
+
+- render task status from `snapshot.task.status`
+- render the Agent Plan from `snapshot.plan`
+- derive analysis cards from `snapshot.results: ToolResult[]`
+- render approval preview directly from `snapshot.pending_operations: PlanStep[]`
+- send the exact current `snapshot.preview_id` on approve or reject
+- never execute local file changes directly in browser code
+- show `snapshot.error` for backend planning/tool failures
+
+Expected analysis mapping:
+
+- `compare_versions` ToolResult -> Version Groups
+- `detect_conflicts` ToolResult -> Conflicts
+- `extract_requirements` ToolResult -> Required Materials / requirement analysis
+- other ToolResults may be shown as progress/details without creating undocumented shared fields
+
+## Approval behavior
+
+Approval is enforced by the backend. The frontend displays only the concrete operations in the current preview and returns the associated `preview_id`.
+
+A stale, duplicate or mismatched approval may return `409`; the UI must refresh the task snapshot instead of assuming execution succeeded. Rejection uses the existing MVP Task status `failed` and remaining unexecuted steps become `skipped`. The UI should present this as a user-stopped/rejected task when appropriate rather than as an unexpected system crash.
+
+High-risk operations, deletion and destructive overwrite remain forbidden.
+
+## Task persistence and report behavior
+
+For the MVP, the backend may store task state in process memory. Server restart may therefore lose tasks; the frontend should not assume task recovery across backend restarts.
+
+`FinalReport` is guaranteed for `completed` tasks. Calling the report endpoint before completion, including failed/rejected tasks, may return `409`. In those cases the frontend uses the latest `TaskSnapshot` for status and error/rejection detail.
+
+## Remaining backend contract dependencies
+
+The following nested structures are intentionally not frozen yet and must not be guessed by the frontend:
+
+- exact `compare_versions.data.groups[].newest_candidate` representation
+- exact `compare_versions.data.groups[].changes[]` representation
+- exact shared structure for matched and missing requirement items beyond `extract_requirements.data.required_documents`
+- exact `build_package` ToolResult data for actual output path and verification targets
+
+Developer A and Developer C should finalize these shared structures in `API_CONTRACT.md` before strict Real Mode rendering depends on them.
 
 ## TEMPORARY MOCK SHAPE
 
-These are frontend demonstration structures, **not shared API contracts**:
+The existing mock structures remain frontend demonstration data only and are **not shared API contracts**:
 
-- Mock snapshot: `{task, plan, results: ToolResult[], missing_items: string[], operations, error}`.
-- `newest_candidate`: Document `file_id`; `changes`: string array.
-- `missing_items`: material-name strings. Required checklist matches these names
-  for presentation only; no browser algorithm searches or analyzes user files.
-- `operations`: `{tool, source, destination, status}`. `move_file` is displayed
-  as MOVE / ARCHIVE for the fixed mock archive example; no public archive tool added.
-- Failure detail: snapshot `error` string. Cancel uses Task `failed` and marks
-  remaining steps `skipped`; rejection semantics need team agreement.
-- `scenario` is a mock-only input (`happy` / `failed`), not a Task field.
-- `plan ready` and `analyzing` are demonstration phases represented by PlanStep
-  changes while Task remains `planning`; they are not added Task status values.
-- Mock FinalReport uses the existing top-level fields. Package path is a fixed
-  example, not a path created on disk. Completed means the simulation finished;
-  conflicts and missing materials remain visible.
-
-Confirm Document references, version change entries, matching results, operation
-preview/results, failure details and rejection semantics before replacing mocks.
+- Mock scenario input (`happy` / `failed`) is not a Task field.
+- Mock data may contain fixed version groups, conflicts, missing items and package paths solely to exercise the UI.
+- Mock approval/cancel actions do not perform filesystem operations.
+- Mock completed means the simulation finished, not that a real package exists on disk.
+- Mock mode must never silently substitute for a failed Real Mode request.
 
 ## Local verification
 
-Serve index.html through the existing FileForge server, which mounts frontend at
-`/static`. Browse needs the real server even in Mock Mode. Agent simulation itself
-never calls filesystem operation endpoints. Open Folder is not offered.
+Serve the frontend through the existing FileForge server, which mounts `frontend` at `/static`. Browse needs the real server even in Mock Mode. Agent simulation itself never calls filesystem operation endpoints. Open Folder is not offered unless a future backend contract explicitly supports it.
 
-Automatic actions are not editable from this UI; existing backend configuration
-may still contain `auto_act=true`. Backend policy enforcement remains Developer
-A's responsibility. The frontend does not silently change saved settings.
+Automatic actions are not editable from this UI; existing backend configuration may still contain `auto_act=true`. Backend policy enforcement remains Developer A's responsibility. The frontend does not silently change saved settings.
