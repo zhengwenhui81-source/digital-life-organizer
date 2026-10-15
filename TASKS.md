@@ -1,6 +1,6 @@
 # TASKS.md
 
-This file tracks the MVP development plan for the three-developer Vibe Coding workflow.
+This file tracks the MVP development plan for the four-developer Vibe Coding workflow.
 
 ## 0. Shared Setup
 
@@ -9,11 +9,12 @@ This file tracks the MVP development plan for the three-developer Vibe Coding wo
 - [x] Create `feature/agent-core`
 - [x] Create `feature/document-intelligence`
 - [x] Create `feature/frontend`
+- [x] Create `feature/task-intelligence`
 - [x] Add shared collaboration rules
 - [x] Add architecture definition
 - [x] Add API contract
 - [x] Import / integrate FileForge base code
-- [ ] All three developers run the original project successfully
+- [ ] All four developers run the original project successfully
 - [ ] Create a shared demo workspace with non-sensitive test files
 - [ ] Confirm Python / Node / package-manager versions
 
@@ -50,6 +51,8 @@ Branch: `feature/agent-core`
 - [ ] Auto-run low-risk operations
 - [ ] Pause medium-risk operations
 - [ ] Produce operation preview
+- [ ] Bind preview to `preview_id`
+- [ ] Reject stale / duplicate / mismatched approvals with `409`
 - [ ] Support approve-all / reject behavior for MVP
 - [ ] Ensure delete/overwrite are impossible through public tools
 
@@ -60,13 +63,23 @@ Branch: `feature/agent-core`
 - [ ] Produce verification output for `FinalReport`
 
 ### Phase A6 — Agent API
-- [ ] Natural-language task endpoint
-- [ ] Plan preview endpoint
-- [ ] Approval / execution endpoint
-- [ ] Task status endpoint
-- [ ] Final report endpoint
+- [ ] `POST /api/agent/tasks`
+- [ ] `GET /api/agent/tasks/{task_id}` returning `TaskSnapshot`
+- [ ] `POST /api/agent/tasks/{task_id}/approve`
+- [ ] `POST /api/agent/tasks/{task_id}/reject`
+- [ ] `GET /api/agent/tasks/{task_id}/report`
+- [ ] In-memory task state for MVP
+- [ ] HTTP error behavior matches `API_CONTRACT.md`
 
-## 2. Developer C — Document Intelligence / Backend Tools
+### Phase A7 — C/D Tool Integration
+- [ ] Register/use Developer C `read_document`
+- [ ] Register/use Developer C `compare_versions`
+- [ ] Register/use Developer D `detect_conflicts`
+- [ ] Register/use Developer D `extract_requirements`
+- [ ] Register/use Developer D `build_package`
+- [ ] Do not depend on C/D private implementation details
+
+## 2. Developer C — Document Parsing & Version Intelligence
 
 Branch: `feature/document-intelligence`
 
@@ -83,10 +96,7 @@ MVP priority:
 - [ ] Extend format/error handling as remaining formats are integrated
 - [ ] Add parser tests for remaining formats
 
-TXT scope is implemented and verified on `feature/document-intelligence` in PR #2;
-this does not complete C1 or its multi-format integration milestone. ID behavior
-follows [API_CONTRACT.md](API_CONTRACT.md#path-based-document-identity).
-Windows execution remains unverified.
+TXT scope is implemented and verified in PR #2 and merged into `dev`; this does not complete C1 or its multi-format integration milestone. ID behavior follows [API_CONTRACT.md](API_CONTRACT.md#path-based-document-identity).
 
 Optional later:
 - [ ] OCR / image text extraction
@@ -101,79 +111,108 @@ Optional later:
 - [ ] Produce semantic change summary
 - [ ] Add version-analysis tests
 
-### Phase C3 — Conflict Detection
-- [ ] Extract important fields from requirement documents
-- [ ] Detect inconsistent values across documents
+### Phase C3 — Version Contract
+- [ ] Finalize `compare_versions.data.groups[].newest_candidate` with team
+- [ ] Finalize `compare_versions.data.groups[].changes[]` with team
+- [ ] Update `API_CONTRACT.md` before strict consumers depend on those fields
+- [ ] Expose `compare_versions` through shared public Tool contract
+
+Developer C no longer owns conflict detection, requirement extraction, missing-item matching, or package generation; those are assigned to Developer D.
+
+## 3. Developer D — Task Intelligence / Package Builder
+
+Branch: `feature/task-intelligence`
+
+### Phase D0 — Repository / Contract Onboarding
+- [ ] Read `AGENTS.md`
+- [ ] Read `ARCHITECTURE.md`
+- [ ] Read `API_CONTRACT.md`
+- [ ] Read `TASKS.md`
+- [ ] Inspect FileForge analysis/action capabilities before adding new modules
+- [ ] Run relevant existing tests locally
+
+### Phase D1 — Conflict Detection
+- [ ] Implement `detect_conflicts`
+- [ ] Detect inconsistent important values across parsed documents
 - [ ] Return source file for each conflicting value
 - [ ] Avoid automatically declaring one source correct
+- [ ] Start with MVP-priority fields such as deadline / required-material conflicts
 - [ ] Add conflict-detection tests
 
-### Phase C4 — Requirement Extraction
-- [ ] Extract required material checklist
-- [ ] Match checklist items against local candidate files
-- [ ] Report missing items
+### Phase D2 — Requirement Extraction
+- [ ] Implement `extract_requirements`
+- [ ] Extract required material checklist from requirement/notice documents
+- [ ] Return contract-shaped `ToolResult`
 - [ ] Add requirement-extraction tests
 
-### Phase C5 — Package Builder
-- [ ] Select final candidate files
-- [ ] Prepare package operations through shared tool contracts
-- [ ] Never silently overwrite
+### Phase D3 — Requirement Matching / Missing Items
+- [ ] Match required items against local candidate files
+- [ ] Produce required / matched / missing analysis
+- [ ] Finalize shared representation with A/B/C before consumers depend on it
+- [ ] Update `API_CONTRACT.md` first when shared fields are agreed
+- [ ] Add matching tests
+
+### Phase D4 — Package Builder
+- [ ] Implement package selection/generation logic under `src/fileforge/package/**`
+- [ ] Use selected final candidate files
+- [ ] Default to copy, not move
+- [ ] Never silently overwrite user files
 - [ ] Generate `PACKAGE_REPORT.md`
-- [ ] Include missing items and conflicts in report
+- [ ] Include missing items and conflicts in report when available
+- [ ] Finalize `build_package` ToolResult data shape with team
 - [ ] Return `ToolResult`
+- [ ] Add package tests
 
-### Phase C6 — Integration Contract
-- [ ] Expose `compare_versions` behavior through shared contract
-- [ ] Expose `detect_conflicts` behavior through shared contract
-- [ ] Expose `extract_requirements` behavior through shared contract
-- [ ] Expose `build_package` behavior through shared contract
-- [ ] Ensure Developer A can call these capabilities without importing internal implementation details
+### Phase D5 — Approval Boundary / Integration
+- [ ] Package logic must not bypass Developer A's Approval Gate
+- [ ] Real create/copy/move operations remain medium-risk
+- [ ] Expose `detect_conflicts`, `extract_requirements`, and `build_package` through shared contracts
+- [ ] Ensure Developer A can call capabilities without importing D private implementation details
 
-## 3. Developer B — Frontend / Product Experience
+## 4. Developer B — Frontend / Product Experience
 
 Branch: `feature/frontend`
 
 ### Phase B1 — Analyze and Reuse Existing Frontend
-- [ ] Inspect `frontend/`
-- [ ] Identify existing UI structure and API-call pattern
-- [ ] Identify reusable file-list / status / action UI
-- [ ] Produce frontend migration plan before large edits
-- [ ] Do not replace the frontend stack unless explicitly approved
+- [x] Inspect `frontend/`
+- [x] Identify existing UI structure and API-call pattern
+- [x] Reuse existing file-list / status / browser UI where useful
+- [x] Keep existing frontend stack
 
 ### Phase B2 — Agent Workspace Skeleton
-- [ ] Add natural-language task input
-- [ ] Show selected workspace
-- [ ] Add Run / Analyze action
-- [ ] Add Agent Plan / progress area
-- [ ] Add visible loading and error states
+- [x] Add natural-language task input
+- [x] Show selected workspace
+- [x] Add Run Agent action
+- [x] Add Agent Plan / progress area
+- [x] Add visible loading and error states
 
 ### Phase B3 — Analysis Result UI
-- [ ] Show version groups
-- [ ] Mark latest version candidate
-- [ ] Show semantic-change summary when available
-- [ ] Show conflict warnings and source files
-- [ ] Show required / missing material checklist
+- [x] Show mock version groups / conflicts / required materials
+- [x] Defensive Real Mode rendering from `TaskSnapshot.results`
+- [ ] Strictly render finalized C/D result schemas after contracts are frozen
 
 ### Phase B4 — Approval and Execution UI
-- [ ] Show pending file-operation preview
-- [ ] Show create/copy/move/archive operations clearly
-- [ ] Add approve-all / cancel controls for MVP
-- [ ] Never execute local file operations directly from frontend code
+- [x] Show pending file-operation preview
+- [x] Show create/copy/move/archive operations clearly
+- [x] Add approve / reject controls
+- [x] Bind Real Mode approval to exact `preview_id`
+- [x] Handle `409` without automatic re-approval
+- [x] Never execute local file operations directly from frontend code
 
 ### Phase B5 — Final Result UI
-- [ ] Show task completion state
-- [ ] Show found / missing / conflict summary
-- [ ] Show final package path
-- [ ] Add Open Folder only if backend supports it; otherwise show/copy path
+- [x] Show task completion state
+- [x] Show final package/report fields defensively
+- [x] Show/copy package path
+- [ ] Final browser/visual polish after real backend integration
 
-### Phase B6 — Mock Mode
-- [ ] Build mock data using the exact `API_CONTRACT.md` field names
-- [ ] Cover task-created state
-- [ ] Cover planner-returned state
-- [ ] Cover version-analysis state
-- [ ] Cover conflict state
-- [ ] Cover waiting-approval state
-- [ ] Cover completed state
+### Phase B6 — Mock / Real Mode
+- [x] Build Mock Mode for frontend-only development
+- [x] Keep Mock Mode isolated from Real Mode
+- [x] Implement Real Mode API client for all five Agent HTTP endpoints
+- [x] Implement polling for `TaskSnapshot`
+- [x] Stop polling on approval/completed/failed states
+- [x] Do not silently fall back to Mock on real API failure
+- [x] Verify current missing Agent API returns real `404` in Real Mode
 
 ### Phase B7 — Demo Dataset / Presentation
 - [ ] Build or curate `demo/sample_workspace/`
@@ -185,31 +224,34 @@ Branch: `feature/frontend`
 - [ ] Include at least one missing required material
 - [ ] Prepare a stable demo flow and backup screenshots/recording
 
-## 4. Integration Milestones
+## 5. Integration Milestones
 
 ### Milestone 1 — Base Project Works
 - [x] FileForge base code integrated
-- [ ] All three developers can launch project locally
+- [ ] All four developers can launch project locally
 - [ ] Shared demo workspace works on all machines
 
 ### Milestone 2 — Independent Core Modules Work
-- [ ] Developer A: Agent can generate a structured plan
-- [ ] Developer C: Document parser produces normalized documents
-- [ ] Developer C: Version grouping works on demo data
-- [ ] Developer B: Frontend Agent Workspace works with mock data
+- [ ] Developer A: Agent Core + HTTP API works against shared contracts
+- [ ] Developer C: multi-format parser produces normalized documents
+- [ ] Developer C: version grouping works on demo data
+- [ ] Developer D: conflict / requirement tools work independently
+- [x] Developer B: Frontend Agent Workspace works with mock data and Real Mode adapter
 
 ### Milestone 3 — Backend Tool Integration Works
-- [ ] Agent can call Developer C analysis tools through shared contracts
+- [ ] Agent can call Developer C/D analysis tools through shared contracts
+- [ ] `read_document` works end-to-end for MVP formats
 - [ ] `compare_versions` works end-to-end
 - [ ] `detect_conflicts` works end-to-end
 - [ ] `extract_requirements` works end-to-end
 - [ ] `build_package` produces valid planned operations / results
 
 ### Milestone 4 — Frontend / Backend Integration Works
-- [ ] Frontend can submit a natural-language task
+- [ ] Frontend can submit a natural-language task to real Agent API
 - [ ] Frontend can display backend Plan and task status
-- [ ] Frontend can display version / conflict / missing-item results
-- [ ] Frontend can submit approval / rejection
+- [ ] Frontend can display real version / conflict / missing-item results
+- [ ] Frontend can submit approval / rejection with `preview_id`
+- [ ] Frontend can display real `FinalReport`
 
 ### Milestone 5 — Safe Execution Works
 - [ ] Approval gate shown before file-changing operations
@@ -223,11 +265,11 @@ Branch: `feature/frontend`
 - [ ] Failure cases produce readable errors
 - [ ] Demo backup recording prepared
 
-## 5. Primary Demo Prompt
+## 6. Primary Demo Prompt
 
 > 帮我准备生成式人工智能黑客松报名资料。根据比赛通知找到需要提交的文件，同一材料如果有多个版本选择最新版本，检查不同通知有没有冲突，缺少的材料告诉我，最后生成一个报名资料包。执行文件操作前先让我确认。
 
-## 6. Cut Scope Rules
+## 7. Cut Scope Rules
 
 If schedule slips, cut in this order:
 1. OCR
@@ -244,7 +286,7 @@ Do **not** cut:
 - real file operations
 - one complete end-to-end demo flow
 
-## 7. Daily Collaboration Checklist
+## 8. Daily Collaboration Checklist
 
 Before coding:
 - [ ] Pull latest `dev`
