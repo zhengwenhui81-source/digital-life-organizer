@@ -191,8 +191,17 @@ Workflow:
 2. Commit small, focused changes.
 3. Push only your assigned feature branch during normal development.
 4. Open a pull request into `dev` after a coherent feature or milestone is ready.
-5. At least one other developer reviews before merge.
+5. The pull request must receive at least one independent review before merge. The reviewer may be another human developer or a designated AI reviewer with repository access. A designated AI review counts when it inspects the current PR HEAD/diff, checks repository rules and shared contracts, and explicitly reports whether blocking issues exist. No additional human review is required unless the AI review requests changes or the team explicitly asks for one.
 6. Merge `dev` into `main` only for stable milestones.
+
+### Review Policy
+
+- ChatGPT with connected GitHub repository access is an approved designated AI reviewer for this project.
+- A ChatGPT review may satisfy the required independent PR review by itself.
+- The review must be based on the PR's current HEAD, not an obsolete commit.
+- The review should check scope/ownership, `AGENTS.md`, `API_CONTRACT.md`, relevant tests/checks, safety boundaries, and integration compatibility.
+- If the PR changes after the review in a way that materially affects reviewed code or contracts, review the updated HEAD again before merge.
+- The PR author does not need to seek an additional human approval after a non-blocking designated AI review.
 
 ### Direct Push Restrictions
 
