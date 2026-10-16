@@ -75,6 +75,7 @@ def validate_plan(payload: dict[str, Any], task_id: str, goal: str) -> dict[str,
 def _generate_local(prompt: str, *, model: str, base_url: str) -> str:
     """Call the configured OpenAI-compatible planner endpoint."""
     import httpx
+
     try:
         import openai
     except ImportError as exc:
@@ -115,12 +116,20 @@ def _generate_local(prompt: str, *, model: str, base_url: str) -> str:
 def _demo_plan(task_id: str, workspace: Path) -> dict[str, Any]:
     """Exercise polling and approval without an LLM or source-file changes."""
     destination = workspace / f"Agent_Dev_Demo_{task_id.removeprefix('task_')}"
-    return {"steps": [
-        {"tool": "list_files", "description": "List workspace files",
-         "arguments": {"workspace": str(workspace), "recursive": False}},
-        {"tool": "create_folder", "description": "Create a demo folder after approval",
-         "arguments": {"path": str(destination)}},
-    ]}
+    return {
+        "steps": [
+            {
+                "tool": "list_files",
+                "description": "List workspace files",
+                "arguments": {"workspace": str(workspace), "recursive": False},
+            },
+            {
+                "tool": "create_folder",
+                "description": "Create a demo folder after approval",
+                "arguments": {"path": str(destination)},
+            },
+        ]
+    }
 
 
 def plan_task(
