@@ -88,15 +88,29 @@ MVP priority:
 - [x] Inspect and reuse the FileForge text extractor for TXT
 - [x] TXT full-text `read_document(path)` with standard `Document` / `ToolResult`
 - [x] TXT path-based IDs, encoding/error handling, and source-preservation tests
-- [ ] PDF
-- [ ] DOCX
-- [ ] XLSX
-- [ ] Inspect and reuse the remaining format extractors
-- [ ] Normalize remaining formats to `Document`
-- [ ] Extend format/error handling as remaining formats are integrated
-- [ ] Add parser tests for remaining formats
+- [x] PDF text-layer reading across pages (no OCR)
+- [x] DOCX body-paragraph reading (not tables or all Office content)
+- [x] XLSX cell-value reading across named worksheets (cached formulas only)
+- [x] Inspect and reuse the existing PDF/DOCX/XLSX extractors
+- [x] Normalize supported extraction results to the existing `Document`
+- [x] Distinguish parse/read failures from no extractable text/cell values
+- [x] Add temporary real-file tests for long content, errors, identity and source preservation
+- [ ] Verify the multi-format implementation on Windows
 
-TXT scope is implemented and verified in PR #2 and merged into `dev`; this does not complete C1 or its multi-format integration milestone. ID behavior follows [API_CONTRACT.md](API_CONTRACT.md#path-based-document-identity).
+TXT was merged in PR #2. PDF/DOCX/XLSX parser work is preserved in PR #5,
+which remains open and unmerged. These formats have been tested locally on Linux;
+no completed integration milestone is claimed.
+C1 is not declared fully accepted: Windows multi-format verification remains
+outstanding, and supported content is explicitly limited by
+[extraction scope](API_CONTRACT.md#read_document-extraction-scope). DOCX tables,
+OCR and formula calculation are not implicitly covered by checked format items.
+All formats follow the existing
+[path ID rule](API_CONTRACT.md#path-based-document-identity).
+
+Windows TXT evidence was reported by the team lead in the 2026-10-15 collaboration
+update: Windows 11 / Python 3.12.12, parser + extractor 42 passed and 3 skipped;
+symbolic links were not verified due to Windows permissions. This is team-provided
+evidence, not a Windows run performed in this development environment.
 
 Optional later:
 - [ ] OCR / image text extraction
@@ -302,7 +316,7 @@ Before pushing:
 - [ ] Push only your assigned feature branch
 
 Before merging PR:
-- [ ] At least one other developer reviews
+- [ ] At least one independent review meets `AGENTS.md` (another human developer or a designated AI reviewer)
 - [ ] Shared API changes are reflected in `API_CONTRACT.md`
 - [ ] Tests / checks pass
 - [ ] Demo behavior is not broken

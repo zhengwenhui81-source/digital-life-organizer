@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FileForge — File Organizer</title>
+    <title>Digital Life Organizer — Agent Workbench</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -230,6 +230,10 @@
         .browser-breadcrumb .bc-sep { color: rgba(216,221,232,0.3); margin: 0 0.15rem; }
         .browser-breadcrumb button { background: none; border: none; color: var(--blue); cursor: pointer; padding: 0 0.15rem; font-family: inherit; font-size: inherit; line-height: 1.4; }
         .browser-breadcrumb button:hover { text-decoration: underline; }
+        .browser-jump { display: flex; gap: .5rem; margin: .4rem 0; }
+        .browser-jump input { flex: 1; min-width: 0; }
+        .browser-jump button { flex-shrink: 0; }
+        .browser-jump-hint { font-size: .78rem; opacity: .65; margin-bottom: .85rem; overflow-wrap: anywhere; }
         .dir-list { max-height: 300px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; }
         .dir-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.9rem; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.12s; }
         .dir-item:last-child { border-bottom: none; }
@@ -388,23 +392,150 @@
             .form-row { grid-template-columns: 1fr; gap: 0.4rem; }
             .form-label { padding-top: 0; }
         }
+
+        /* Agent workspace: extends existing FileForge components. */
+        [hidden] { display: none !important; }
+        body { background: var(--dark); }
+        .brand-icon, .btn-primary, .progress-bar { background: var(--blue); }
+        .brand-text h1 { font-size: 1.3rem; }
+        .brand-text small { color: var(--silver); opacity: .7; }
+        .workspace-nav { display: flex; gap: .5rem; margin: 1.5rem 0; flex-wrap: wrap; }
+        .workspace-nav button { background: rgba(255,255,255,.05); color: var(--silver); }
+        .workspace-nav button[aria-selected="true"] { background: rgba(43,125,233,.2); color: white; }
+        .agent-card { padding: 1.4rem; margin-bottom: 1rem; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: rgba(255,255,255,.04); min-width: 0; }
+        .agent-card h2 { font-size: 1.1rem; color: white; margin-bottom: .8rem; }
+        .agent-card h3 { font-size: 1rem; color: white; margin-bottom: .6rem; }
+        .agent-label { display: block; margin: .8rem 0 .35rem; }
+        .agent-path { display: flex; gap: .5rem; }
+        .agent-path input { min-width: 0; }
+        .agent-footer { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-top: 1rem; }
+        .agent-note { font-size: .85rem; opacity: .75; }
+        .agent-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1rem; }
+        .agent-panel { padding: 1rem; background: rgba(0,0,0,.15); border-radius: 8px; min-width: 0; }
+        .agent-step { display: grid; grid-template-columns: 1.5rem minmax(0,1fr) auto; gap: .7rem; align-items: start; padding: .8rem 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+        .agent-step small { display: block; opacity: .75; overflow-wrap: anywhere; }
+        .agent-step[data-status="completed"] .step-symbol { color: var(--success); }
+        .agent-step[data-status="running"] .step-symbol { color: var(--blue); }
+        .agent-step[data-status="failed"] .step-symbol { color: var(--danger); }
+        .agent-step[data-status="awaiting_approval"] .step-symbol { color: var(--warning); }
+        .approval-card { border-left: 4px solid var(--warning); }
+        .agent-error { color: var(--danger); margin-top: .75rem; }
+        .agent-item { margin: .65rem 0; overflow-wrap: anywhere; }
+        .agent-path-text { font-family: 'IBM Plex Mono', monospace; overflow-wrap: anywhere; font-size: .85rem; }
+        .agent-summary { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .agent-summary strong { display: block; color: white; }
+        button:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+        @media (max-width: 900px) { .agent-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 600px) {
+            header { padding: 1rem; } .container { padding-left: .75rem; padding-right: .75rem; }
+            .agent-card { padding: 1rem; } .agent-path { flex-wrap: wrap; }
+            .agent-step { grid-template-columns: 1.2rem minmax(0,1fr); }
+            .agent-step > .badge { grid-column: 2; justify-self: start; }
+        }
+
+        /* Demo presentation refinements; existing layout and palette retained. */
+        .header-content, .nav-actions { flex-wrap: wrap; }
+        .brand-text, .agent-footer > *, .agent-step > div { min-width: 0; }
+        .agent-footer .filter-select { max-width: 100%; }
+        .agent-card { overflow-wrap: anywhere; }
+        .agent-note { color: var(--silver); }
+        .agent-placeholder { color: var(--silver); opacity: .55; padding: .65rem 0; font-size: .9rem; }
+        .agent-error { color: var(--silver); padding: 1rem 1.2rem; border: 1px solid rgba(231,76,60,.35); border-left: 4px solid var(--danger); border-radius: 8px; background: rgba(231,76,60,.07); }
+        .agent-error strong { display: block; color: var(--danger); margin-bottom: .3rem; }
+        .agent-error[data-kind="409"] { border-color: rgba(243,156,18,.4); background: rgba(243,156,18,.06); }
+        .agent-error[data-kind="409"] strong { color: var(--warning); }
+        #agentTaskStatus { font-size: .85rem; padding: .25rem .6rem; border-radius: 5px; background: rgba(43,125,233,.12); }
+        #agentWorkspacePath { font-family: 'IBM Plex Mono', monospace; font-size: .85rem; }
+        .agent-path-text, .agent-card pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
+        .agent-path .btn { flex-shrink: 0; white-space: nowrap; }
+        .result-card[data-completed="true"] { border-color: rgba(39,174,96,.45); border-top: 3px solid var(--success); background: rgba(39,174,96,.045); }
+        .result-heading { font-size: 1.4rem !important; color: var(--success) !important; }
+        .result-summary { margin: .6rem 0 1.2rem; }
+        .result-path { padding: 1rem; border: 1px solid rgba(43,125,233,.3); background: rgba(43,125,233,.08); border-radius: 8px; margin: .8rem 0 1rem; }
+        .result-path .agent-label { margin-top: 0; font-size: .8rem; color: var(--silver); }
+        .result-path .agent-path-text { color: var(--light); font-size: .95rem; }
+        .result-warning { color: var(--warning); margin: .8rem 0; }
+        .agent-summary { gap: .6rem; }
+        .agent-summary > div { padding: .6rem .85rem; background: rgba(255,255,255,.035); border-radius: 6px; font-size: .8rem; }
+        .agent-summary strong { font-size: 1.3rem; }
+        #copyPackagePath { margin-top: .3rem; }
+        button:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+        button:disabled { box-shadow: none !important; }
+        @media (min-width: 901px) and (max-width: 1400px) {
+            header { padding: .7rem 1.5rem; }
+            .workspace-nav { margin: 1rem 0; }
+            .agent-card { padding: 1.1rem; }
+            #agentGoal { min-height: 120px; height: 138px; }
+            .agent-footer { gap: .6rem; }
+            .agent-footer .btn, .agent-footer .filter-select { padding: .6rem .9rem; font-size: .9rem; }
+        }
     </style>
 </head>
 <body>
     <header>
         <div class="header-content">
             <div class="brand">
-                <div class="brand-icon">FF</div>
-                <div class="brand-text"><h1>FileForge<span>Organizer</span></h1></div>
+                <div class="brand-icon">DL</div>
+                <div class="brand-text"><h1>Digital Life Organizer</h1><small>Local AI File Agent</small></div>
             </div>
             <div class="nav-actions">
-                <button class="btn btn-primary" onclick="openBrowser()"><span>📁</span> Scan Files</button>
+                <button class="btn btn-primary" onclick="switchWorkspaceView('files'); openBrowser()"><span>📁</span> Scan Files</button>
                 <button class="btn btn-secondary" onclick="showSettings()"><span>⚙️</span> Settings</button>
             </div>
         </div>
     </header>
 
     <main class="container">
+        <nav class="workspace-nav" aria-label="Workspace views">
+            <button id="agentViewTab" class="btn" role="tab" aria-selected="true" aria-controls="agentWorkspace" onclick="switchWorkspaceView('agent')">Agent Workspace</button>
+            <button id="filesViewTab" class="btn" role="tab" aria-selected="false" aria-controls="filesWorkspace" onclick="switchWorkspaceView('files')">Files</button>
+        </nav>
+        <section id="agentWorkspace" aria-labelledby="agentViewTab">
+            <div class="agent-card">
+                <h2>1. Task Input</h2>
+                <p class="agent-note">Goal → Plan → Analysis → Approval → Result</p>
+                <label class="agent-label" for="agentWorkspacePath">Workspace</label>
+                <div class="agent-path">
+                    <input id="agentWorkspacePath" class="form-input" placeholder="E:\Hackthon\demo\sample_workspace">
+                    <button id="agentBrowse" class="btn btn-secondary" onclick="openBrowser('agentWorkspacePath')">Browse</button>
+                </div>
+                <label class="agent-label" for="agentGoal">Natural Language Goal</label>
+                <textarea id="agentGoal" class="form-textarea" rows="6" placeholder="帮我准备生成式人工智能黑客松报名资料。
+根据比赛通知找到需要提交的文件，
+同一材料如果有多个版本选择最新版本，
+检查不同通知有没有冲突，
+缺少的材料告诉我，
+最后生成一个报名资料包。
+执行文件操作前先让我确认。"></textarea>
+                <div class="agent-footer">
+                    <label for="agentMode">Mode</label>
+                    <select id="agentMode" class="filter-select"><option value="mock">Mock Mode</option><option value="real">Real Mode</option></select>
+                    <label id="agentScenarioLabel" for="agentScenario">Mock Scenario</label>
+                    <select id="agentScenario" class="filter-select"><option value="happy">Happy path</option><option value="failed">Analysis failure</option></select>
+                    <button id="runAgent" class="btn btn-primary" disabled onclick="runAgent()">Run Agent</button>
+                    <button id="refreshAgent" class="btn btn-secondary btn-sm" disabled onclick="pollAgent()">Refresh Task Status</button>
+                    <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Mock Mode</span>
+                </div>
+                <p id="agentModeNote" class="agent-note">Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。</p>
+                <div id="agentError" class="agent-error" role="alert" hidden><strong id="agentErrorTitle"></strong><span id="agentErrorDetail"></span></div>
+            </div>
+            <div class="agent-card"><h2>2. Agent Plan</h2><div id="agentPlan" aria-live="polite"><p class="agent-placeholder">Run a task to see the execution plan.</p></div></div>
+            <div class="agent-card"><h2>3. Analysis Results</h2>
+                <div class="agent-grid">
+                    <div class="agent-panel"><h3>Version Groups</h3><div id="agentVersions" class="agent-placeholder">Analysis results will appear here.</div></div>
+                    <div class="agent-panel"><h3>Conflicts</h3><div id="agentConflicts" class="agent-placeholder">Analysis results will appear here.</div></div>
+                    <div class="agent-panel"><h3>Required Materials</h3><div id="agentMaterials" class="agent-placeholder">Analysis results will appear here.</div></div>
+                </div>
+            </div>
+            <div class="agent-card approval-card"><h2>4. Pending Actions · User Approval</h2>
+                <p class="agent-note">Review the source and destination before approving any file operations.</p>
+                <div id="agentActions" class="agent-placeholder">No file operations are waiting for approval.</div>
+                <div class="agent-footer"><button id="rejectAgent" class="btn btn-secondary" disabled onclick="decideAgent(false)">Reject</button><button id="approveAgent" class="btn btn-primary" disabled onclick="decideAgent(true)">Approve &amp; Execute</button></div>
+            </div>
+            <div id="agentFinalCard" class="agent-card result-card"><h2>5. Final Result</h2><div id="agentFinal" class="agent-placeholder">Final report will appear after the task completes.</div><button id="copyPackagePath" class="btn btn-primary" hidden onclick="copyPackagePath()">Copy Path</button></div>
+        </section>
+        <section id="filesWorkspace" hidden aria-labelledby="filesViewTab">
+
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-label">Total Files</div><div class="stat-value" id="stat-total">0</div><div class="stat-sub" id="stat-size">0 B</div></div>
             <div class="stat-card warning"><div class="stat-label">Duplicates</div><div class="stat-value" id="stat-duplicates">0</div><div class="stat-sub" id="stat-saved">0 B recoverable</div></div>
@@ -452,6 +583,7 @@
                 <tbody id="fileTableBody"><tr><td colspan="6" class="empty-state"><h3>No files scanned yet</h3><p>Select a directory above to begin scanning</p></td></tr></tbody>
             </table>
         </div>
+        </section>
     </main>
 
     <div class="modal-overlay" id="fileModal"><div class="modal"><div class="modal-header"><h2 id="modalTitle">File Details</h2><button class="close-btn" onclick="closeModal()">&times;</button></div><div class="modal-body" id="modalBody"><p class="loading">Select a file to view details</p></div></div></div>
@@ -492,8 +624,14 @@
                 <button class="close-btn" onclick="closeBrowser()">&times;</button>
             </div>
             <div class="modal-body">
+                <label for="browserJumpPath">Go to path</label>
+                <form class="browser-jump" onsubmit="event.preventDefault(); fetchDirectory(document.getElementById('browserJumpPath').value)">
+                    <input id="browserJumpPath" class="form-input" type="text" placeholder="E:\ or a full directory path" autocomplete="off" aria-describedby="browserJumpHint">
+                    <button class="btn btn-secondary btn-sm" type="submit">Go</button>
+                </form>
+                <p id="browserJumpHint" class="browser-jump-hint">Enter any drive root or directory path, including a UNC path.</p>
                 <div class="browser-breadcrumb" id="browserBreadcrumb"></div>
-                <div class="dir-list" id="dirList">
+                <div class="dir-list" id="dirList" role="status" aria-live="polite">
                     <div class="dir-empty">Loading…</div>
                 </div>
             </div>
@@ -501,14 +639,229 @@
                 <div class="browser-cur-path" id="browserCurPath"></div>
                 <div style="display:flex;gap:0.5rem;">
                     <button class="btn btn-secondary btn-sm" onclick="closeBrowser()">Cancel</button>
-                    <button class="btn btn-primary btn-sm" onclick="selectDirectory()">Select This Folder</button>
+                    <button id="browserSelect" class="btn btn-primary btn-sm" disabled onclick="selectDirectory()">Select This Folder</button>
                 </div>
             </div>
         </div>
     </div>
     <div class="toast-container" id="toastContainer"></div>
 
+    <script src="/static/agent-mock.js"></script>
+    <script src="/static/agent-api.js"></script>
     <script>
+        // State
+        const agentState = {task: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null};
+        const byId = id => document.getElementById(id);
+        const agentArray = value => Array.isArray(value) ? value.filter(item => item != null) : [];
+        const agentText = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
+        const agentEscape = value => escapeHtml(agentText(value));
+        const agentActiveStatuses = ['created','planning','executing','verifying'];
+        function switchWorkspaceView(view) {
+            byId('agentWorkspace').hidden = view !== 'agent';
+            byId('filesWorkspace').hidden = view !== 'files';
+            byId('agentViewTab').setAttribute('aria-selected', String(view === 'agent'));
+            byId('filesViewTab').setAttribute('aria-selected', String(view === 'files'));
+        }
+        function stopAgentPolling() { clearTimeout(agentState.timer); agentState.timer = null; }
+        function scheduleAgentPolling() {
+            stopAgentPolling();
+            agentState.timer = setTimeout(() => { agentState.timer = null; pollAgent(); }, 1000);
+        }
+        function validateAgentTask(task) {
+            if (!task || typeof task.task_id !== 'string' || !task.task_id || ![...agentActiveStatuses,'awaiting_approval','completed','failed'].includes(task.status)) throw new Error('Invalid Agent Task response');
+            if (agentState.task && agentState.task.task_id !== task.task_id) throw new Error('Task response does not match the current task');
+        }
+        // Rendering
+        function updateAgentControls() {
+            const locked = agentState.busy || agentState.pollInFlight || agentState.decisionBusy;
+            byId('runAgent').disabled = locked || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
+            ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario'].forEach(id => byId(id).disabled = locked);
+            byId('runAgent').textContent = agentState.busy ? 'Running...' : 'Run Agent';
+            const awaiting = agentState.task?.status === 'awaiting_approval';
+            const preview = agentState.snapshot?.preview_id;
+            const hasPreview = agentState.mode === 'mock' || (typeof preview === 'string' && preview.length > 0);
+            byId('approveAgent').disabled = byId('rejectAgent').disabled = !awaiting || !hasPreview || !agentState.approvalValid || agentState.decisionBusy || agentState.pollInFlight;
+            byId('refreshAgent').disabled = !agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode;
+            byId('approveAgent').textContent = agentState.decisionBusy && agentState.decisionAction === 'approve' ? 'Executing...' : 'Approve & Execute';
+            byId('rejectAgent').textContent = agentState.decisionBusy && agentState.decisionAction === 'reject' ? 'Rejecting...' : 'Reject';
+            byId('agentScenario').hidden = byId('agentMode').value !== 'mock';
+            byId('agentScenarioLabel').hidden = byId('agentMode').value !== 'mock';
+        }
+        function agentError(message, title) {
+            const detail = agentText(message);
+            const status = detail.match(/HTTP (400|404|409|500|501)/)?.[1];
+            const titles = {'400':'Invalid task request · HTTP 400','404':'Agent endpoint not found · HTTP 404','409':'Task state changed · HTTP 409','500':'Agent server error · HTTP 500','501':'Agent endpoint unavailable · HTTP 501'};
+            byId('agentError').hidden = !detail;
+            byId('agentError').dataset.kind = status || '';
+            byId('agentErrorTitle').textContent = title || titles[status] || (/unavailable|network|fetch|timed out/i.test(detail) ? 'Backend unavailable' : 'Task needs attention');
+            // Keep errors readable; the existing network inspector retains full responses.
+            byId('agentErrorDetail').textContent = detail.length > 700 ? detail.slice(0,700) + '…' : detail;
+        }
+        function resetAgentPresentation() {
+            clearTimeout(agentState.copyTimer);
+            agentState.report = null;
+            byId('agentPlan').innerHTML = '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
+            ['agentVersions','agentConflicts','agentMaterials'].forEach(id => {
+                byId(id).textContent = 'Analysis results will appear here.';
+                byId(id).classList.add('agent-placeholder');
+            });
+            byId('agentActions').textContent = 'No file operations are waiting for approval.';
+            byId('agentActions').classList.add('agent-placeholder');
+            byId('agentFinal').textContent = 'Final report will appear after the task completes.';
+            byId('agentFinal').classList.add('agent-placeholder');
+            byId('agentFinalCard').dataset.completed = 'false';
+            byId('copyPackagePath').hidden = true;
+            byId('copyPackagePath').textContent = 'Copy Path';
+            agentError('');
+        }
+        function agentDetails(value) {
+            return value == null ? '<p class="agent-note">结果结构尚未提供。</p>' : '<pre style="white-space:pre-wrap;overflow-wrap:anywhere">' + agentEscape(value) + '</pre>';
+        }
+        function renderAgent(snapshot) {
+            validateAgentTask(snapshot?.task);
+            agentState.task = snapshot.task;
+            agentState.snapshot = snapshot;
+            agentState.approvalValid = snapshot.task.status === 'awaiting_approval';
+            const mock = agentState.mode === 'mock';
+            byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (mock ? 'Mock Mode' : 'Real Mode');
+            const symbols = {pending:'○',running:'●',completed:'✓',failed:'✕',awaiting_approval:'⚠',skipped:'－'};
+            byId('agentPlan').innerHTML = agentArray(snapshot.plan?.steps).map(step => '<div class="agent-step" data-status="' + agentEscape(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + agentEscape(step.description) + '<small>' + agentEscape(step.tool) + ' · ' + agentEscape(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + agentEscape(step.risk) + '</span></div>').join('') || '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
+            const results = agentArray(snapshot.results);
+            const result = tool => results.filter(r => r.tool === tool).at(-1);
+            const versions = result('compare_versions'), conflicts = result('detect_conflicts'), materials = result('extract_requirements');
+            ['agentVersions','agentConflicts','agentMaterials'].forEach(id => byId(id).textContent = 'Analysis results will appear here.');
+            if (versions) {
+                byId('agentVersions').classList.remove('agent-placeholder');
+                byId('agentVersions').innerHTML = versions.success && Array.isArray(versions.data?.groups) ? agentArray(versions.data.groups).map(group =>
+                    agentArray(group.documents).map(doc => '<div class="agent-item">' + agentEscape(doc.filename) + (mock && doc.file_id === group.newest_candidate ? ' <span class="badge badge-success">Latest</span>' : '') + '<small style="display:block">' + agentEscape(doc.modified_time) + '</small></div>').join('') +
+                    (mock ? agentArray(group.changes).map(change => '<p>' + agentEscape(change) + '</p>').join('') : '<p class="agent-note">候选版本与变更结构待确认，显示后端原始详情：</p>' + agentDetails({newest_candidate: group.newest_candidate, changes: group.changes}))
+                ).join('') || '暂无版本组。' : agentDetails(versions.error || versions.data);
+            }
+            if (conflicts) byId('agentConflicts').classList.remove('agent-placeholder');
+            if (materials) byId('agentMaterials').classList.remove('agent-placeholder');
+            if (conflicts) byId('agentConflicts').innerHTML = conflicts.success && Array.isArray(conflicts.data?.conflicts) ? agentArray(conflicts.data.conflicts).map(c => '<p><span class="badge badge-warning">' + agentEscape(c.field) + '</span></p>' + agentArray(c.values).map(v => '<div class="agent-item">' + agentEscape(v.source) + '<br><strong>' + agentEscape(v.value) + '</strong></div>').join('') + '<p>Recommendation: ' + agentEscape(c.recommendation) + '</p>').join('') || '未检测到冲突。' : agentDetails(conflicts.error || conflicts.data);
+            if (materials) byId('agentMaterials').innerHTML = materials.success && Array.isArray(materials.data?.required_documents) ? agentArray(materials.data.required_documents).map(name => '<div class="agent-item">' + (mock ? (agentArray(snapshot.missing_items).includes(name) ? '⚠ ' + agentEscape(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + agentEscape(name)) : '• ' + agentEscape(name)) + '</div>').join('') + (mock ? '' : '<p class="agent-note">匹配与缺失结果结构尚未提供。</p>') : agentDetails(materials.error || materials.data);
+            if (mock) {
+                byId('agentActions').innerHTML = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('') || 'No file operations are waiting for approval.';
+            } else {
+                const operations = agentArray(snapshot.pending_operations);
+                byId('agentActions').innerHTML = operations.map(step => '<div class="agent-item"><span class="badge badge-warning">' + agentEscape(step.tool) + '</span> Risk: ' + agentEscape(step.risk) + '<p>' + agentEscape(step.description) + '</p><small>' + agentEscape(step.step_id) + ' · ' + agentEscape(step.status) + '</small>' + agentDetails(step.arguments) + '</div>').join('') || 'No file operations are waiting for approval.';
+                if (snapshot.task.status === 'awaiting_approval') byId('agentActions').innerHTML += '<p class="agent-note">' + (typeof snapshot.preview_id === 'string' && snapshot.preview_id ? 'Preview: ' + agentEscape(snapshot.preview_id) : '缺少 preview_id，不能提交审批。请刷新任务状态。') + '</p>';
+            }
+            byId('agentActions').classList.toggle('agent-placeholder', !agentArray(mock ? snapshot.operations : snapshot.pending_operations).length);
+            updateAgentControls();
+        }
+        function renderAgentReport(report) {
+            if (!report || report.task_id !== agentState.task.task_id || report.status !== 'completed') throw new Error('Invalid FinalReport response');
+            agentState.report = report;
+            const mock = agentState.mode === 'mock';
+            byId('agentFinalCard').dataset.completed = 'true';
+            byId('agentFinal').classList.remove('agent-placeholder');
+            const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],['Missing Items',report.missing_items],['Conflicts',report.conflicts],['Operations',report.operations]];
+            const warnings = [['Missing Items',report.missing_items],['Conflicts',report.conflicts]].filter(([,items]) => agentArray(items).length);
+            byId('agentFinal').innerHTML = '<h3 class="result-heading">✓ Task Completed' + (mock ? ' · Mock' : '') + '</h3><p class="result-summary">' + agentEscape(report.summary) + '</p>' +
+                (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">No package path provided.</p>') +
+                warnings.map(([label,items]) => '<p class="result-warning">⚠ ' + items.length + ' ' + label + ' — review the analysis before submitting materials.</p>').join('') +
+                '<div class="agent-summary">' + counts.filter(([,items]) => Array.isArray(items) && items.length).map(([label,items]) => '<div>' + label + '<strong>' + items.length + '</strong></div>').join('') + '</div>';
+            byId('copyPackagePath').hidden = typeof report.package_path !== 'string' || !report.package_path;
+        }
+        // Event handlers: one sequential timeout loop, never setInterval.
+        async function applyAgentSnapshot(snapshot) {
+            renderAgent(snapshot);
+            const status = snapshot.task.status;
+            agentState.busy = agentActiveStatuses.includes(status) || status === 'awaiting_approval';
+            if (status === 'completed') {
+                stopAgentPolling();
+                try { renderAgentReport(await AgentAPI.getReport(snapshot.task.task_id)); }
+                catch (error) {
+                    byId('agentFinal').textContent = error.status === 409 ? '最终报告尚未生成，请刷新任务状态。' : '最终报告加载失败，请刷新任务状态。';
+                    agentError(error.message);
+                }
+            } else if (status === 'failed') {
+                stopAgentPolling();
+                byId('agentFinal').classList.remove('agent-placeholder');
+                byId('agentFinal').textContent = agentState.userRejected ? 'Task stopped — 用户拒绝了待执行的文件操作。' : 'Task failed';
+                agentError(snapshot.error || (agentState.userRejected ? '用户拒绝了待执行的文件操作。' : 'Task failed'), agentState.userRejected ? 'Task stopped' : 'Task failed');
+            } else if (status === 'awaiting_approval') stopAgentPolling();
+            else scheduleAgentPolling();
+        }
+        async function pollAgent() {
+            if (!agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode) return;
+            stopAgentPolling();
+            agentState.pollInFlight = true; agentState.approvalValid = false; updateAgentControls();
+            const generation = agentState.generation;
+            agentError('');
+            try {
+                const snapshot = await AgentAPI.getTask(agentState.task.task_id);
+                if (generation !== agentState.generation) return;
+                await applyAgentSnapshot(snapshot);
+            } catch (error) {
+                stopAgentPolling(); agentState.busy = false; agentState.approvalValid = false;
+                agentError(error.message + '；自动轮询已停止，可刷新任务状态。');
+            } finally { agentState.pollInFlight = false; updateAgentControls(); }
+        }
+        async function runAgent() {
+            if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
+            if (!byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim()) { agentError('请填写 Workspace 和 Goal。'); return; }
+            stopAgentPolling(); agentState.generation++;
+            Object.assign(agentState, {busy: true, task: null, snapshot: null, report: null, userRejected: false, approvalValid: false, mode: byId('agentMode').value});
+            agentError('');
+            resetAgentPresentation();
+            byId('agentPlan').textContent = '正在创建任务…'; updateAgentControls();
+            try {
+                AgentAPI.setMode(agentState.mode);
+                const task = await AgentAPI.createTask(byId('agentGoal').value.trim(), byId('agentWorkspacePath').value.trim(), byId('agentScenario').value);
+                validateAgentTask(task); agentState.task = task;
+                byId('agentTaskStatus').textContent = task.status + ' · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
+                scheduleAgentPolling();
+            } catch (error) {
+                agentState.busy = false; byId('agentPlan').textContent = '未能创建任务。'; byId('agentTaskStatus').textContent = 'Request failed · ' + agentState.mode; agentError(error.message);
+            } finally { updateAgentControls(); }
+        }
+        async function decideAgent(approve) {
+            if (agentState.decisionBusy || agentState.pollInFlight || !agentState.approvalValid || agentState.task?.status !== 'awaiting_approval') return;
+            const previewId = agentState.snapshot?.preview_id;
+            if (agentState.mode === 'real' && (typeof previewId !== 'string' || !previewId)) { agentError('缺少 preview_id，请刷新任务状态。'); return; }
+            stopAgentPolling(); agentState.decisionAction = approve ? 'approve' : 'reject'; agentState.decisionBusy = true; agentState.approvalValid = false; updateAgentControls(); agentError('');
+            try {
+                const snapshot = await AgentAPI[approve ? 'approveTask' : 'rejectTask'](agentState.task.task_id, previewId);
+                agentState.userRejected = !approve;
+                await applyAgentSnapshot(snapshot);
+            } catch (error) {
+                // Never repeat a mutation: refresh only, especially after stale approval.
+                if (error.status === 409) {
+                    agentError('HTTP 409 · The approval preview is no longer current. Refreshing the latest task state.');
+                    try { await applyAgentSnapshot(await AgentAPI.getTask(agentState.task.task_id)); }
+                    catch (refreshError) { agentState.busy = false; agentState.approvalValid = false; agentError(refreshError.message); }
+                    agentError('HTTP 409 · The approval preview is no longer current. Refreshing the latest task state. 请检查最新操作。');
+                } else { agentError(error.message + '；请先刷新任务状态，确认操作结果。'); }
+            } finally { agentState.decisionBusy = false; agentState.decisionAction = null; updateAgentControls(); }
+        }
+        async function copyPackagePath() {
+            if (!agentState.report?.package_path) return;
+            try {
+                const path = agentState.report.package_path;
+                await navigator.clipboard.writeText(path);
+                if (agentState.report?.package_path !== path) return;
+                clearTimeout(agentState.copyTimer);
+                byId('copyPackagePath').textContent = 'Copied';
+                agentState.copyTimer = setTimeout(() => { byId('copyPackagePath').textContent = 'Copy Path'; }, 1800);
+            }
+            catch (error) { agentError('无法复制路径，请手动复制显示的 Package Path。'); }
+        }
+        ['agentWorkspacePath','agentGoal'].forEach(id => byId(id).addEventListener('input', updateAgentControls));
+        byId('agentMode').addEventListener('change', () => {
+            // Mode is locked during active work; clear only the idle view.
+            if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
+            stopAgentPolling(); agentState.generation++;
+            Object.assign(agentState, {task: null, snapshot: null, report: null, approvalValid: false, userRejected: false, mode: byId('agentMode').value});
+            AgentAPI.setMode(agentState.mode);
+            resetAgentPresentation();
+            byId('agentTaskStatus').textContent = 'Ready · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
+            byId('agentModeNote').textContent = byId('agentMode').value === 'mock' ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。' : 'Real Mode：调用正式 Agent API。接口不可用时显示真实错误，不会切换至 Mock。';
+            updateAgentControls();
+        });
+        // Existing FileForge logic
         let files = [];
         let currentFilter = { type: 'files', search: '', category: 'all', status: 'all' };
 
@@ -536,51 +889,73 @@
 
         // ── Directory Browser ─────────────────────────────────────────────
         var browserCurrentPath = '';
+        var browserTargetInput = 'scanPath';
+        var browserRequestId = 0;
 
-        function openBrowser() {
+        function openBrowser(targetInput) {
+            browserTargetInput = targetInput || 'scanPath';
+            browserCurrentPath = '';
             document.getElementById('browserModal').classList.add('active');
-            var cur = document.getElementById('scanPath').value.trim();
+            var cur = document.getElementById(browserTargetInput).value.trim();
             fetchDirectory(cur || '~');
         }
 
         function closeBrowser() {
+            browserRequestId++;
             document.getElementById('browserModal').classList.remove('active');
         }
 
         async function fetchDirectory(path) {
+            var requestId = ++browserRequestId;
+            path = String(path || '').trim();
+            browserCurrentPath = '';
+            document.getElementById('browserSelect').disabled = true;
+            document.getElementById('browserJumpPath').value = path;
+            document.getElementById('browserCurPath').textContent = '';
+            document.getElementById('browserBreadcrumb').textContent = '';
             document.getElementById('dirList').innerHTML = '<div class="dir-empty">Loading…</div>';
             try {
+                if (!path) throw new Error('Enter a drive root or directory path.');
                 var r = await fetch('/api/browse?path=' + encodeURIComponent(path));
-                if (!r.ok) { document.getElementById('dirList').innerHTML = '<div class="dir-empty">Cannot read directory.</div>'; return; }
+                if (requestId !== browserRequestId) return;
+                if (!r.ok) {
+                    var detail = '';
+                    try { var error = await r.json(); detail = typeof error.detail === 'string' ? error.detail : ''; } catch (_) {}
+                    throw new Error('Cannot open directory (HTTP ' + r.status + '). ' + detail);
+                }
                 var data = await r.json();
-                browserCurrentPath = data.path;
-                document.getElementById('browserCurPath').textContent = data.path;
+                if (requestId !== browserRequestId) return;
+                if (typeof data.path !== 'string' || !data.path || !Array.isArray(data.entries)) throw new Error('Invalid directory response. Please try again.');
                 renderBreadcrumb(data.path, data.parent);
                 renderDirList(data.entries, data.parent);
+                browserCurrentPath = data.path;
+                document.getElementById('browserCurPath').textContent = data.path;
+                document.getElementById('browserJumpPath').value = data.path;
+                document.getElementById('browserSelect').disabled = false;
             } catch (e) {
-                document.getElementById('dirList').innerHTML = '<div class="dir-empty">Server unavailable.</div>';
+                if (requestId !== browserRequestId) return;
+                document.getElementById('dirList').innerHTML = '<div class="dir-empty"></div>';
+                document.getElementById('dirList').firstElementChild.textContent = e instanceof TypeError ? 'Directory browser unavailable. Check the server connection.' : e.message;
             }
         }
 
         // Serialize a value as a JS literal that is safe inside a double-quoted HTML attribute.
         // JSON.stringify wraps strings in " which would prematurely close onclick="...".
         // Replacing " with &quot; lets the HTML parser decode it back to " before JS executes.
-        function jsq(val) { return JSON.stringify(val).replace(/"/g, '&quot;'); }
+        function jsq(val) { return escapeHtml(JSON.stringify(val)); }
 
         function renderBreadcrumb(path, parent) {
-            var parts = path.replace(/\\/g, '/').split('/').filter(Boolean);
+            var normalized = path.replace(/\\/g, '/');
+            var drive = /^[A-Za-z]:\//.test(normalized);
+            var unc = normalized.startsWith('//');
+            var parts = normalized.split('/').filter(Boolean);
             var html = '';
-            if (parent !== null) {
-                html += '<button onclick="fetchDirectory(' + jsq(parent) + ')">..</button><span class="bc-sep">/</span>';
-            }
-            var accumulated = '';
+            if (parent !== null) html += '<button onclick="fetchDirectory(' + jsq(parent) + ')">..</button><span class="bc-sep">/</span>';
+            var accumulated = drive ? '' : unc ? '//' : normalized.startsWith('/') ? '/' : '';
             parts.forEach(function(part, i) {
-                accumulated += (i === 0 ? '/' : '') + part + (i < parts.length - 1 ? '/' : '');
-                if (i < parts.length - 1) {
-                    html += '<button onclick="fetchDirectory(' + jsq(accumulated) + ')">' + escapeHtml(part) + '</button><span class="bc-sep">/</span>';
-                } else {
-                    html += '<span style="color:var(--silver)">' + escapeHtml(part) + '</span>';
-                }
+                accumulated += part + (i < parts.length - 1 || (drive && i === 0) ? '/' : '');
+                if (i < parts.length - 1) html += '<button onclick="fetchDirectory(' + jsq(accumulated) + ')">' + escapeHtml(part) + '</button><span class="bc-sep">/</span>';
+                else html += '<span>' + escapeHtml(part) + '</span>';
             });
             document.getElementById('browserBreadcrumb').innerHTML = html;
         }
@@ -602,13 +977,15 @@
 
         function selectEntry(path) {
             browserCurrentPath = path;
-            document.getElementById('scanPath').value = path;
+            document.getElementById(browserTargetInput).value = path;
+            updateAgentControls();
             closeBrowser();
         }
 
         function selectDirectory() {
             if (browserCurrentPath) {
-                document.getElementById('scanPath').value = browserCurrentPath;
+                document.getElementById(browserTargetInput).value = browserCurrentPath;
+                updateAgentControls();
             }
             closeBrowser();
         }
@@ -777,15 +1154,7 @@
                 html += '<td>' + badges + '</td>';
                 html += '<td><div class="actions">';
                 html += '<button class="action-btn btn-view" onclick="viewFile(\'' + escapeHtml(f.id) + '\')">👁️</button>';
-                if (f.is_duplicate) {
-                    html += '<button class="action-btn btn-delete" onclick="deleteFile(\'' + escapeHtml(f.id) + '\')">Delete</button>';
-                } else {
-                    html += '<button class="action-btn btn-move" onclick="moveFile(\'' + escapeHtml(f.id) + '\')">Move</button>';
-                    html += '<button class="action-btn btn-archive" onclick="archiveFile(\'' + escapeHtml(f.id) + '\')">Archive</button>';
-                }
-                if (f.is_stale) {
-                    html += '<button class="action-btn btn-delete" onclick="trashFile(\'' + escapeHtml(f.id) + '\')">Trash</button>';
-                }
+                html += '<button class="action-btn" disabled title="Not available in Agent MVP">File operations unavailable</button>';
                 html += '</div></td>';
                 html += '</tr>';
             });
@@ -845,12 +1214,12 @@
             var html = '';
             html += '<div class="detail-row"><div class="detail-label">File Path</div><div class="detail-value">' + escapeHtml(file.path) + '</div></div>';
             html += '<div class="detail-row"><div class="detail-label">Size</div><div class="detail-value">' + formatBytes(file.size_bytes) + '</div></div>';
-            html += '<div class="detail-row"><div class="detail-label">Category</div><div class="detail-value">' + (file.category || 'Uncategorized') + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">Category</div><div class="detail-value">' + escapeHtml(file.category || 'Uncategorized') + '</div></div>';
             html += '<div class="detail-row"><div class="detail-label">Modified</div><div class="detail-value">' + formatDatetime(file.modified_at) + '</div></div>';
             html += '<div class="detail-row"><div class="detail-label">Status</div><div class="detail-value">' + badges + '</div></div>';
             if (file.is_duplicate) html += '<div class="detail-row"><div class="detail-label">Duplicate Of</div><div class="detail-value">' + escapeHtml(file.duplicate_of) + '</div></div>';
             if (file.is_stale) html += '<div class="detail-row"><div class="detail-label">Stale Reason</div><div class="detail-value">' + escapeHtml(file.stale_reason) + '</div></div>';
-            html += '<div class="detail-row"><div class="detail-label">SHA-256</div><div class="detail-value">' + (file.sha256 || 'Not computed') + '</div></div>';
+            html += '<div class="detail-row"><div class="detail-label">SHA-256</div><div class="detail-value">' + escapeHtml(file.sha256 || 'Not computed') + '</div></div>';
             document.getElementById('modalBody').innerHTML = html;
             document.getElementById('fileModal').classList.add('active');
         }
@@ -967,14 +1336,14 @@
                 html = sTitle('👁 Watch Mode') +
                     lRow('watch_dirs','watch','Watch Directories', c.watch.watch_dirs,'Directories to monitor for changes, one per line') +
                     tRow('scan_delay_seconds','watch','Scan Delay (s)', c.watch.scan_delay_seconds,'int','Wait this many seconds after the last change before scanning') +
-                    bRow('auto_act','watch','Auto-Act', c.watch.auto_act,'Automatically execute organize actions without confirmation') +
+                    '<p class="agent-note">Auto-Act: Not available in Agent MVP</p>' +
                     lRow('debounce_patterns','watch','Debounce Patterns', c.watch.debounce_patterns,'Patterns that never trigger a scan, one per line');
             } else if (ffSection === 'schedule') {
                 html = sTitle('⏰ Schedule') +
                     bRow('enabled','schedule','Enable Scheduled Scans', c.schedule.enabled,'Run automated scans on the configured cron schedule') +
                     tRow('schedule_cron','schedule','Cron Expression', c.schedule.schedule_cron,'str','Standard 5-field cron — default runs at 02:00 daily') +
                     bRow('run_phase_2','schedule','Run Phase 2 Analysis', c.schedule.run_phase_2,'Include embedding and staleness analysis in scheduled runs') +
-                    bRow('auto_act','schedule','Auto-Act on Schedule', c.schedule.auto_act,'Automatically execute organize actions from scheduled scans');
+                    '<p class="agent-note">Auto-Act: Not available in Agent MVP</p>';
             }
             document.getElementById('settingsPanel').innerHTML = html;
         }
@@ -1043,10 +1412,10 @@
         }
 
         function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
-        function moveFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File would be moved to organized folder: ' + file.name, 'success'); }
-        function archiveFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File archived: ' + file.name, 'success'); }
-        function trashFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File sent to trash: ' + file.name, 'warning'); }
-        function deleteFile(id) { var file = files.find(function(f) { return f.id === id; }); if (file) showToast('File permanently deleted: ' + file.name, 'warning'); }
+        function moveFile(id) { showToast('Not available in Agent MVP', 'warning'); }
+        function archiveFile(id) { showToast('Not available in Agent MVP', 'warning'); }
+        function trashFile(id) { showToast('Not available in Agent MVP', 'warning'); }
+        function deleteFile(id) { showToast('Not available in Agent MVP', 'warning'); }
 
         function exportData() {
             var json = JSON.stringify(files, null, 2);
