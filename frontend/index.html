@@ -230,6 +230,10 @@
         .browser-breadcrumb .bc-sep { color: rgba(216,221,232,0.3); margin: 0 0.15rem; }
         .browser-breadcrumb button { background: none; border: none; color: var(--blue); cursor: pointer; padding: 0 0.15rem; font-family: inherit; font-size: inherit; line-height: 1.4; }
         .browser-breadcrumb button:hover { text-decoration: underline; }
+        .browser-jump { display: flex; gap: .5rem; margin: .4rem 0; }
+        .browser-jump input { flex: 1; min-width: 0; }
+        .browser-jump button { flex-shrink: 0; }
+        .browser-jump-hint { font-size: .78rem; opacity: .65; margin-bottom: .85rem; overflow-wrap: anywhere; }
         .dir-list { max-height: 300px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; }
         .dir-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.9rem; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.12s; }
         .dir-item:last-child { border-bottom: none; }
@@ -620,8 +624,14 @@
                 <button class="close-btn" onclick="closeBrowser()">&times;</button>
             </div>
             <div class="modal-body">
+                <label for="browserJumpPath">Go to path</label>
+                <form class="browser-jump" onsubmit="event.preventDefault(); fetchDirectory(document.getElementById('browserJumpPath').value)">
+                    <input id="browserJumpPath" class="form-input" type="text" placeholder="E:\ or a full directory path" autocomplete="off" aria-describedby="browserJumpHint">
+                    <button class="btn btn-secondary btn-sm" type="submit">Go</button>
+                </form>
+                <p id="browserJumpHint" class="browser-jump-hint">Enter any drive root or directory path, including a UNC path.</p>
                 <div class="browser-breadcrumb" id="browserBreadcrumb"></div>
-                <div class="dir-list" id="dirList">
+                <div class="dir-list" id="dirList" role="status" aria-live="polite">
                     <div class="dir-empty">Loading…</div>
                 </div>
             </div>
@@ -880,6 +890,7 @@
         // ── Directory Browser ─────────────────────────────────────────────
         var browserCurrentPath = '';
         var browserTargetInput = 'scanPath';
+        var browserRequestId = 0;
 
         function openBrowser(targetInput) {
             browserTargetInput = targetInput || 'scanPath';
@@ -890,24 +901,41 @@
         }
 
         function closeBrowser() {
+            browserRequestId++;
             document.getElementById('browserModal').classList.remove('active');
         }
 
         async function fetchDirectory(path) {
+            var requestId = ++browserRequestId;
+            path = String(path || '').trim();
             browserCurrentPath = '';
             document.getElementById('browserSelect').disabled = true;
+            document.getElementById('browserJumpPath').value = path;
+            document.getElementById('browserCurPath').textContent = '';
+            document.getElementById('browserBreadcrumb').textContent = '';
             document.getElementById('dirList').innerHTML = '<div class="dir-empty">Loading…</div>';
             try {
+                if (!path) throw new Error('Enter a drive root or directory path.');
                 var r = await fetch('/api/browse?path=' + encodeURIComponent(path));
-                if (!r.ok) { document.getElementById('dirList').innerHTML = '<div class="dir-empty">Cannot read directory.</div>'; return; }
+                if (requestId !== browserRequestId) return;
+                if (!r.ok) {
+                    var detail = '';
+                    try { var error = await r.json(); detail = typeof error.detail === 'string' ? error.detail : ''; } catch (_) {}
+                    throw new Error('Cannot open directory (HTTP ' + r.status + '). ' + detail);
+                }
                 var data = await r.json();
-                browserCurrentPath = data.path;
-                document.getElementById('browserSelect').disabled = false;
-                document.getElementById('browserCurPath').textContent = data.path;
+                if (requestId !== browserRequestId) return;
+                if (typeof data.path !== 'string' || !data.path || !Array.isArray(data.entries)) throw new Error('Invalid directory response. Please try again.');
                 renderBreadcrumb(data.path, data.parent);
                 renderDirList(data.entries, data.parent);
+                browserCurrentPath = data.path;
+                document.getElementById('browserCurPath').textContent = data.path;
+                document.getElementById('browserJumpPath').value = data.path;
+                document.getElementById('browserSelect').disabled = false;
             } catch (e) {
-                document.getElementById('dirList').innerHTML = '<div class="dir-empty">Server unavailable.</div>';
+                if (requestId !== browserRequestId) return;
+                document.getElementById('dirList').innerHTML = '<div class="dir-empty"></div>';
+                document.getElementById('dirList').firstElementChild.textContent = e instanceof TypeError ? 'Directory browser unavailable. Check the server connection.' : e.message;
             }
         }
 
