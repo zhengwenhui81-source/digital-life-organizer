@@ -18,11 +18,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from fileforge import __version__
+from fileforge.api.agent import router as agent_router
 from fileforge.config import FileForgeConfig, load_config
 
 logger = logging.getLogger("fileforge.api")
 
 app = FastAPI(title="FileForge API", version=__version__)
+app.include_router(agent_router)
 
 app.add_middleware(
     CORSMiddleware,
