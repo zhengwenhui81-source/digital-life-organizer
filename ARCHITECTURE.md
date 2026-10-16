@@ -17,7 +17,9 @@ Agent Core
    ↓
 Planner / Tool Routing
    ↓
-Document Intelligence + FileForge Tools
+Document Parsing + Version Intelligence
+   ↓
+Task Intelligence
    ↓
 Version / Conflict / Requirement Analysis
    ↓
@@ -25,7 +27,7 @@ Action Plan
    ↓
 User Approval
    ↓
-File Operations
+File Operations / Package Builder
    ↓
 Verification
    ↓
@@ -42,7 +44,7 @@ Final Package / Report
 6. No automatic delete or overwrite.
 7. Focus on one stable end-to-end demo before adding optional features.
 8. Prefer explainable intermediate results over hidden autonomous behavior.
-9. Keep Frontend, Agent Orchestration and Document Intelligence as separate responsibilities connected through shared contracts.
+9. Keep Frontend, Agent Orchestration, Document/Version Intelligence, and Task Intelligence as separate responsibilities connected through shared contracts.
 
 ## 3. High-Level Modules
 
@@ -64,12 +66,18 @@ Digital Life Organizer
 │   ├── Approval Gate
 │   └── Verifier
 │
-├── Document Intelligence
+├── Document Parsing & Version Intelligence
 │   ├── Document Parser
+│   ├── TXT / PDF / DOCX / XLSX readers
 │   ├── Version Detector
 │   ├── Version Diff
+│   └── Newest Candidate Selection
+│
+├── Task Intelligence / Package Builder
 │   ├── Conflict Detector
 │   ├── Requirement Extractor
+│   ├── Missing Material Matcher
+│   ├── Candidate Selection Logic
 │   └── Package Builder
 │
 ├── File Tools / Existing FileForge Capabilities
@@ -101,27 +109,40 @@ Outputs:
 - execution status
 - verification result
 
-Developer A owns orchestration, not the internal algorithms of document-intelligence tools.
+Developer A owns orchestration, not the internal algorithms of C/D intelligence tools.
 
-### Developer C — Document Intelligence
+### Developer B — Frontend
 
-Responsible for understanding **what the files mean and how a file-analysis task is performed**.
+Responsible for presenting **what the Agent is doing and what the user must decide**.
+
+Inputs:
+- Task / Plan / TaskSnapshot / ToolResult / FinalReport APIs
+
+Outputs:
+- task submission UI
+- progress visualization
+- version/conflict/missing-item cards
+- approval interaction
+- final package/report presentation
+
+Developer B must not duplicate backend decision logic in the browser. Real Mode follows `API_CONTRACT.md`; mock-only structures must remain isolated.
+
+### Developer C — Document Parsing & Version Intelligence
+
+Responsible for understanding **what each file contains and how multiple files relate as versions of the same material**.
 
 Inputs:
 - file paths
-- parsed documents
-- task requirements
+- file metadata
+- parsed document candidates
 
 Outputs:
 - normalized document content
 - version groups
-- semantic differences
-- conflicts
-- requirement checklist
-- missing-item results
-- package-generation results
+- newest candidate
+- semantic version differences
 
-Developer C exposes these capabilities through the shared contracts so Agent Core can call them without depending on private implementation details.
+Developer C exposes `read_document` / `compare_versions` behavior through shared contracts so Agent Core can call it without depending on private implementation details.
 
 The document-reading layer generates path-based `Document.file_id` values as
 specified in [API_CONTRACT.md](API_CONTRACT.md#path-based-document-identity).
@@ -135,21 +156,25 @@ values with sheet names; OCR, DOCX tables and spreadsheet calculation remain
 outside scope. See [extraction scope](API_CONTRACT.md#read_document-extraction-scope)
 for complete limitations. No second parser framework or identity service is added.
 
-### Developer B — Frontend
+### Developer D — Task Intelligence / Package Builder
 
-Responsible for presenting **what the Agent is doing and what the user must decide**.
+Responsible for understanding **what parsed/versioned files mean for the user's current task and how approved results become a final package**.
 
 Inputs:
-- Task / Plan / ToolResult / FinalReport APIs
+- normalized documents
+- version-analysis results
+- user task context
+- extracted task requirements
+- selected candidate files
 
 Outputs:
-- task submission UI
-- progress visualization
-- version/conflict/missing-item cards
-- approval interaction
-- final package/report presentation
+- cross-document conflicts
+- requirement checklist
+- required / matched / missing material results
+- package-generation result
+- package report data
 
-Developer B must not duplicate backend decision logic in the browser. Mock data must use the same contract as the real backend.
+Developer D owns the algorithms behind `detect_conflicts`, `extract_requirements`, missing-material analysis and `build_package`. Developer D does not control Agent planning/execution order and must not bypass the Agent approval gate for real filesystem mutations.
 
 ## 5. Integration Direction
 
@@ -157,15 +182,31 @@ The intended dependency direction is:
 
 ```text
 Frontend (Developer B)
-        ↓ API
+        ↓ Agent HTTP API
 Agent Core (Developer A)
-        ↓ Tool Contract
-Document Intelligence (Developer C)
+        ↓ Public Tool Contract
+ ┌───────────────────────────────┐
+ │                               │
+Document / Version (Developer C) Task Intelligence (Developer D)
+ │                               │
+ └──────── contract-shaped data ─┘
         ↓
 FileForge / Local File System
 ```
 
-Integration should preserve this direction. Avoid direct frontend dependencies on internal document-intelligence modules.
+More concretely:
+
+```text
+C: read_document / compare_versions
+        ↓ ToolResult / Document / version groups
+D: detect_conflicts / extract_requirements / build_package
+        ↓ ToolResult
+A: Planner / Executor / Approval / Verification
+        ↓ TaskSnapshot / FinalReport
+B: Frontend
+```
+
+Integration should preserve this direction. Avoid direct frontend dependencies on internal C/D modules. A should call public tools rather than import private analysis implementations. C and D should not reach into each other's private modules unless a shared boundary is explicitly agreed.
 
 ## 6. Risk Model
 
@@ -180,14 +221,16 @@ Can execute automatically:
 - analyze
 - detect duplicates
 - detect conflicts
+- extract requirements
 
 ### MEDIUM
-Requires approval:
+Requires approval before real filesystem change:
 - create folder
 - copy
 - move
 - rename
 - archive
+- package materialization when it creates/copies/moves files
 
 ### HIGH
 Forbidden in MVP:

@@ -446,7 +446,9 @@ Output `data`:
 }
 ```
 
-The exact shared representation for matched/missing requirement items remains to be finalized with Developer C before the frontend relies on a stricter schema.
+The exact shared representation for matched/missing requirement items remains to
+be finalized with Developer D and the consuming A/B developers before the
+frontend relies on a stricter schema.
 
 ### create_folder
 Input:
@@ -501,7 +503,9 @@ Rules:
 - default to copy, not move
 - never overwrite an existing user file silently
 - generate a package report when possible
-- the exact `ToolResult.data` shape for the actual package output path and verification target list must be agreed with Developer C before implementation is treated as stable
+- the exact `ToolResult.data` shape for the actual package output path and
+  verification target list must be agreed with Developer D and the consuming A/B
+  developers before implementation is treated as stable
 
 ### verify_result
 Input:
