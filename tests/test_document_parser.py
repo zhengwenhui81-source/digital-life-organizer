@@ -1,4 +1,4 @@
-"""TXT document contract tests using disposable source files."""
+"""Document contract tests using disposable real source files."""
 
 from __future__ import annotations
 
@@ -78,8 +78,8 @@ def test_empty_content_is_explicit_failure(tmp_dir: Path, content: str) -> None:
     assert source.read_text() == content
 
 
-@pytest.mark.parametrize("extension", [".pdf", ".docx", ".xlsx", ".md", ".bin"])
-def test_only_txt_is_supported(tmp_dir: Path, extension: str) -> None:
+@pytest.mark.parametrize("extension", [".xlsm", ".md", ".bin"])
+def test_unsupported_formats_are_rejected(tmp_dir: Path, extension: str) -> None:
     source = tmp_dir / ("HARNESS_other" + extension)
     source.write_bytes(b"sample")
     result = read_document(str(source))
@@ -224,3 +224,307 @@ def test_broken_symlink_returns_failure(tmp_dir: Path) -> None:
     assert result["success"] is False
     assert result["data"] is None
     assert "not found" in result["error"].lower()
+
+
+def _make_pdf(path: Path, pages: list[list[str]]) -> None:
+    """Write a real, uncompressed PDF with Helvetica text and an xref table.
+
+    ASCII fixtures deliberately avoid font installation and extra PDF writers.
+    An empty page has no text layer, without asserting it is a scanned page.
+    """
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        (
+            "<< /Type /Pages /Kids ["
+            + " ".join(f"{4 + i * 2} 0 R" for i in range(len(pages)))
+            + f"] /Count {len(pages)} >>"
+        ).encode(),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    for index, lines in enumerate(pages):
+        objects.append(
+            (
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                "/Resources << /Font << /F1 3 0 R >> >> "
+                f"/Contents {5 + index * 2} 0 R >>"
+            ).encode()
+        )
+        commands = ["BT /F1 10 Tf 40 750 Td 12 TL"]
+        for line in lines:
+            escaped = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+            commands.append(f"({escaped}) Tj T*")
+        commands.append("ET")
+        stream = "\n".join(commands).encode("ascii")
+        objects.append(
+            f"<< /Length {len(stream)} >>\nstream\n".encode() + stream + b"\nendstream"
+        )
+    raw = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, 1):
+        offsets.append(len(raw))
+        raw.extend(f"{index} 0 obj\n".encode() + obj + b"\nendobj\n")
+    xref = len(raw)
+    raw.extend(f"xref\n0 {len(offsets)}\n0000000000 65535 f \n".encode())
+    for offset in offsets[1:]:
+        raw.extend(f"{offset:010d} 00000 n \n".encode())
+    raw.extend(
+        (
+            f"trailer\n<< /Size {len(offsets)} /Root 1 0 R >>\n"
+            f"startxref\n{xref}\n%%EOF\n"
+        ).encode()
+    )
+    path.write_bytes(raw)
+
+
+def test_pdf_full_text_multiple_pages_and_source_preserved(tmp_dir: Path) -> None:
+    source = tmp_dir / "HARNESS_long.pdf"
+    _make_pdf(
+        source, [["FIRST_PAGE " + "abc " * 15] * 40, ["SECOND_PAGE", "PDF_END_MARKER"]]
+    )
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    result = read_document(str(source))
+    assert result["success"] is True, result
+    document = result["data"]["document"]
+    assert len(document["text"]) > 2000
+    assert "FIRST_PAGE" in document["text"]
+    assert document["text"].endswith("PDF_END_MARKER")
+    assert document["extension"] == ".pdf"
+    assert document == read_document(str(source))["data"]["document"]
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+
+
+def test_pdf_no_text_is_not_diagnosed_as_scanned(tmp_dir: Path) -> None:
+    source = tmp_dir / "HARNESS_blank.pdf"
+    _make_pdf(source, [[]])
+    result = read_document(str(source))
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "No extractable text" in result["error"]
+    assert "does not determine" in result["error"]
+
+
+def test_pdf_corrupt_is_parse_failure(tmp_dir: Path) -> None:
+    source = tmp_dir / "HARNESS_corrupt.pdf"
+    source.write_bytes(b"not a PDF")
+    result = read_document(str(source))
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "failed" in result["error"]
+    assert "No extractable text" not in result["error"]
+    assert source.read_bytes() == b"not a PDF"
+
+
+def _make_docx(path: Path, paragraphs: list[str], table: bool = False) -> None:
+    """Create a real Office document using the existing runtime dependency."""
+    from docx import Document
+
+    document = Document()
+    for paragraph in paragraphs:
+        document.add_paragraph(paragraph)
+    if table:
+        document.add_table(rows=1, cols=1).cell(0, 0).text = "TABLE_ONLY_MARKER"
+    document.save(path)
+
+
+def test_docx_long_body_paragraphs_and_source_preserved(tmp_dir: Path) -> None:
+    source = tmp_dir / "HARNESS_long.docx"
+    _make_docx(source, ["正文第一段" * 1000, "第二段", "DOCX_END_MARKER"], table=True)
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    result = read_document(str(source))
+    assert result["success"] is True, result
+    document = result["data"]["document"]
+    assert document["text"].endswith("第二段\nDOCX_END_MARKER")
+    assert len(document["text"]) > 2000
+    assert "TABLE_ONLY_MARKER" not in document["text"]
+    assert document["extension"] == ".docx"
+    assert document == read_document(str(source))["data"]["document"]
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+
+
+@pytest.mark.parametrize("table", [False, True])
+def test_docx_no_body_text_returns_explicit_failure(tmp_dir: Path, table: bool) -> None:
+    source = tmp_dir / "HARNESS_no_body.docx"
+    _make_docx(source, ["   "], table=table)
+    result = read_document(str(source))
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "No extractable text" in result["error"]
+    assert "body paragraphs" in result["error"]
+
+
+def test_docx_corrupt_is_parse_failure(tmp_dir: Path) -> None:
+    source = tmp_dir / "HARNESS_corrupt.docx"
+    source.write_bytes(b"not a DOCX")
+    result = read_document(str(source))
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "failed" in result["error"]
+    assert "No extractable text" not in result["error"]
+
+
+def _make_xlsx(path: Path, sheets: dict[str, list[list]]) -> None:
+    """Generate a real workbook with the existing openpyxl dependency."""
+    import openpyxl
+
+    workbook = openpyxl.Workbook()
+    workbook.remove(workbook.active)
+    for name, rows in sheets.items():
+        sheet = workbook.create_sheet(name)
+        for row in rows:
+            sheet.append(row)
+    workbook.save(path)
+    workbook.close()
+
+
+def test_xlsx_full_text_multiple_sheets_and_source_preserved(tmp_dir: Path) -> None:
+    source = tmp_dir / "HARNESS_long.xlsx"
+    _make_xlsx(
+        source, {"预算": [["long cell " * 1000]], "Final": [["XLSX_END_MARKER", 123]]}
+    )
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    result = read_document(str(source))
+    assert result["success"] is True, result
+    document = result["data"]["document"]
+    assert len(document["text"]) > 2000
+    assert "[预算]" in document["text"]
+    assert "[Final]" in document["text"]
+    assert document["text"].endswith("XLSX_END_MARKER | 123")
+    assert document["extension"] == ".xlsx"
+    assert document == read_document(str(source))["data"]["document"]
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+
+
+@pytest.mark.parametrize("rows", [[], [["=1+2"]]])
+def test_xlsx_no_values_or_uncached_formula_is_explicit_failure(
+    tmp_dir: Path, rows: list[list]
+) -> None:
+    source = tmp_dir / "HARNESS_no_values.xlsx"
+    _make_xlsx(source, {"Empty": rows})
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    result = read_document(str(source))
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "No extractable cell values" in result["error"]
+    assert "cached" in result["error"]
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+
+
+def test_xlsx_formula_cache_is_used_without_calculation(tmp_dir: Path) -> None:
+    from xml.etree import ElementTree
+    from zipfile import ZipFile
+
+    source = tmp_dir / "HARNESS_formula.xlsx"
+    _make_xlsx(source, {"Formula": [["=1+2", "=5+6", "visible label"]]})
+    # Fixture setup only: insert a deliberately stale cache (99, not 3).
+    # The reader must preserve that cached value and never compute 3 or 11.
+    with ZipFile(source) as archive:
+        entries = {name: archive.read(name) for name in archive.namelist()}
+    sheet = ElementTree.fromstring(entries["xl/worksheets/sheet1.xml"])
+    namespace = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    sheet.find(".//s:c[@r='A1']/s:v", namespace).text = "99"
+    entries["xl/worksheets/sheet1.xml"] = ElementTree.tostring(sheet)
+    with ZipFile(source, "w") as archive:
+        for name, value in entries.items():
+            archive.writestr(name, value)
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    result = read_document(str(source))
+    assert result["success"] is True, result
+    assert result["data"]["document"]["text"] == "[Formula]\n99 | visible label"
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+
+
+def test_xlsx_corrupt_is_parse_failure(tmp_dir: Path) -> None:
+    source = tmp_dir / "HARNESS_corrupt.xlsx"
+    source.write_bytes(b"not a workbook")
+    result = read_document(str(source))
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "failed" in result["error"]
+    assert "No extractable" not in result["error"]
+
+
+def _write_document(path: Path, content: str) -> None:
+    if path.suffix == ".pdf":
+        _make_pdf(path, [[content]])
+    elif path.suffix == ".docx":
+        _make_docx(path, [content])
+    elif path.suffix == ".xlsx":
+        _make_xlsx(path, {"Content": [[content]]})
+    else:
+        path.write_text(content, encoding="utf-8")
+
+
+@pytest.mark.parametrize("extension", [".txt", ".pdf", ".docx", ".xlsx"])
+def test_all_formats_share_contract_identity_and_read_only_behavior(
+    tmp_dir: Path, monkeypatch: pytest.MonkeyPatch, extension: str
+) -> None:
+    source = tmp_dir / ("HARNESS_identity" + extension)
+    _write_document(source, "original marker")
+    monkeypatch.chdir(tmp_dir)
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    first = read_document(str(source))
+    assert first["success"] is True, first
+    assert set(first) == {"success", "tool", "data", "message", "error"}
+    assert first["tool"] == "read_document"
+    assert first["error"] is None
+    document = first["data"]["document"]
+    assert set(document) == {
+        "file_id",
+        "path",
+        "filename",
+        "extension",
+        "text",
+        "size",
+        "modified_time",
+        "metadata",
+    }
+    assert document["path"] == str(source.resolve())
+    assert document["filename"] == source.name
+    assert document["extension"] == extension
+    assert document["size"] == len(before[0])
+    assert datetime.fromisoformat(document["modified_time"]) == datetime.fromtimestamp(
+        source.stat().st_mtime, tz=UTC
+    )
+    assert document["metadata"] == {}
+    expected_id = (
+        "file_"
+        + hashlib.sha256(
+            os.path.normcase(str(source.resolve())).encode("utf-8")
+        ).hexdigest()
+    )
+    assert document["file_id"] == expected_id
+    assert read_document(source.name) == first
+    json.dumps(first)
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+    copied = tmp_dir / ("HARNESS_copy" + extension)
+    shutil.copyfile(source, copied)
+    assert read_document(str(copied))["data"]["document"]["file_id"] != expected_id
+    _write_document(source, "updated marker")
+    before_update_read = (source.read_bytes(), source.stat().st_mtime_ns)
+    updated = read_document(str(source))["data"]["document"]
+    assert updated["file_id"] == expected_id
+    assert "updated marker" in updated["text"]
+    assert before_update_read == (source.read_bytes(), source.stat().st_mtime_ns)
+
+
+@pytest.mark.parametrize("extension", [".pdf", ".docx", ".xlsx"])
+def test_format_read_permission_failure_is_not_success(
+    tmp_dir: Path, extension: str
+) -> None:
+    source = tmp_dir / ("HARNESS_denied" + extension)
+    _write_document(source, "unchanged")
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    module = {".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx"}[extension]
+    with patch(
+        f"fileforge.document.parser.{module}.extract",
+        side_effect=PermissionError("denied"),
+    ):
+        result = read_document(str(source))
+    assert result == {
+        "success": False,
+        "tool": "read_document",
+        "data": None,
+        "message": "Document read failed",
+        "error": "Permission denied reading document",
+    }
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)

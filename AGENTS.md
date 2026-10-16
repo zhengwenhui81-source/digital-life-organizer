@@ -122,6 +122,12 @@ Confirmed collaboration decisions must also be reflected in this `AGENTS.md` and
 
 Document identity follows the confirmed [path-based Document identity contract](API_CONTRACT.md#path-based-document-identity). The document-reading layer owns ID generation; callers use `read_document(path)` without supplying an ID. IDs identify normalized paths, so consumers must not assume identity survives moving or renaming a file or changing environments.
 
+Parser support and omissions are defined in
+[read_document extraction scope](API_CONTRACT.md#read_document-extraction-scope).
+TXT, PDF text layers, DOCX body paragraphs, and XLSX cached cell values share the
+same Document/ToolResult and ID rules. Do not infer complete Office extraction,
+OCR, formula evaluation, or XLSM support from the supported extension list.
+
 Integration boundaries:
 - Developer A consumes C and D capabilities through shared public tool contracts.
 - Developer C and Developer D may exchange only contract-shaped data or explicitly agreed internal inputs; neither should depend on the other's private implementation details.
