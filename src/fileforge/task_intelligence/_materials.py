@@ -36,6 +36,12 @@ _HEADING = re.compile(
 _SECTION = re.compile(
     r"^(?:#{1,6}\s+|[一二三四五六七八九十]+[、．.]|第[一二三四五六七八九十0-9]+[章节])"
 )
+# Title-shaped administrative sections remain boundaries after list numbering
+# is removed, even with inline descriptions. A colon alone inside a material
+# item is not sufficient; unfamiliar/ambiguous prose is not semantically parsed.
+_EXPLICIT_SECTION_TITLE = re.compile(
+    r"^[^：:\n]{1,32}(?:安排|标准|流程|事项|方式|细则|须知|规则)" r"\s*[:：].*$"
+)
 # A condition/alternative governs the entire expression, not just a list item.
 _COMPLEX = re.compile(
     r"或|任选|二选一|选一|如|若|根据|视情况|仅限|限于|的需|的须|者需|者须"
@@ -123,7 +129,11 @@ def parse_material_evidence(text: str, source: str) -> list[MaterialEvidence]:
             continue
         numbered = _NUMBER.fullmatch(line)
         body = numbered[1] if numbered else line
-        if _SECTION.match(line) or body.endswith(("：", ":")):
+        if (
+            _SECTION.match(line)
+            or _EXPLICIT_SECTION_TITLE.fullmatch(body)
+            or body.endswith(("：", ":"))
+        ):
             in_list = False
             continue
         if in_list and numbered and list_indent is None:

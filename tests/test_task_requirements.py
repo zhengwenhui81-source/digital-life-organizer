@@ -254,3 +254,34 @@ def test_review_bare_chinese_numbering_is_explicitly_conservative_boundary():
         "一、姓名和联系方式\n1. 其他条目"
     )
     assert required(text) == ["报名表", "学生证", "项目介绍", "研究与开发报告"]
+
+
+@pytest.mark.parametrize("number", ["2.", "2、", "（2）"])
+@pytest.mark.parametrize(
+    "title",
+    [
+        "活动安排",
+        "评审标准",
+        "报名流程",
+        "注意事项",
+        "联系方式",
+        "评分细则",
+        "比赛规则",
+        "时间安排",
+    ],
+)
+def test_review_numbered_explicit_section_with_description_ends_list(number, title):
+    text = f"所需材料：\n1. 报名表\n{number} {title}：线下答辩\n1. 学生证"
+    assert required(text) == ["报名表"]
+    assert detect_conflicts([document(text), document("无需提交学生证")])["data"] == {
+        "conflicts": []
+    }
+
+
+@pytest.mark.parametrize(
+    "item", ["项目介绍：说明技术方案", "报名表：请签字", "学生证（原件说明）"]
+)
+def test_review_described_material_does_not_terminate_other_material_items(item):
+    text = f"所需材料：\n1. 报名表\n2. {item}\n3. 学生证"
+    # Unsupported descriptions are skipped, not guessed or promoted to headings.
+    assert required(text) == ["报名表", "学生证"]
