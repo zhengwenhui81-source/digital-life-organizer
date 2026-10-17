@@ -122,6 +122,12 @@ Confirmed collaboration decisions must also be reflected in this `AGENTS.md` and
 
 Document identity follows the confirmed [path-based Document identity contract](API_CONTRACT.md#path-based-document-identity). The document-reading layer owns ID generation; callers use `read_document(path)` without supplying an ID. IDs identify normalized paths, so consumers must not assume identity survives moving or renaming a file or changing environments.
 
+Parser support and omissions are defined in
+[read_document extraction scope](API_CONTRACT.md#read_document-extraction-scope).
+TXT, PDF text layers, DOCX body paragraphs, and XLSX cached cell values share the
+same Document/ToolResult and ID rules. Do not infer complete Office extraction,
+OCR, formula evaluation, or XLSM support from the supported extension list.
+
 Integration boundaries:
 - Developer A consumes C and D capabilities through shared public tool contracts.
 - Developer C and Developer D may exchange only contract-shaped data or explicitly agreed internal inputs; neither should depend on the other's private implementation details.
@@ -191,8 +197,17 @@ Workflow:
 2. Commit small, focused changes.
 3. Push only your assigned feature branch during normal development.
 4. Open a pull request into `dev` after a coherent feature or milestone is ready.
-5. At least one other developer reviews before merge.
+5. The pull request must receive at least one independent review before merge. The reviewer may be another human developer or a designated AI reviewer with repository access. A designated AI review counts when it inspects the current PR HEAD/diff, checks repository rules and shared contracts, and explicitly reports whether blocking issues exist. No additional human review is required unless the AI review requests changes or the team explicitly asks for one.
 6. Merge `dev` into `main` only for stable milestones.
+
+### Review Policy
+
+- ChatGPT with connected GitHub repository access is an approved designated AI reviewer for this project.
+- A ChatGPT review may satisfy the required independent PR review by itself.
+- The review must be based on the PR's current HEAD, not an obsolete commit.
+- The review should check scope/ownership, `AGENTS.md`, `API_CONTRACT.md`, relevant tests/checks, safety boundaries, and integration compatibility.
+- If the PR changes after the review in a way that materially affects reviewed code or contracts, review the updated HEAD again before merge.
+- The PR author does not need to seek an additional human approval after a non-blocking designated AI review.
 
 ### Direct Push Restrictions
 

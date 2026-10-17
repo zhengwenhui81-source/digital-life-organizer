@@ -1,0 +1,38 @@
+{
+  "task": {
+    "task_id": "fixture_task_001",
+    "user_goal": "准备黑客松报名资料",
+    "workspace": "C:/demo/sample_workspace",
+    "status": "completed"
+  },
+  "plan": {
+    "task_id": "fixture_task_001",
+    "goal": "准备黑客松报名资料",
+    "steps": [
+      {
+        "step_id": "step_001",
+        "tool": "create_folder",
+        "description": "创建演示报名资料包目录",
+        "risk": "medium",
+        "status": "completed",
+        "arguments": {
+          "path": "C:/demo/sample_workspace/Hackathon_Package"
+        }
+      }
+    ]
+  },
+  "results": [
+    {
+      "success": true,
+      "tool": "compare_versions",
+      "data": {
+        "groups": []
+      },
+      "message": "前端 fixture：无版本组展示数据",
+      "error": null
+    }
+  ],
+  "pending_operations": [],
+  "preview_id": null,
+  "error": null
+}
