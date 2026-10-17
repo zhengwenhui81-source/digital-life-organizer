@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from typing import Any
 
+from fileforge.task_intelligence._context import _unconditional_sentences
 from fileforge.task_intelligence._documents import validate_documents
 from fileforge.task_intelligence._encoding import (
     deadline_field,
@@ -27,22 +28,28 @@ _DEADLINE = re.compile(
 
 
 def _deadlines(text: str):
-    for clause in re.split(r"[。；;，,\n！？!?]", text):
-        match = _DEADLINE.fullmatch(clause.strip())
-        if not match:
+    for sentence in _unconditional_sentences(text):
+        clauses = re.split(r"[，,]", sentence)
+        # An unsupported prefix may qualify all following dates. Never throw
+        # it away to expose an apparently unconditional deadline.
+        if not _DEADLINE.fullmatch(clauses[0].strip()):
             continue
-        parts = match.groupdict()
-        try:
-            date = datetime(int(parts["y"]), int(parts["m"]), int(parts["d"]))
-            value = f"{date.year:04}-{date.month:02}-{date.day:02}"
-            if parts["h"] is not None:
-                hour, minute = int(parts["h"]), int(parts["minute"])
-                second = int(parts["second"] or 0)
-                date.replace(hour=hour, minute=minute, second=second)
-                value += f"T{hour:02}:{minute:02}:{second:02}"
-        except ValueError:
-            continue
-        yield parts["scope"] or "", value
+        for clause in clauses:
+            match = _DEADLINE.fullmatch(clause.strip())
+            if not match:
+                continue
+            parts = match.groupdict()
+            try:
+                date = datetime(int(parts["y"]), int(parts["m"]), int(parts["d"]))
+                value = f"{date.year:04}-{date.month:02}-{date.day:02}"
+                if parts["h"] is not None:
+                    hour, minute = int(parts["h"]), int(parts["minute"])
+                    second = int(parts["second"] or 0)
+                    date.replace(hour=hour, minute=minute, second=second)
+                    value += f"T{hour:02}:{minute:02}:{second:02}"
+            except ValueError:
+                continue
+            yield parts["scope"] or "", value
 
 
 def detect_conflicts(documents: list[dict[str, Any]]) -> dict[str, Any]:

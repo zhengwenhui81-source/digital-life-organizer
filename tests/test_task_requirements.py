@@ -47,7 +47,7 @@ def test_list_scope_ends_before_unrelated_numbered_items(boundary):
 def test_inline_heading_bullets_and_chinese_numbering():
     text = (
         "提交材料：报名表、学生证\n- 项目介绍\n* 研究与开发报告\n"
-        "一、姓名和联系方式\n\n讨论中提到护照。"
+        "（一）姓名和联系方式\n\n讨论中提到护照。"
     )
     assert required(text) == [
         "报名表",
@@ -197,3 +197,60 @@ def test_nested_conditional_list_does_not_become_mandatory():
     assert detect_conflicts(docs + [document("无需提交学生证、身份证")])["data"] == {
         "conflicts": []
     }
+
+
+@pytest.mark.parametrize(
+    "heading",
+    ["二、评审标准", "三、完全未知的新章节", "## 评审标准", "第二章 评分细则"],
+)
+def test_review_section_boundary_does_not_inherit_material_scope(heading):
+    text = f"所需材料：\n1. 报名表\n{heading}\n1. 创新性\n2. 可行性"
+    assert required(text) == ["报名表"]
+
+
+@pytest.mark.parametrize(
+    "prefix", ["只有获奖者", "只有已交原件者", "仅当审核通过", "在审核通过的情况下"]
+)
+@pytest.mark.parametrize("assertion", ["必须提交学生证", "无需提交学生证"])
+def test_review_conditional_material_clause_is_not_unconditional(prefix, assertion):
+    text = f"{prefix}，{assertion}"
+    assert required(text) == []
+    assert detect_conflicts([document(text), document("必须提交学生证")])["data"] == {
+        "conflicts": []
+    }
+
+
+def test_review_conditions_do_not_hide_independent_material_sentences():
+    text = (
+        "只有获奖者，必须提交学生证。必须提交报名表\n"
+        "只有已交原件者，无需提交学生证；必须提交项目介绍"
+    )
+    assert required(text) == ["报名表", "项目介绍"]
+
+
+def test_review_comma_newline_keeps_material_condition():
+    assert required("只有获奖者，\n必须提交学生证\n必须提交报名表") == ["报名表"]
+
+
+def test_review_unambiguous_material_numbering_still_works():
+    assert required("所需材料：\n1. 报名表\n2、学生证\n（3）项目介绍") == [
+        "报名表",
+        "学生证",
+        "项目介绍",
+    ]
+
+
+def test_review_unknown_prefix_does_not_expose_material_assertion():
+    text = "以最终核准为准，必须提交学生证；必须提交报名表"
+    assert required(text) == ["报名表"]
+    assert detect_conflicts([document(text), document("无需提交学生证")])["data"] == {
+        "conflicts": []
+    }
+
+
+def test_review_bare_chinese_numbering_is_explicitly_conservative_boundary():
+    text = (
+        "提交材料：报名表、学生证\n- 项目介绍\n* 研究与开发报告\n"
+        "一、姓名和联系方式\n1. 其他条目"
+    )
+    assert required(text) == ["报名表", "学生证", "项目介绍", "研究与开发报告"]

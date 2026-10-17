@@ -276,3 +276,30 @@ def test_json_input_and_output_round_trip():
     result = detect_conflicts(**{"documents": docs})
     assert json.loads(json.dumps(result)) == result
     assert len(result["data"]["conflicts"]) == 1
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    ["如发生延期", "若发生延期", "只有审批通过", "在发生延期的情况下", "仅当收到确认"],
+)
+@pytest.mark.parametrize("separator", ["，", ",", "，\n"])
+def test_review_conditional_deadline_not_promoted_after_comma(prefix, separator):
+    assert (
+        conflicts(f"{prefix}{separator}报名截止：2026-10-20", "报名截止：2026-10-18")
+        == []
+    )
+
+
+def test_review_unknown_prefix_is_not_discarded_to_expose_deadline():
+    assert (
+        conflicts("以最终核准为准，报名截止：2026-10-20", "报名截止：2026-10-18") == []
+    )
+
+
+def test_review_independent_deadlines_survive_other_conditional_sentences():
+    found = conflicts(
+        "如发生延期，报名截止：2026-10-20。报名截止：2026-10-18",
+        "报名截止：2026-10-19",
+    )
+    assert len(found) == 1
+    assert [v["value"] for v in found[0]["values"]] == ["2026-10-18", "2026-10-19"]

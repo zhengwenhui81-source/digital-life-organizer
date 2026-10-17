@@ -5,6 +5,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from fileforge.task_intelligence._context import (
+    _join_continuations,
+    _unconditional_sentences,
+)
+
 
 @dataclass(frozen=True)
 class MaterialEvidence:
@@ -20,14 +25,16 @@ _ASSERTION = re.compile(
 _REQUIRED_MODES = {"必须提交", "须提交", "需提交", "需要提交"}
 _ITEM = re.compile(r"[\w\u4e00-\u9fff· -]{1,40}")
 _NUMBER = re.compile(
-    r"^(?:\d+[.、．)]|[（(]\d+[)）]|[一二三四五六七八九十]+、|[-*])\s*(.+)$"
+    r"^(?:\d+[.、．)]|[（(](?:\d+|[一二三四五六七八九十]+)[)）]|[-*])\s*(.+)$"
 )
 _HEADING = re.compile(
     r"^(?:#{1,6}\s*)?(?:[一二三四五六七八九十]+、)?"
     r"(?:提交材料|所需材料|必交材料)(?:\s*[:：]\s*(.*))?$"
 )
-_OTHER_SECTION = re.compile(
-    r"^(?:活动安排|时间安排|注意事项|联系方式|报名流程|评审安排|提交方式|其他事项)(?:[:：].*)?$"
+# Bare Chinese numbering is ambiguous with chapter numbering: terminate scope.
+# Parenthesized Chinese/Arabic and plain Arabic lists remain supported.
+_SECTION = re.compile(
+    r"^(?:#{1,6}\s+|[一二三四五六七八九十]+[、．.]|第[一二三四五六七八九十0-9]+[章节])"
 )
 # A condition/alternative governs the entire expression, not just a list item.
 _COMPLEX = re.compile(
@@ -73,10 +80,15 @@ def _clause_evidence(
     if _COMPLEX.search(clause):
         return []
     evidence = []
-    for statement in re.split(
+    statements = re.split(
         r"[，,]\s*(?=(?:请)?(?:必须提交|须提交|需提交|需要提交|无需提交|不必提交|不需要提交))",
         clause,
-    ):
+    )
+    # Unknown prose before an explicit assertion may be its qualifier. Do not
+    # discard that prefix merely because a later comma exposes a known verb.
+    if len(statements) > 1 and not _ASSERTION.fullmatch(statements[0].strip()):
+        return []
+    for statement in statements:
         evidence.extend(_items(statement, source, default))
     return evidence
 
@@ -91,7 +103,7 @@ def parse_material_evidence(text: str, source: str) -> list[MaterialEvidence]:
     evidence = []
     in_list = False
     list_indent = None
-    for raw_line in text.splitlines():
+    for raw_line in _join_continuations(text).splitlines():
         expanded = raw_line.expandtabs()
         indent = len(expanded) - len(expanded.lstrip())
         line = raw_line.strip()
@@ -106,12 +118,12 @@ def parse_material_evidence(text: str, source: str) -> list[MaterialEvidence]:
             in_list = True
             list_indent = None
             if heading[1]:
-                for clause in re.split(r"[。；;！？!?]", heading[1]):
+                for clause in _unconditional_sentences(heading[1]):
                     evidence.extend(_clause_evidence(clause, source, True))
             continue
         numbered = _NUMBER.fullmatch(line)
         body = numbered[1] if numbered else line
-        if _OTHER_SECTION.fullmatch(body) or body.endswith(("：", ":")):
+        if _SECTION.match(line) or body.endswith(("：", ":")):
             in_list = False
             continue
         if in_list and numbered and list_indent is None:
@@ -119,6 +131,6 @@ def parse_material_evidence(text: str, source: str) -> list[MaterialEvidence]:
         default = True if in_list and numbered else None
         if not numbered:
             in_list = False
-        for clause in re.split(r"[。；;！？!?]", body):
+        for clause in _unconditional_sentences(body):
             evidence.extend(_clause_evidence(clause, source, default))
     return evidence
