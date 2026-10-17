@@ -121,20 +121,48 @@ Optional later:
 - [ ] OCR / image text extraction
 
 ### Phase C2 — Version Intelligence
-- [ ] Reuse / extend existing FileForge version-analysis capabilities
-- [ ] Filename normalization
-- [ ] Candidate version grouping
-- [ ] Use modified time / metadata as signals
-- [ ] Add content similarity as second-stage validation
-- [ ] Identify newest candidate
-- [ ] Produce semantic change summary
-- [ ] Add version-analysis tests
+- [x] Reuse / extend existing FileForge version-analysis capabilities
+- [x] Filename normalization
+- [x] Candidate version grouping
+- [x] Use modified time / metadata as signals
+- [x] Add content similarity as second-stage validation
+- [x] Identify newest candidate
+- [x] Produce semantic change summary
+- [x] Add version-analysis tests
 
 ### Phase C3 — Version Contract
-- [ ] Finalize `compare_versions.data.groups[].newest_candidate` with team
-- [ ] Finalize `compare_versions.data.groups[].changes[]` with team
-- [ ] Update `API_CONTRACT.md` before strict consumers depend on those fields
-- [ ] Expose `compare_versions` through shared public Tool contract
+- [x] Finalize `compare_versions.data.groups[].newest_candidate` with team
+- [x] Finalize `compare_versions.data.groups[].changes[]` with team
+- [x] Record confirmed Version v1 and shared Document collection rules in `API_CONTRACT.md`
+- [x] Implement/export C public `compare_versions` with standard ToolResult
+- [ ] Validate Version worker/resource/termination behavior on real Windows
+- [ ] Complete A registration and end-to-end integration with consumers
+
+Contract-only milestone: [Version v1](API_CONTRACT.md#compare_versions) and
+[shared Document collection rules](API_CONTRACT.md#shared-document-collection-rules)
+are confirmed. C implementation/export and Linux unit/resource/subprocess tests
+are locally verified; Windows Version and Agent integration acceptance remain
+uncompleted. Checked C2 items describe local scope, not complete cross-platform
+acceptance. Unknown Workspaces may have no versions; use task-neutral positive/negative fixtures
+only for tests and acceptance, with no fixed classroom v1/v2 dataset requirement.
+
+Local Linux evidence (Python 3.12.14, dev baseline
+`eb725e9cf7759bfb5f9e000c9e7428969ceba58f`): Version-specific tests **74 passed**,
+including real 5-second timeout termination, repeated-text budget, input limits,
+metadata equality, deterministic grouping and original-source preservation.
+Parser/extractor regression is retained; Windows-only tests skip on Linux.
+Final full-suite run: **256 passed, 20 failed, 4 skipped**;
+related Version/parser/extractor tests: **143 passed, 4 skipped** (Windows-only).
+Clean dev snapshot in the same environment: **182 passed, 20 failed,
+4 skipped**. Failure node IDs and messages match exactly, with **zero new
+failures**: 19 cases involve read-only home/config/database paths, and one Planner
+case lacks `httpx` in this environment. These are freshly compared results, not
+an inherited historical count. The full repository checks are not all passing.
+Black/Ruff for C's changed Python files pass. Full-repository Black reports the
+same 12 existing files, and Ruff the same 7 diagnostics, as the clean dev snapshot.
+This round adds no dependencies. Real Windows Version validation has not run;
+the earlier Windows Parser evidence does not cover this new tool. D's shared-rule
+adaptation is still owned and pending on D's side.
 
 Developer C no longer owns conflict detection, requirement extraction, missing-item matching, or package generation; those are assigned to Developer D.
 
@@ -181,6 +209,16 @@ Branch: `feature/task-intelligence`
 - [ ] Finalize `build_package` ToolResult data shape with team
 - [ ] Return `ToolResult`
 - [ ] Add package tests
+
+### Shared Document Rule Adaptation (D)
+- [ ] Apply confirmed collection rules to existing `detect_conflicts`
+- [ ] Apply confirmed collection rules to existing `extract_requirements`
+- [ ] Apply the same rules to `match_requirements` when its public interface is finalized
+- [ ] Test equal duplicates, metadata key order, every-field contradictions and whole-call failures
+- [ ] Verify original-input resource checks precede deduplication under each tool's limits
+
+These are adaptation tasks, not a claim that D's existing algorithms are absent
+or that the checks are implemented. Full matching schema remains separately pending.
 
 ### Phase D5 — Approval Boundary / Integration
 - [ ] Package logic must not bypass Developer A's Approval Gate

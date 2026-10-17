@@ -128,6 +128,15 @@ TXT, PDF text layers, DOCX body paragraphs, and XLSX cached cell values share th
 same Document/ToolResult and ID rules. Do not infer complete Office extraction,
 OCR, formula evaluation, or XLSM support from the supported extension list.
 
+Confirmed [Document collection rules](API_CONTRACT.md#shared-document-collection-rules)
+apply to every public Document[] consumer, including C's version comparison and
+D's conflict/requirement/matching tools. B renders ToolResult without inventing
+another identity policy. D owns adaptation and tests of its existing tools.
+The [compare_versions v1 contract](API_CONTRACT.md#compare_versions) is confirmed;
+the public C implementation/export is locally verified on Linux, while Windows
+Version verification, Agent registration and integration remain pending. Unknown Workspaces need not contain versions; controlled fixtures are for
+acceptance tests, not a runtime or classroom prerequisite.
+
 Integration boundaries:
 - Developer A consumes C and D capabilities through shared public tool contracts.
 - Developer C and Developer D may exchange only contract-shaped data or explicitly agreed internal inputs; neither should depend on the other's private implementation details.
