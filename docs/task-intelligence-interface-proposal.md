@@ -83,13 +83,16 @@ D1/D2 共用内部材料证据解析器和输入校验。支持明确必交/无�
 D1 输出字段和暂定编码不变；由于共享解析器扩展，列表及明确必交标记也能
 成为冲突证据。这是识别范围扩展，不代表相关暂定接口已经冻结。
 
-## required_documents / matched / missing 最小方案（匹配未实现）
+## required_documents / matched / missing 最小方案（本 PR 不含匹配实现）
 
 通知与候选材料由调用方分开提供：通知交给要求提取，候选材料交给匹配。
 调用方保证属于同一任务并已执行 workspace 授权；不能把通知里提到的
 “学生证”当成候选学生证。提取工具仍返回 `required_documents: string[]`。
 
-建议匹配内部输入为 `required_documents: string[]`、`documents: Document[]`。
+已有独立保存的私有原型；本 PR 不包含匹配实现，公共工具及 schema 尚待确认。
+纳入 A 的建议：匹配输入候选命名提议为 `candidate_documents`，以区别通知 documents；
+具体输入提案为 `required_documents: string[]`、`candidate_documents: Document[]`，
+尚未冻结，不新增公共入口。
 输出如下，Document 引用的值直接来自 C，不生成或修改身份：
 
 ```json
@@ -115,7 +118,7 @@ D1 输出字段和暂定编码不变；由于共享解析器扩展，列表及�
   不自动挑选版本；不复制全文。
 - missing 仅表示当前候选集合没有匹配，不保证整个 workspace 或机器不存在。
 - 同一名称恰好归入 matched 或 missing，不另造 required 同义字段。
-- 本轮不实现匹配、不增加或注册 match_requirements。
+- 本 PR 不包含匹配实现、不增加或注册 match_requirements；私有原型保存在独立本地分支。
 
 ## 待确认事项
 
