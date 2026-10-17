@@ -27,7 +27,7 @@ def _json_chunks(value: Any, active: set[int] | None = None):
         yield b'"'
     elif value is None or isinstance(value, (bool, int, float)):
         yield json.dumps(value, allow_nan=False).encode("utf-8")
-    elif isinstance(value, (dict, list, tuple)):
+    elif isinstance(value, (dict, list)):
         marker = id(value)
         if marker in active:
             raise ValueError("Circular reference in input")
@@ -41,10 +41,7 @@ def _json_chunks(value: Any, active: set[int] | None = None):
                 if mapping:
                     key, item = item
                     if not isinstance(key, str):
-                        if key is None or isinstance(key, (bool, int, float)):
-                            key = json.dumps(key, allow_nan=False)
-                        else:
-                            raise TypeError("JSON object key is not serializable")
+                        raise TypeError("JSON object keys must be strings")
                     yield from _json_chunks(key, active)
                     yield b":"
                 yield from _json_chunks(item, active)

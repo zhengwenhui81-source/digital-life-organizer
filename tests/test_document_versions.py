@@ -289,7 +289,7 @@ def test_json_count_matches_compact_serialization_and_chunks():
             document(
                 metadata={
                     "中文": '"\\\n😀' * 5000,
-                    "keys": {None: 1, 2: True},
+                    "keys": {"null": 1, "2": True},
                     "array": [1, 1.5, None, False],
                 }
             )
@@ -485,4 +485,101 @@ def test_nested_array_order_and_json_type_differences_are_conflicts():
 def test_metadata_numeric_key_types_cannot_hide_conflicting_snapshots():
     a = document(metadata={1: "value"})
     b = document(metadata={True: "value"})
-    failure(compare_versions([a, b]), "contradictory")
+    failure(compare_versions([a, b]), "keys must be strings")
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    ["v2", "v1.1", "v1.2.3", "最终版", "修改版", "修订版", "终稿", "final", "final2"],
+)
+def test_suffix_before_trailing_newline_is_not_a_suffix(suffix):
+    from fileforge.document._version_core import _name
+
+    name = f"report_{suffix}\n.txt"
+    assert _name(document(name)) == (f"report_{suffix}\n", None)
+    docs = [document(), document(name, pair()[1]["text"], "b")]
+    result = compare_versions(docs)
+    assert result["success"], result
+    groups = result["data"]["groups"]
+    assert len(groups) == 2
+    assert all(g["newest_candidate"] is None for g in groups)
+
+
+@pytest.mark.parametrize("suffix", ["v2", "最终版"])
+def test_real_trailing_newline_filename_via_parser(tmp_path, suffix):
+    names = ["report_v1.txt", f"report_{suffix}\n.txt"]
+    paths = [tmp_path / name for name in names]
+    try:
+        for path, d in zip(paths, pair(), strict=True):
+            path.write_text(d["text"], encoding="utf-8")
+    except OSError as exc:
+        pytest.skip(f"Filesystem does not support this filename: {type(exc).__name__}")
+    before = [(p.read_bytes(), p.stat().st_mtime_ns) for p in paths]
+    docs = []
+    for path in paths:
+        result = read_document(str(path))
+        assert result["success"], result
+        docs.append(result["data"]["document"])
+    result = compare_versions(docs)
+    assert result["success"], result
+    assert len(result["data"]["groups"]) == 2
+    assert all(g["newest_candidate"] is None for g in result["data"]["groups"])
+    assert before == [(p.read_bytes(), p.stat().st_mtime_ns) for p in paths]
+
+
+@pytest.mark.parametrize("reverse_keys", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+def test_lossy_object_keys_fail_before_worker_without_mutation(
+    monkeypatch, reverse_keys, nested
+):
+    keys = [(1, "numeric"), ("1", "string")]
+    if reverse_keys:
+        keys.reverse()
+    metadata = dict(keys)
+    if nested:
+        metadata = {"items": [{"nested": metadata}]}
+    a = document(metadata=metadata)
+    b = copy.deepcopy(a)
+    if nested:
+        inner = b["metadata"]["items"][0]["nested"]
+        b["metadata"]["items"][0]["nested"] = dict(reversed(list(inner.items())))
+    else:
+        b["metadata"] = dict(reversed(list(metadata.items())))
+    before = copy.deepcopy([a, b])
+    before_order = repr([a, b])
+    monkeypatch.setattr(
+        api, "_worker_command", lambda: pytest.fail("invalid input reached worker")
+    )
+    for docs in ([a], [a, b], [b, a]):
+        failure(compare_versions(docs), "string")
+    assert [a, b] == before
+    assert repr([a, b]) == before_order
+    assert list(a["metadata"].items()) == list(before[0]["metadata"].items())
+
+
+@pytest.mark.parametrize("key", [None, False, 2, 1.5])
+def test_nonstring_keys_in_extra_nested_fields_are_invalid(key):
+    failure(compare_versions([document(extra={"items": [{key: "value"}]})]), "string")
+
+
+def test_legal_string_key_order_preserves_full_snapshot_and_permutations():
+    a = document(metadata={"1": "string", "nested": {"a": 1, "b": [2, 3]}})
+    duplicate = copy.deepcopy(a)
+    duplicate["metadata"] = {"nested": {"b": [2, 3], "a": 1}, "1": "string"}
+    b = pair()[1]
+    docs = [a, duplicate, b]
+    before = copy.deepcopy(docs)
+    before_order = repr(docs)
+    expected = compare_versions(docs)
+    assert expected["success"], expected
+    for order in itertools.permutations(docs):
+        assert compare_versions(list(order)) == expected
+    returned = expected["data"]["groups"][0]["documents"][0]
+    assert returned == a
+    assert returned["metadata"] == a["metadata"]
+    assert docs == before
+    assert repr(docs) == before_order
+
+
+def test_non_json_tuple_cannot_silently_become_list():
+    failure(compare_versions([document(metadata={"values": (1, 2)})]), "JSON")

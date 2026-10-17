@@ -10,7 +10,7 @@ from pathlib import Path
 from fileforge.analysis.versions import extract_version
 
 _SUFFIX = re.compile(
-    r"_(v[0-9]+(?:\.[0-9]+){0,2}|最终版|修改版|修订版|终稿|final2|final)$"
+    r"_(v[0-9]+(?:\.[0-9]+){0,2}|最终版|修改版|修订版|终稿|final2|final)\Z"
 )
 
 
