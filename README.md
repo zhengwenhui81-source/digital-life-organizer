@@ -28,3 +28,15 @@ Document IDs follow the confirmed
 stable for the same normalized path, but change after moves or renames and are
 not portable across environments. See [TASKS.md](TASKS.md#phase-c1--document-parser)
 for remaining parser work and [AGENTS.md](AGENTS.md) for collaboration rules.
+
+## Version contract status
+
+The [compare_versions v1 contract](API_CONTRACT.md#compare_versions) and
+[shared Document collection rules](API_CONTRACT.md#shared-document-collection-rules)
+are confirmed. `fileforge.document.compare_versions(documents)` is now implemented
+and locally tested on Linux; Windows Version verification and Agent integration
+are still pending. Existing D tools still need their owned
+collection-rule adaptation and tests. Runtime inputs come from unknown
+Workspaces; finding no version relationships is a normal successful result.
+Controlled version fixtures are for tests/regression/acceptance, not a guaranteed
+classroom dataset. See [TASKS.md](TASKS.md#phase-c3--version-contract) for pending work.

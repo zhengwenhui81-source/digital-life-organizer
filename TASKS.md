@@ -138,25 +138,69 @@ Optional later:
 - [ ] OCR / image text extraction
 
 ### Phase C2 — Version Intelligence
-- [ ] Reuse / extend existing FileForge version-analysis capabilities
-- [ ] Filename normalization
-- [ ] Candidate version grouping
-- [ ] Use modified time / metadata as signals
-- [ ] Add content similarity as second-stage validation
-- [ ] Identify newest candidate conservatively; `newest_candidate=null` is a valid result
-- [ ] Produce deterministic, source-traceable change summary
-- [ ] Add version-analysis tests
-- [ ] Ensure no-version / no-reliable-version cases succeed without inventing a group or recommendation
-- [ ] Finalize the unknown-Workspace behavior for low-similarity obvious filename versions (e.g. whether `<0.85` means separate groups or candidate relationship without recommendation)
+- [x] Reuse / extend existing FileForge version-analysis capabilities
+- [x] Filename normalization
+- [x] Candidate version grouping
+- [x] Use modified time / metadata as signals
+- [x] Add content similarity as second-stage validation
+- [x] Identify newest candidate conservatively; `newest_candidate=null` is valid
+- [x] Produce deterministic, source-traceable change summary
+- [x] Add version-analysis tests
+- [x] Handle no-version / no-reliable-version cases successfully without forced grouping or recommendation
+- [x] Confirm strict 100-character / 0.85 grouping, with the identical-text exception; low-similarity filename versions stay separate
+- [ ] Complete real Windows Version / process-termination acceptance
+- [ ] Complete cross-platform and end-to-end C2 acceptance; local implementation is not whole-phase completion
 
 ### Phase C3 — Version Contract
-- [ ] Finalize `compare_versions.data.groups[].newest_candidate` with team
-- [ ] Finalize `compare_versions.data.groups[].changes[]` with team
-- [ ] Finalize grouping / recommendation / comparison-order semantics for unknown Workspaces
-- [ ] Finalize complete serialized `Document[]` input-size bound with A
-- [ ] Correct responsibility wording: current A API has no task-cancel endpoint; do not claim task cancellation is already implemented
-- [ ] Update `API_CONTRACT.md` before strict consumers depend on those fields
-- [ ] Expose `compare_versions` through shared public Tool contract
+- [x] Finalize `compare_versions.data.groups[].newest_candidate` with team
+- [x] Finalize `compare_versions.data.groups[].changes[]` with team
+- [x] Record confirmed Version v1 and shared Document collection rules in `API_CONTRACT.md`
+- [x] Finalize grouping / recommendation / comparison-order semantics for unknown Workspaces
+- [x] Confirm 1 MiB compact JSON UTF-8 bound for complete `{"documents": [...]}` input; see formal contract
+- [x] Correct responsibility wording: current A API has no task-cancel endpoint
+- [x] Implement/export C public `compare_versions` with standard ToolResult
+- [ ] Validate Version worker/resource/termination behavior on real Windows
+- [ ] Complete A registration and end-to-end integration with consumers
+- [ ] Complete whole C3 integration/acceptance; contract confirmation and local export alone do not close the phase
+
+Contract and local implementation milestones (not whole-phase acceptance): [Version v1](API_CONTRACT.md#compare_versions) and
+[shared Document collection rules](API_CONTRACT.md#shared-document-collection-rules)
+are confirmed. C implementation/export and Linux unit/resource/subprocess tests
+are locally verified; Windows Version and Agent integration acceptance remain
+uncompleted. Checked C2 items describe local scope, not complete cross-platform
+acceptance. Unknown Workspaces may have no versions; use task-neutral positive/negative fixtures
+only for tests and acceptance, with no fixed classroom v1/v2 dataset requirement.
+
+Local Linux evidence (Python 3.12.14, dev baseline
+`eb725e9cf7759bfb5f9e000c9e7428969ceba58f`): Version-specific tests **74 passed**,
+including real 5-second timeout termination, repeated-text budget, input limits,
+metadata equality, deterministic grouping and original-source preservation.
+Parser/extractor regression is retained; Windows-only tests skip on Linux.
+Final full-suite run: **256 passed, 20 failed, 4 skipped**;
+related Version/parser/extractor tests: **143 passed, 4 skipped** (Windows-only).
+Clean dev snapshot in the same environment: **182 passed, 20 failed,
+4 skipped**. Failure node IDs and messages match exactly, with **zero new
+failures**: 19 cases involve read-only home/config/database paths, and one Planner
+case lacks `httpx` in this environment. These are freshly compared results, not
+an inherited historical count. The full repository checks are not all passing.
+Black/Ruff for C's changed Python files pass. Full-repository Black reports the
+same 12 existing files, and Ruff the same 7 diagnostics, as the clean dev snapshot.
+This round adds no dependencies. Real Windows Version validation has not run;
+the earlier Windows Parser evidence does not cover this new tool. D's shared-rule
+adaptation is still owned and pending on D's side.
+
+Review-fix evidence at `0a2e9f473fc2957331a871d4d184e44c3677cde4`:
+Linux / Python 3.12.14 Version tests **95 passed**; related regression
+**164 passed, 4 skipped** (Windows-only path semantics). Full suite:
+**277 passed, 20 failed, 4 skipped**; clean dev
+`374e4266758a38a2a80f47e7da9bdbd49fc0a0a2`:
+**182 passed, 20 failed, 4 skipped**. Failure node IDs/messages match;
+19 involve read-only configuration/database paths and one lacks `httpx` in this
+environment. These newer results supplement, not replace, the historical initial
+implementation record above. Fix-file Black/Ruff and diff checks passed.
+Strict end-of-string suffix and lossless JSON input fixes are preserved.
+PR #13 still requires independent review of the updated HEAD; no merge/approval
+or Windows Version acceptance is claimed by this task-document integration.
 
 Developer C no longer owns conflict detection, requirement extraction, missing-item matching, or package generation; those are assigned to Developer D.
 
@@ -226,6 +270,16 @@ Phase 1 must not be described as satisfying the full generalized matching requir
 - [ ] Finalize `build_package` ToolResult data shape with team
 - [ ] Return `ToolResult`
 - [ ] Add package tests
+
+### Shared Document Rule Adaptation (D)
+- [ ] Apply confirmed collection rules to existing `detect_conflicts`
+- [ ] Apply confirmed collection rules to existing `extract_requirements`
+- [ ] Apply the same rules to `match_requirements` when its public interface is finalized
+- [ ] Test equal duplicates, metadata key order, every-field contradictions and whole-call failures
+- [ ] Verify original-input resource checks precede deduplication under each tool's limits
+
+These are adaptation tasks, not a claim that D's existing algorithms are absent
+or that the checks are implemented. Full matching schema remains separately pending.
 
 ### Phase D5 — Approval Boundary / Integration
 - [ ] Package logic must not bypass Developer A's Approval Gate
@@ -309,7 +363,10 @@ Branch: `feature/frontend`
 Phase 2 remains required: alias matching, common-name normalization, and semantic proof association are **not implemented by Phase 1** and must not be marked as complete.
 
 ### 5.3 Shared `Document[]` identity / duplicate / contradictory snapshot rule
-Proposed shared rule for `compare_versions`, `match_requirements`, and future public tools consuming `Document[]`:
+Confirmed shared rule for `compare_versions`, `match_requirements`, existing
+`detect_conflicts` / `extract_requirements`, and future public Document[] consumers.
+The authoritative rules and adaptation scope are in
+[API_CONTRACT.md](API_CONTRACT.md#shared-document-collection-rules):
 
 - Same identity is determined by `file_id`.
 - A fully identical `Document` (all fields equal, including `metadata`; object key order does not affect equality) may be stably deduplicated **after resource validation**.
@@ -320,19 +377,46 @@ Confirmation status:
 - [x] B accepts as a shared rule.
 - [x] C accepts as a shared rule.
 - [x] D accepts as a shared rule / implementation target.
-- [ ] A confirms the shared rule and Agent failure propagation.
-- [ ] After A confirms, write the shared rule into `API_CONTRACT.md` before public tools rely on it.
+- [x] Record the confirmed shared rule in `API_CONTRACT.md`.
 
-This confirmation does not imply existing tools already implement the rule.
+Confirmation basis: the project owner's relayed A integration/input requirements,
+B's explicit all-field/metadata-key-order/resource-before-dedup acceptance,
+D's explicit shared-rule acceptance without exceptions, and C's acceptance.
+The project owner expressly adjudicated this merge to retain those obtained
+confirmations and split them from implementation/acceptance status. A document
+label alone is not a substitute for those confirmations.
+
+Separate implementation / integration acceptance (not checked by this merge):
+- [ ] A completes tool registration/access and Document-failure propagation implementation.
+- [ ] A verifies failed ToolResult retention, safe task failure, no continued mutation, and report lifecycle in integration tests.
+- [ ] D adapts its existing and future public Document[] tools and tests.
+
+These tasks remain with their owners. Contract confirmation does not imply
+existing tools already implement or have verified the rule.
 
 ### 5.4 No private `unresolved` field for now
 - [x] Current plan does not add a private `unresolved` field.
 - [ ] A/B/D finalize how multiple candidates / version abstention appear in `TaskSnapshot`, `FinalReport`, package planning, and UI using frozen public fields.
 
-### 5.5 Version contract still open
-- [ ] Finalize the random/unknown-Workspace meaning of the current 100-character / 0.85 similarity heuristic.
-- [ ] Finalize Version resource limits including complete serialized `Document[]` size, not text-only size.
-- [ ] Freeze Version contract before C implementation and strict B/A consumption.
+### 5.5 Confirmed Version contract / pending acceptance
+- [x] Confirm strict 100-character / 0.85 grouping and identical-text exception for unknown Workspaces; B explicitly confirmed, C accepted. Real versions may be missed; do not force a relation.
+- [x] Confirm Version resource limits, including **1 MiB = 1,048,576 UTF-8 bytes** for the complete actual `{"documents": [...]}` input, not the Document array alone or text alone.
+- [x] Record Version v1 in `API_CONTRACT.md` before implementation and strict consumption.
+
+Use the [formal Version contract](API_CONTRACT.md#compare_versions) for compact
+JSON measurement (`ensure_ascii=False`, `separators=(",", ":")`,
+`allow_nan=False`), pre-dedup/pre-worker checks, full grouping/recommendation/order
+semantics and subprocess budgets. This section references obtained confirmations;
+it does not redesign or override the contract. Local C implementation and Linux
+results are recorded in C2/C3 above.
+
+- [ ] Verify real Windows Version / subprocess termination.
+- [ ] Complete A tool integration, failure propagation and result mapping acceptance.
+- [ ] Complete D shared-rule adaptation and tests.
+- [ ] Complete Real Mode end-to-end acceptance on unknown Workspaces.
+
+None of C2/C3 as a whole, A integration, D adaptation or end-to-end delivery is
+marked complete by contract confirmation or this documentation-only merge.
 
 ## 6. Integration Milestones
 
