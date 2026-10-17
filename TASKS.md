@@ -95,16 +95,21 @@ MVP priority:
 - [x] Normalize supported extraction results to the existing `Document`
 - [x] Distinguish parse/read failures from no extractable text/cell values
 - [x] Add temporary real-file tests for long content, errors, identity and source preservation
-- [ ] Verify the multi-format implementation on Windows
+- [x] Verify the declared multi-format implementation on Windows (see evidence below)
 
-TXT was merged in PR #2. PDF/DOCX/XLSX parser work is preserved in PR #5,
-which remains open and unmerged. These formats have been tested locally on Linux;
-no completed integration milestone is claimed.
-C1 is not declared fully accepted: Windows multi-format verification remains
-outstanding, and supported content is explicitly limited by
-[extraction scope](API_CONTRACT.md#read_document-extraction-scope). DOCX tables,
-OCR and formula calculation are not implicitly covered by checked format items.
-All formats follow the existing
+TXT was merged in PR #2; PDF/DOCX/XLSX was merged in PR #5 at
+`a6ee13a53100f0b2522f4e9ad07e0e0296bd59d4`.
+User-supplied real Windows evidence for that commit records Windows 11 / Python
+3.12.10 64-bit: parser + extractor **59 passed, 3 skipped**; supplemental checks
+**11 passed, 0 failed, 0 skipped**. Two symbolic-link checks were skipped because
+symlinks were unavailable, and one Linux-only case-sensitivity check was skipped
+by design. Windows symbolic-link behavior remains unverified.
+See [Windows parser validation record](docs/parser-windows-validation.md) for
+coverage, evidence provenance and version applicability. This closes the declared
+Windows multi-format check, not blanket C1 or Agent integration acceptance.
+Supported content remains limited by
+[extraction scope](API_CONTRACT.md#read_document-extraction-scope): no OCR, DOCX
+tables or formula calculation. All formats retain the existing
 [path ID rule](API_CONTRACT.md#path-based-document-identity).
 
 Windows TXT evidence was reported by the team lead in the 2026-10-15 collaboration

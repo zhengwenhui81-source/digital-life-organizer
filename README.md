@@ -16,9 +16,12 @@ XLSM is unsupported. See the authoritative
 [extraction scope](API_CONTRACT.md#read_document-extraction-scope) for limitations
 and error behavior. The reader does not modify source files.
 
-The team lead reported Windows verification of the TXT stage; this multi-format
-stage has only been verified on Linux. Windows multi-format checks remain
-outstanding, and C1 is not declared fully complete.
+User-supplied Windows 11 / Python 3.12.10 64-bit evidence verifies the declared
+multi-format parser at `a6ee13a53100f0b2522f4e9ad07e0e0296bd59d4`:
+59 parser/extractor tests passed (3 skipped), plus 11 supplemental tests passed.
+Windows symbolic-link behavior remains unverified. See the
+[validation record](docs/parser-windows-validation.md) for skips and applicability;
+this does not establish complete C1 or end-to-end Agent acceptance.
 
 Document IDs follow the confirmed
 [path-based identity rules](API_CONTRACT.md#path-based-document-identity): IDs are
