@@ -72,6 +72,7 @@ Branch: `feature/agent-core`
 - [x] Ensure delete/overwrite are impossible through public tools
 
 ### Phase A5 — Verification
+- [x] Verify frozen approved folder/copy/move destinations before marking the task completed; failed checks retain a ToolResult and prevent FinalReport
 - [ ] Re-scan destination after execution
 - [ ] Check expected package contents
 - [ ] Check archive operations when used
