@@ -160,8 +160,9 @@ for complete limitations. No second parser framework or identity service is adde
 The [Version contract](API_CONTRACT.md#compare_versions) is now confirmed but
 implemented/exported in C with Linux local verification and fixed-commit Windows
 unit/lifecycle and four-format C-tool pipeline evidence (see
-[validation scope](docs/version-windows-validation.md)); Agent integration
-acceptance remains pending. It analyzes supplied Documents
+[validation scope](docs/version-windows-validation.md)); default Agent routing and
+controlled-plan Linux integration have [scoped evidence](docs/c-agent-integration-validation.md).
+Full integration/end-to-end acceptance remains pending. It analyzes supplied Documents
 from unknown Workspaces conservatively; no relationships is a normal success.
 Comparison output never selects an approved final file or triggers operations.
 Controlled version fixtures serve tests/regression/acceptance, not an assumption
