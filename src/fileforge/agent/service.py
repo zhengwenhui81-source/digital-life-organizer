@@ -113,6 +113,11 @@ class TaskService:
                 entry["task"]["status"] = "failed"
                 entry["error"] = str(exc) or type(exc).__name__
                 if entry["execution"]:
+                    entry["execution"]["status"] = "failed"
+                    for step in entry["execution"]["plan"]["steps"]:
+                        if step["status"] in {"pending", "running"}:
+                            step["status"] = "failed"
+                            break
                     entry["execution"]["pending_operations"] = []
                 entry["preview_id"] = None
 
@@ -190,6 +195,16 @@ class TaskService:
                     raise ValueError(
                         f"Document batch exceeds {_MAX_CANDIDATE_READS} candidates"
                     )
+                if not paths:
+                    if not candidates:
+                        raise ValueError(
+                            "No matching document found; read_document was not "
+                            "called and analysis was not performed"
+                        )
+                    raise ValueError(
+                        "No readable document found among the collected candidates; "
+                        "read_document was not called and analysis was not performed"
+                    )
                 calls = [{"path": path} for path in paths]
                 for call in calls:
                     self._check_plan_paths({"steps": [{"arguments": call}]}, root)
@@ -199,6 +214,15 @@ class TaskService:
                 for result in results
             ):
                 raise ValueError("A document read failed; analysis cannot continue")
+            if step["tool"] == "extract_requirements" and not any(
+                result.get("tool") == "read_document" and result.get("success")
+                for result in results[
+                    collection_index + 1 if collection_index is not None else 0 :
+                ]
+            ):
+                raise ValueError(
+                    "No document was read; requirements were not extracted"
+                )
             if (
                 step["tool"]
                 in {
@@ -241,6 +265,10 @@ class TaskService:
             }:
                 documents = arguments.get("documents")
                 if isinstance(documents, list):
+                    if step["tool"] == "extract_requirements" and not documents:
+                        raise ValueError(
+                            "No document was read; requirements were not extracted"
+                        )
                     if not documents and not any(
                         result.get("success")
                         and result.get("tool")
@@ -379,6 +407,7 @@ class TaskService:
         version_groups = []
         conflicts = []
         operations = []
+        empty_requirements = False
         for result in state["results"]:
             if result["tool"] == "list_files" and result["success"]:
                 found.extend(result["data"].get("files", []))
@@ -386,6 +415,8 @@ class TaskService:
                 version_groups.extend(result["data"].get("groups", []))
             if result["tool"] == "detect_conflicts" and result["success"]:
                 conflicts.extend(result["data"].get("conflicts", []))
+            if result["tool"] == "extract_requirements" and result["success"]:
+                empty_requirements = not result["data"].get("required_documents", [])
             if result["tool"] in {"create_folder", "copy_file", "move_file"}:
                 operations.append(result)
         return {
@@ -400,7 +431,11 @@ class TaskService:
             "summary": (
                 "Completed and verified approved file operations"
                 if entry["approved_operations_verified"]
-                else "Completed the available plan steps"
+                else (
+                    "Documents read; no material requirements found"
+                    if empty_requirements
+                    else "Completed the available plan steps"
+                )
             ),
         }
 

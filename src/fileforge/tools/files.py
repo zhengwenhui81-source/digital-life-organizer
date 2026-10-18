@@ -20,6 +20,8 @@ from fileforge.analysis.dedup import find_exact_duplicates, hash_file
 from fileforge.models import FileRecord
 from fileforge.scanner import Scanner
 
+_DASH_FOLD = str.maketrans({char: "-" for char in "‐‑‒–—―−﹣－"})
+
 
 def _result(
     tool: str, data: dict[str, Any] | None = None, *, error: str | None = None
@@ -72,12 +74,24 @@ def search_files(
             ext.casefold() if ext.startswith(".") else f".{ext.casefold()}"
             for ext in (extensions or [])
         }
-        matches = [
-            _record_data(record)
+        records = [
+            record
             for record in _scan(workspace)
-            if query.casefold() in record.name.casefold()
-            and (not allowed or record.extension.casefold() in allowed)
+            if not allowed or record.extension.casefold() in allowed
         ]
+        matches = [
+            record for record in records if query.casefold() in record.name.casefold()
+        ]
+        if not matches:
+            # Keep the full query and extension filter. This only recovers a
+            # typographic dash mismatch, never an unrelated filename.
+            folded_query = query.translate(_DASH_FOLD).casefold()
+            matches = [
+                record
+                for record in records
+                if folded_query in record.name.translate(_DASH_FOLD).casefold()
+            ]
+        matches = [_record_data(record) for record in matches]
         return _result("search_files", {"matches": matches})
     except (OSError, UnicodeError, ValueError) as exc:
         return _result("search_files", error=str(exc))
@@ -152,4 +166,3 @@ def move_file(
         return _result("move_file", {"source": str(src), "destination": str(dst)})
     except (OSError, ValueError) as exc:
         return _result("move_file", error=str(exc))
-
