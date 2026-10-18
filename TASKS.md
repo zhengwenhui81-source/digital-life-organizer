@@ -50,6 +50,8 @@ Branch: `feature/agent-core`
 - [ ] Add / finalize plan validation for unknown-Workspace dynamic execution
 - [x] Add planner tests
 - [x] Merge configurable Planner / no-LLM E2E support (PR #9)
+- [x] Request JSON mode for compatible OpenAI Chat Completions models; omit the unsupported fixed temperature, classify empty/truncated/refused/error responses without exposing response text or credentials (Planner reliability PR)
+- [ ] Verify a real `gpt-4.1-mini` plan against an unknown Windows Workspace with a configured API key; mocked SDK tests do not satisfy this acceptance
 - [ ] Ensure Planner does not assume fixed demo filenames, fixed requirements, or fixed version/conflict outcomes
 - [ ] Treat valid empty analysis results as normal branches rather than task failures
 

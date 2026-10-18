@@ -103,21 +103,32 @@ def _generate_local(prompt: str, *, model: str, base_url: str) -> str:
                 timeout=15.0,
                 max_retries=0,
             ) as client:
-                response = client.chat.completions.create(
+                request = dict(
                     model=model,
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0,
                 )
+                if urlparse(base_url).hostname == "api.openai.com" and model.startswith(
+                    ("gpt-4", "gpt-5")
+                ):
+                    request["response_format"] = {"type": "json_object"}
+                response = client.chat.completions.create(**request)
         except openai.APIError as exc:
             status = getattr(exc, "status_code", None)
             detail = f"HTTP {status}" if status else "connection failed"
             raise RuntimeError(
-                f"Planner model unavailable ({detail}; model={model}; "
-                f"base_url={base_url}). Configure FILEFORGE_AGENT_PLANNER_MODEL "
-                "and FILEFORGE_AGENT_PLANNER_BASE_URL, or set "
-                "FILEFORGE_AGENT_PLANNER_MODE=demo for E2E testing."
+                f"Planner model request failed ({detail}). Check the configured "
+                "model, endpoint, and supported request parameters."
             ) from exc
-    return response.choices[0].message.content or ""
+    if not response.choices:
+        raise ValueError("Planner returned empty response")
+    choice = response.choices[0]
+    if choice.finish_reason == "length":
+        raise ValueError("Planner response was truncated")
+    if getattr(choice.message, "refusal", None):
+        raise ValueError("Planner refused to create a plan")
+    if not choice.message.content or not choice.message.content.strip():
+        raise ValueError("Planner returned empty response")
+    return choice.message.content
 
 
 def _demo_plan(task_id: str, workspace: Path) -> dict[str, Any]:
@@ -171,6 +182,8 @@ def plan_task(
         if generate is not None
         else _generate_local(prompt, model=model, base_url=base_url)
     )
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("Planner returned empty response")
     try:
         payload = json.loads(raw)
     except (json.JSONDecodeError, TypeError) as exc:
