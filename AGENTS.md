@@ -133,8 +133,10 @@ apply to every public Document[] consumer, including C's version comparison and
 D's conflict/requirement/matching tools. B renders ToolResult without inventing
 another identity policy. D owns adaptation and tests of its existing tools.
 The [compare_versions v1 contract](API_CONTRACT.md#compare_versions) is confirmed;
-the public C implementation/export is locally verified on Linux, while Windows
-Version verification, Agent registration and integration remain pending. Unknown Workspaces need not contain versions; controlled fixtures are for
+the public C implementation/export is verified on Linux, with fixed-commit Windows
+unit/lifecycle and four-format C-tool pipeline evidence reconciled in
+[the validation record](docs/version-windows-validation.md). Agent registration
+and integration acceptance remain pending. Unknown Workspaces need not contain versions; controlled fixtures are for
 acceptance tests, not a runtime or classroom prerequisite.
 
 Integration boundaries:
