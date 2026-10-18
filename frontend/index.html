@@ -475,6 +475,22 @@
         .version-evidence { max-height: 16rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: rgba(0,0,0,.2); padding: .7rem; font-size: .8rem; }
         .workspace-nav button[aria-pressed="true"] { background: rgba(43,125,233,.2); color: white; }
         #matchingStatus { margin: 1rem 0; padding: .8rem; border-left: 3px solid var(--warning); }
+        /* Organization UI preview is isolated from the material workflow. */
+        #organizationWorkspace { min-width: 0; }
+        #organizationWorkspace .org-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem; margin:1rem 0; }
+        #organizationWorkspace .org-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1rem; }
+        #organizationWorkspace .org-panel { min-width:0; overflow-x:auto; padding:1rem; border:1px solid #2b405b; border-radius:10px; margin:1rem 0; }
+        #organizationWorkspace .org-panel h3, #organizationWorkspace h4 { margin-bottom:.75rem; }
+        #organizationWorkspace .org-path, #organizationWorkspace summary, #organizationWorkspace li { overflow-wrap:anywhere; word-break:break-word; white-space:pre-wrap; }
+        #organizationWorkspace .org-path { font-size:.85rem; margin:.35rem 0; }
+        #organizationWorkspace .org-demo-badge { color:#8fc5ff; font-weight:600; margin:1rem 0; }
+        #organizationWorkspace .org-summary { color:var(--silver); }
+        #organizationWorkspace .org-tree-node summary { cursor:pointer; padding:.5rem; border-radius:5px; background:rgba(43,125,233,.08); }
+        #organizationWorkspace .org-tree-node summary:focus-visible { outline:2px solid var(--blue); }
+        #organizationWorkspace .org-tree-node ul { list-style:none; padding-left:1rem; border-left:1px solid #2b405b; margin:.4rem 0 .4rem .3rem; }
+        #organizationWorkspace .org-tree-node li { padding:.2rem 0; }
+        #organizationWorkspace .org-toolbar select { max-width:100%; }
+        @media(max-width:900px) { #organizationWorkspace .org-grid { grid-template-columns:minmax(0,1fr); } }
     </style>
 </head>
 <body>
@@ -502,8 +518,28 @@
                 <button id="organizationWorkflowTab" class="btn btn-secondary" aria-pressed="false" onclick="switchAgentWorkflow('organization')">轻量智能分类整理</button>
             </nav>
             <section id="organizationWorkspace" class="agent-card" hidden>
-                <h2>轻量智能分类整理 · 功能开发中</h2>
-                <p>将支持动态分类、待人工确认材料、文件夹与复制操作预览。当前尚未接入分类接口，不会执行分类或文件操作。</p>
+                <h2>轻量智能分类整理 · UI 预览</h2>
+                <p class="result-warning">当前仅展示整理方案，尚未执行文件操作。</p>
+                <p class="agent-note">此页面使用虚构的本地 UI 演示数据，不读取 Workspace，不代表真实分类能力。分类与执行接口尚未接入。</p>
+                <div class="org-toolbar">
+                    <label for="organizationScenario">本地演示场景</label>
+                    <select id="organizationScenario" class="filter-select">
+                        <option value="mixed">多分类 / 待确认 / 空文件夹</option>
+                        <option value="empty">0 个文件</option>
+                        <option value="single">1 个文件</option>
+                        <option value="unknown">全部待人工确认</option>
+                        <option value="collision">同名目标冲突</option>
+                        <option value="incomplete">预览数据不完整</option>
+                    </select>
+                    <button id="organizationLoad" class="btn btn-primary" onclick="showOrganizationPreview()">加载演示预览</button>
+                    <button id="organizationReset" class="btn btn-secondary" onclick="showOrganizationPreview(true)">清空预览</button>
+                </div>
+                <div class="org-toolbar" aria-label="尚未接入的真实操作">
+                    <button class="btn btn-secondary" disabled>扫描并分类 · 尚未接入</button>
+                    <button class="btn btn-secondary" disabled>确认方案并执行 · 尚未接入</button>
+                </div>
+                <p class="agent-note">真实操作将在后端生成方案并经用户审批后执行；本页尚未接入真实分类、审批和执行。</p>
+                <div id="organizationPreview" aria-live="polite"><p class="agent-note">尚未开始。选择本地 UI 场景，再点击“加载演示预览”。不会扫描 Workspace。</p></div>
                 <button class="btn btn-secondary" onclick="switchAgentWorkflow('materials')">返回材料准备</button>
             </section>
             <div id="materialWorkspace">
@@ -668,6 +704,8 @@
     <script src="/static/agent-mock.js"></script>
     <script src="/static/agent-api.js"></script>
     <script src="/static/agent-results.js"></script>
+    <script src="/static/organization-preview.js"></script>
+    <script src="/static/organization-demo.js"></script>
     <script>
         // State
         const agentState = {task: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null};
@@ -681,6 +719,9 @@
             byId('filesWorkspace').hidden = view !== 'files';
             byId('agentViewTab').setAttribute('aria-selected', String(view === 'agent'));
             byId('filesViewTab').setAttribute('aria-selected', String(view === 'files'));
+        }
+        function showOrganizationPreview(reset = false) {
+            byId('organizationPreview').innerHTML = OrganizationPreview.render(reset ? null : OrganizationDemo.get(byId('organizationScenario').value));
         }
         function switchAgentWorkflow(workflow) {
             if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
