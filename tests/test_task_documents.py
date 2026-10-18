@@ -410,3 +410,55 @@ def test_all_legal_json_scalar_types_are_accepted(tool, field, duplicate):
     assert first[field]["values"] is values
     assert values[1] is True and values[2] is False
     assert type(values[8]) is float
+
+
+@pytest.mark.parametrize("field", ["metadata", "extra"])
+@pytest.mark.parametrize("duplicate", [False, True], ids=["single", "same-id"])
+@pytest.mark.parametrize("raises", [False, True], ids=["spoof-bool", "raising-meta"])
+@pytest.mark.parametrize("base", [object, dict, list, str, int, float])
+def test_metaclass_type_whitelist_cannot_invoke_custom_comparison(
+    tool, field, duplicate, raises, base
+):
+    calls = {"meta_eq": 0, "meta_hash": 0, "instance_eq": 0}
+
+    class Meta(type):
+        def __eq__(cls, other):
+            calls["meta_eq"] += 1
+            if raises:
+                raise RuntimeError("metaclass equality executed")
+            return other is bool
+
+        def __hash__(cls):
+            calls["meta_hash"] += 1
+            raise RuntimeError("metaclass hash executed")
+
+    class Custom(base, metaclass=Meta):
+        def __eq__(self, other):
+            calls["instance_eq"] += 1
+            raise RuntimeError("custom equality executed")
+
+    value = Custom()
+    first = document("必须提交报名表")
+    first[field] = {"value": value} if field == "metadata" else value
+    docs = [first, dict(first)] if duplicate else [first]
+    with ExitStack() as stack:
+        parser = stack.enter_context(
+            patch(f"{tool.__module__}.parse_material_evidence")
+        )
+        deadlines = (
+            stack.enter_context(patch(f"{tool.__module__}._deadlines"))
+            if tool is detect_conflicts
+            else None
+        )
+        try:
+            result = tool(documents=docs)
+        finally:
+            assert calls == {"meta_eq": 0, "meta_hash": 0, "instance_eq": 0}
+            parser.assert_not_called()
+            if deadlines is not None:
+                deadlines.assert_not_called()
+            if field == "metadata":
+                assert first[field]["value"] is value
+            else:
+                assert first[field] is value
+    assert_failure(result, tool)

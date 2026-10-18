@@ -7,19 +7,19 @@ _STRING_FIELDS = ("file_id", "path", "filename", "extension", "text", "modified_
 
 
 def validate_documents(documents: object) -> str | None:
-    if not isinstance(documents, list):
+    if type(documents) is not list:
         return "documents must be a list of Documents"
     for index, document in enumerate(documents):
-        if not isinstance(document, dict):
+        if type(document) is not dict:
             return f"documents[{index}] must be a Document object"
-        if any(not isinstance(document.get(key), str) for key in _STRING_FIELDS):
+        if any(type(document.get(key)) is not str for key in _STRING_FIELDS):
             return f"documents[{index}] has missing or invalid string fields"
         if any(not document[key].strip() for key in ("file_id", "path", "filename")):
             return f"documents[{index}] has empty identity/source fields"
         if (
             type(document.get("size")) is not int
             or document["size"] < 0
-            or not isinstance(document.get("metadata"), dict)
+            or type(document.get("metadata")) is not dict
         ):
             return f"documents[{index}] has invalid size or metadata"
     return None
@@ -48,13 +48,13 @@ def _json_error(documents: object) -> str | None:
                 active.remove(identity)
             continue
         kind = type(value)
-        if value is None or kind in (bool, str, int):
+        if value is None or (kind is bool or kind is str or kind is int):
             continue
         if kind is float:
             if not isfinite(value):
                 return f"{path}: non-finite number is not valid JSON"
             continue
-        if kind not in (dict, list):
+        if kind is not dict and kind is not list:
             return f"{path}: non-JSON value type {kind.__name__}"
         identity = id(value)
         if identity in active:
