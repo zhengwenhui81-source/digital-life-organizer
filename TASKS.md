@@ -2,7 +2,7 @@
 
 This file tracks the MVP development plan for the four-developer Vibe Coding workflow.
 
-> Updated 2026-10-17. The product baseline is now **unknown Workspace + Real Mode by default**. Fixed demo files remain useful for tests / fixtures / regression only; product logic must not depend on a pre-known file list, fixed material names, fixed version patterns, or fixed conflict / missing-item scenarios.
+> Updated 2026-10-18 (dual-mode lightweight organization scope). The product baseline is now **unknown Workspace + Real Mode by default**. Fixed demo files remain useful for tests / fixtures / regression only; product logic must not depend on a pre-known file list, fixed material names, fixed version patterns, or fixed conflict / missing-item scenarios.
 
 ## 0. Shared Setup
 
@@ -510,3 +510,68 @@ Before merging PR:
 - [ ] Shared API changes are reflected in `API_CONTRACT.md`
 - [ ] Tests / checks pass
 - [ ] Unknown-Workspace / Real Mode behavior is not broken
+
+
+## 10. Lightweight Smart Folder Organization (New, Approved Product Scope)
+
+**Decision (2026-10-18, B / project lead):** retain BOTH product workflows:
+1. Existing **task-driven material preparation** (requirements, versions, conflicts, matching, package); do not cancel or downgrade existing work or Matching Phase 2.
+2. New **lightweight folder organization (Option A)**: scan an arbitrary user-selected Workspace, classify where justified using filename, extension, metadata and already-supported extracted content, propose useful folders, show uncertain files to the user, and safely organize approved files.
+
+This is an approved **product direction and task allocation**, NOT approval of a new public API contract and NOT evidence of implemented capability. Existing completed PRs stay complete. Continue the currently blocking D Document[] adaptation / matching / package / Agent Real Mode work before this new branch of functionality.
+
+### Shared behavior and boundaries
+
+- [x] Agree on a lightweight, conservative classifier instead of building a new heavyweight semantic-classification subsystem.
+- [x] Retain unknown Workspace + Real Mode as runtime assumptions, not a fixed classroom folder or fixed classification taxonomy.
+- [ ] Define category derivation from actual candidates and the user's organizing instructions; do not hard-code course/competition/research names or invent a file purpose based on an ambiguous name.
+- [ ] Treat ambiguous, unsupported or unparseable items as **needs user confirmation / unknown**, with the original files preserved. An extension-only category is a file-type grouping, not proof of its subject or purpose.
+- [ ] Propose folder structures dynamically; support an empty Workspace, one-file Workspace, unrelated files and zero confidently classified files.
+- [ ] Default to **copy** into a separate organization destination, not destructive move; never delete or overwrite originals, silently skip conflicts or modify files before backend approval.
+- [ ] Reuse A's current frozen `preview_id` approval and filesystem verification; no D or B direct file mutations.
+- [ ] Keep source data and generated output separate to avoid re-scanning generated folders as new input; validate paths remain in allowed Workspace scope.
+- [ ] State realistic supported input sizes and format limits; current dynamic reading limit is **10 supported documents per collection**, so do not imply hundreds of files can all be content-classified or silently truncate candidates. Plan larger-workspace batching as a separate enhancement if needed.
+- [ ] End-to-end acceptance: unknown folder -> discovered files -> conservative proposed categories -> preview folders and copies -> explicit approval -> safe execution -> verify destinations and show uncertain/unprocessed files.
+
+### New contract decision gate (not yet frozen)
+
+- [ ] D drafts a **minimal** public `classify_files` proposal (or equivalent agreed name): inputs from scanned file information / existing Documents plus user organization goal; outputs should preserve each original file identity/path, proposed category, evidence or reason, and uncertainty. Specify successful empty output vs failure; no extra private schema.
+- [ ] A/B/C/D review the proposal for ownership, existing ToolResult conventions, Windows paths, available content, safe operation planning, and resource limits.
+- [ ] Update `API_CONTRACT.md` and public tool registry **before** any strict cross-member consumer depends on new fields/tool names. Do not treat this proposed tool as currently implemented.
+- [ ] Keep directory-plan representation as minimal as possible: prefer existing `create_folder`/`copy_file` PlanSteps and frozen approval preview over an unnecessary new public `plan_folder_organization` tool; introduce a new public tool only if a concrete capability gap is demonstrated and agreed.
+
+### A — Agent Core / Backend Orchestration: new work
+
+- [ ] After completing pending D public-tool integration, consume the agreed classification ToolResult in a task-neutral organization workflow (same unknown-Workspace selection and natural-language input).
+- [ ] Translate confirmed classifications into safe `create_folder` / `copy_file` PlanSteps; avoid collision/overwrite and output-inside-input rescan loops; do not automatically move uncertain files.
+- [ ] Keep final resolved paths/arguments frozen in `pending_operations` with `preview_id`, require user approval, then verify filesystem outcomes and propagate failures without pretending partial success.
+- [ ] Test no files, ambiguous files, failed reads, duplicate target names, stale approvals, denied approval and workspace boundary violations.
+
+### B — Frontend / Product Experience: new work
+
+- [ ] Add an organization-mode entry next to the existing task-material mode without replacing its UI or Real Mode transport.
+- [ ] Show a folder-tree / file-to-destination preview, source identity, proposed classification reasons, unknown/needs-confirmation section, file-type-only classification distinction and copy-vs-move semantics.
+- [ ] Reuse the current Agent progress, errors, preview approval/rejection and report presentation; no frontend filesystem writes or shadow classification rules.
+- [ ] Real Mode test on a previously unknown mixed Workspace, an empty Workspace, unclassifiable files, and collision/failed-operation outcomes; prepare classroom screenshots or backup video after actual integration.
+
+### C — Document Parsing & Version Intelligence: new work
+
+- [ ] Document which currently supported document contents and metadata can safely inform `classify_files`; distinguish filename/extension evidence from extracted-content evidence. Do not add OCR or extra readers as prerequisites to this lightweight MVP.
+- [ ] Assist with public `Document[]` provenance/limits and tests for unsupported, empty-text, image/scanned, and other unreadable items; keep Version responsibilities and pending Windows acceptance unchanged.
+
+### D — Task Intelligence: new work
+
+- [ ] After existing shared Document[] adaptation and Matching / Package milestones, draft the minimal classification interface and obtain team agreement before implementation.
+- [ ] Implement conservative, task-neutral `classify_files` logic using actual filename/extension/metadata and available extracted text; dynamically derive categories when evidence supports them, otherwise abstain. Do not depend on fixture names or claim model-level semantic certainty.
+- [ ] Produce classification decisions that A can translate into an organization plan; surface ambiguous cases and target-name collisions for approval, without D bypassing A's operation gate.
+- [ ] Add deterministic regression tests for mixed/unknown files, no supported text, no confident categories, non-hackathon domains, different folder names, same-name collisions, input immutability, and whole-tool failure behavior.
+
+### Implementation order / PR hygiene
+
+1. **Do not block the existing delivery:** D finishes `detect_conflicts` / `extract_requirements` Document[] public-boundary checks, then Matching/Package according to their existing contracts; A integrates safely.
+2. D opens a *contract-only proposal* for lightweight classification (and any demonstrated operation-plan schema gap); A/B/C confirm.
+3. After `API_CONTRACT.md` is updated, D implements classification in a separate focused PR.
+4. A adds classification-to-operations orchestration in an A-owned PR; B adds the organization-mode UI in a B-owned PR; C supplies evidence/scope checks as needed.
+5. Four-developer Real Mode integration and safety acceptance. Keep the original task-driven material-packaging workflow working in parallel.
+
+**Acceptance distinction:** filename/extension classification is *not* semantic material-purpose understanding; users must be told when the system cannot establish a reliable category. Neither demo convenience nor a successful Mock Mode render counts as proof of a complete Real Mode workflow.
