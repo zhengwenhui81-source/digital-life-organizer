@@ -51,7 +51,8 @@ Branch: `feature/agent-core`
 - [x] Add planner tests
 - [x] Merge configurable Planner / no-LLM E2E support (PR #9)
 - [x] Request JSON mode for compatible OpenAI Chat Completions models; omit the unsupported fixed temperature, classify empty/truncated/refused/error responses without exposing response text or credentials (Planner reliability PR)
-- [ ] Verify a real `gpt-4.1-mini` plan against an unknown Windows Workspace with a configured API key; mocked SDK tests do not satisfy this acceptance
+- [x] One real Windows 11 `gpt-4.1-mini` Real Mode basic scan completed on an unknown Workspace: non-recursive `list_files`, 19 found files, completed task and report, no pending or executed write operations (team-provided 2026-10-18 evidence). This does not accept document analysis or recursive scanning.
+- [ ] Verify real `read_document` → Version / conflict / requirement analysis and Matching / Package chains separately.
 - [ ] Ensure Planner does not assume fixed demo filenames, fixed requirements, or fixed version/conflict outcomes
 - [ ] Treat valid empty analysis results as normal branches rather than task failures
 
@@ -76,6 +77,7 @@ Branch: `feature/agent-core`
 - [ ] Re-scan destination after execution
 - [ ] Check expected package contents
 - [ ] Check archive operations when used
+- [ ] Verify moved-file content against the pre-move source content; current verification checks destination existence and source absence only.
 - [ ] Produce verification output for `FinalReport`
 - [ ] Verify FinalReport reflects actual filesystem state after approved operations
 

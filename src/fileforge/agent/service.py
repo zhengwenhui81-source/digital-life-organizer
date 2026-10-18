@@ -409,8 +409,9 @@ class TaskService:
         operations = []
         empty_requirements = False
         for result in state["results"]:
-            if result["tool"] == "list_files" and result["success"]:
-                found.extend(result["data"].get("files", []))
+            if result["success"] and result["tool"] in {"list_files", "search_files"}:
+                key = "files" if result["tool"] == "list_files" else "matches"
+                found.extend(result["data"].get(key, []))
             if result["tool"] == "compare_versions" and result["success"]:
                 version_groups.extend(result["data"].get("groups", []))
             if result["tool"] == "detect_conflicts" and result["success"]:
