@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import socket
 import sys
 import tempfile
 import threading
@@ -132,32 +133,65 @@ def create_app(workspaces: dict[str, Path], delay: float = 0) -> FastAPI:
     return app
 
 
-def main():
+def bind_listener(port: int = 0) -> socket.socket:
+    """Reserve and retain the actual listening socket; never probe then rebind."""
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        listener.bind(("127.0.0.1", port))
+        listener.listen(socket.SOMAXCONN)
+        listener.setblocking(False)
+        return listener
+    except BaseException:
+        listener.close()
+        raise
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=0, help="0 lets the OS select a free loopback port (default)")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--step-delay", type=float, default=0.35, help="Read-only tool pacing, 0..2 seconds")
-    args = parser.parse_args()
-    if not 1 <= args.port <= 65535 or not 0 <= args.step_delay <= 2:
-        parser.error("port must be 1..65535; step-delay must be 0..2")
+    args = parser.parse_args(argv)
+    if not 0 <= args.port <= 65535 or not 0 <= args.step_delay <= 2:
+        parser.error("port must be 0..65535; step-delay must be 0..2")
     import uvicorn
 
-    with tempfile.TemporaryDirectory(prefix="dlo_offline_browser_") as directory:
+    try:
+        listener = bind_listener(args.port)
+    except OSError as exc:
+        parser.exit(1, f"Cannot bind 127.0.0.1:{args.port}: {exc}. Use the default --port 0; no other service was changed.\n")
+    with listener, tempfile.TemporaryDirectory(prefix="dlo_offline_browser_") as directory:
         app = create_app(prepare_workspaces(Path(directory)), args.step_delay)
-        server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="info"))
-        url = f"http://127.0.0.1:{args.port}"
-        print(f"OFFLINE FIXED PLANNER - NOT LLM - READ ONLY\n{url}\nTemporary fixtures: {directory}\nCtrl+C to stop and remove temporary fixtures.", flush=True)
+        port = listener.getsockname()[1]
+        server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info"))
+        url = f"http://127.0.0.1:{port}"
+        print(f"OFFLINE FIXED PLANNER - NOT LLM - READ ONLY\nBound socket: {url}\nTemporary fixtures: {directory}\nCtrl+C to stop and remove temporary fixtures.", flush=True)
+        stop_opening = threading.Event()
+        browser_thread = None
         if not args.no_browser:
             def open_when_ready():
-                for _ in range(100):
+                while not stop_opening.wait(0.1):
                     if server.should_exit:
                         return
                     if server.started:
+                        print(f"Ready: {url}", flush=True)
                         webbrowser.open(url)
                         return
-                    time.sleep(0.1)
-            threading.Thread(target=open_when_ready, daemon=True).start()
-        server.run()
+            browser_thread = threading.Thread(target=open_when_ready, daemon=True)
+            browser_thread.start()
+        try:
+            # Pass the reserved socket itself, not merely its selected port.
+            server.run(sockets=[listener])
+        except KeyboardInterrupt:
+            # Uvicorn gracefully handles SIGINT then re-raises it on current
+            # versions. Still unwind TemporaryDirectory and the socket normally.
+            pass
+        finally:
+            stop_opening.set()
+            if browser_thread is not None:
+                browser_thread.join(timeout=1)
 
 
 if __name__ == "__main__":

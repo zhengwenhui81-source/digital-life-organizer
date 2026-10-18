@@ -6,8 +6,11 @@
 .\.venv\Scripts\python.exe -B demo/run_offline_browser.py
 ```
 
-服务只绑定 `127.0.0.1:8765`。端口被占用时用 `--port 8766`；禁止监听外网。
-可用 `--no-browser` 手动打开终端打印的 URL。Ctrl+C 停止服务并清理本次临时
+服务仅在 `127.0.0.1` 上绑定，默认端口 `0` 由操作系统分配。终端打印的 URL、
+浏览器 URL 与传给 Uvicorn 的**同一个已绑定 socket**一致；不会先探测再重新绑定。
+无需使用 8765，不会停止其他程序或修改代理、系统网络配置。
+可用 `--no-browser` 手动打开终端打印的 URL。显式 `--port N` 被占用时清楚退出，
+不创建夹具或打开浏览器；改回默认 `--port 0` 即可。Ctrl+C 正常关闭服务并清理本次临时
 数据；异常终止可能留下系统临时目录，不会清理任何用户 Workspace。
 不安装依赖、不配置 API Key、不调用 OpenAI、不处理代理。
 
@@ -54,6 +57,7 @@
 
 ```powershell
 .\.venv\Scripts\python.exe -B frontend/tests/offline-browser-smoke.py
+.\.venv\Scripts\python.exe -B frontend/tests/offline-startup-smoke.py
 node --test frontend/tests/*.test.cjs
 .\.venv\Scripts\python.exe -B frontend/tests/matching-public-smoke.py
 .\.venv\Scripts\python.exe -B frontend/tests/real-results-smoke.py
@@ -74,6 +78,11 @@ HTTP 检查使用进程内 TestClient 与同一开发 app；不启动模型或�
 node frontend/tests/offline-browser.cjs
 ```
 
-自定义端口时设置 `UI_BASE_URL`。可设置 `UI_SCREENSHOT_DIR` 为已有截图目录。
+必须将 `UI_BASE_URL` 设置为本次终端打印的完整 URL（没有默认 8765），例如
+`$env:UI_BASE_URL='http://127.0.0.1:实际端口'`。可设置 `UI_SCREENSHOT_DIR` 为已有截图目录。
 检查 1280×720 与 1366×768 的真实 HTTP 场景、离线标记、0/1/N 候选、错误态、
 页面溢出和外网/写接口请求。不会 stub HTTP 结果，不代表真实 LLM 验收。
+
+启动回归只占用测试自己申请的随机端口模拟冲突，不访问或操作现有 8765 服务。
+验证系统分配端口、socket 持续保留、浏览器仅在 ready 后使用实际 URL、显式冲突
+不打开浏览器/创建夹具、启动异常清理，以及真实 Uvicorn 接收 SIGINT 后的目录清理。

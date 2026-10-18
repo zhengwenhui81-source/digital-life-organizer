@@ -3,6 +3,8 @@
 const assert=require('node:assert/strict');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright-core');
 (async()=>{
+    const baseURL=process.env.UI_BASE_URL;
+    if(!baseURL || new URL(baseURL).hostname!=='127.0.0.1')throw Error('Set UI_BASE_URL to the actual 127.0.0.1 URL printed by the offline harness; there is no default port.');
     const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH});
     try {
         for(const [width,height] of [[1280,720],[1366,768]]){
@@ -13,7 +15,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright-core');
                 return route.continue();
             });
             page.on('request',r=>{if(r.method()==='POST')mutations.push(new URL(r.url()).pathname);});
-            await page.goto(process.env.UI_BASE_URL || 'http://127.0.0.1:8765',{waitUntil:'domcontentloaded'});
+            await page.goto(baseURL,{waitUntil:'domcontentloaded'});
             await page.waitForSelector('#offlineBanner');assert.match(await page.locator('#offlineBanner').innerText(),/固定 Planner · 非 LLM/);
             assert.equal(await page.locator('#agentMode').inputValue(),'real');assert.equal(await page.locator('#agentMode').isDisabled(),true);
             for(const scenario of ['mixed','no_candidates','no_requirements','read_failure','empty']){
