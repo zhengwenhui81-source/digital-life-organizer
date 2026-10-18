@@ -50,6 +50,12 @@ def _extract_requirements(**arguments: Any) -> dict[str, Any]:
     return extract_requirements(**arguments)
 
 
+def _match_requirements(**arguments: Any) -> dict[str, Any]:
+    from fileforge.task_intelligence import match_requirements
+
+    return match_requirements(**arguments)
+
+
 class ToolRouter:
     """Route public tools through their exported entry points."""
 
@@ -61,6 +67,7 @@ class ToolRouter:
             "compare_versions": _compare_versions,
             "detect_conflicts": _detect_conflicts,
             "extract_requirements": _extract_requirements,
+            "match_requirements": _match_requirements,
             "find_duplicates": find_duplicates,
             "create_folder": create_folder,
             "copy_file": copy_file,
@@ -191,6 +198,9 @@ def execute(
             calls = [arguments]
         else:
             raise ValueError("Resolver must return tool arguments")
+        if not calls:
+            step["status"] = "skipped"
+            continue
         step["status"] = "running"
         for call in calls:
             result = router.call(

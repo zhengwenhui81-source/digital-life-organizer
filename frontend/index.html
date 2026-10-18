@@ -579,7 +579,10 @@
                     <div class="agent-panel"><h3>Required Materials</h3><div id="agentMaterials" class="agent-placeholder">Analysis results will appear here.</div></div>
                 </div>
             </div>
-            <div id="matchingStatus" class="agent-note" role="status">材料匹配接口尚未冻结；候选材料与缺失情况未确认。最终演示请使用 Real Mode。</div>
+            <section class="agent-card"><h3>Matching Phase 1 · 文件名候选</h3>
+                <p id="matchingStatus" class="agent-note">仅展示后端返回的匹配结果。Agent 注册与完整联调尚未验收；最终演示请使用 Real Mode。</p>
+                <div id="agentMatching" aria-live="polite">未执行：尚未收到此工具的结果。</div>
+            </section>
             <details class="agent-card"><summary>其他工具执行记录</summary><div id="agentOtherResults">尚无其他工具结果。</div></details>
             <div class="agent-card approval-card"><h2>4. Pending Actions · User Approval</h2>
                 <p class="agent-note">Review the source and destination before approving any file operations.</p>
@@ -770,6 +773,7 @@
             clearTimeout(agentState.copyTimer);
             agentState.report = null;
             byId('agentOtherResults').textContent = '尚无其他工具结果。';
+            byId('agentMatching').textContent = agentState.mode === 'mock' ? 'Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。' : '未执行：尚未收到此工具的结果。';
             byId('agentPlan').innerHTML = '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
             ['agentVersions','agentConflicts','agentMaterials'].forEach(id => {
                 byId(id).textContent = 'Analysis results will appear here.';
@@ -799,6 +803,7 @@
             const results = agentArray(snapshot.results);
             const result = tool => AgentResults.latest(results, tool);
             const versions = result('compare_versions'), conflicts = result('detect_conflicts'), materials = result('extract_requirements');
+            byId('agentMatching').innerHTML = mock ? '<p class="agent-note">Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。</p>' : AgentResults.matching(result('match_requirements'));
             if (!mock) {
                 byId('agentVersions').innerHTML = AgentResults.versions(versions);
                 byId('agentConflicts').innerHTML = AgentResults.conflicts(conflicts);
@@ -835,14 +840,14 @@
             const mock = agentState.mode === 'mock';
             byId('agentFinalCard').dataset.completed = 'true';
             byId('agentFinal').classList.remove('agent-placeholder');
-            const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],['Missing Items',report.missing_items],['Conflicts',report.conflicts],['Operations',report.operations]];
-            const warnings = [['Missing Items',report.missing_items],['Conflicts',report.conflicts]].filter(([,items]) => agentArray(items).length);
+            const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],...(mock ? [['Missing Items',report.missing_items]] : []),['Conflicts',report.conflicts],['Operations',report.operations]];
+            const warnings = [...(mock ? [['Missing Items',report.missing_items]] : []),['Conflicts',report.conflicts]].filter(([,items]) => agentArray(items).length);
             byId('agentFinal').innerHTML = '<h3 class="result-heading">✓ Task Completed' + (mock ? ' · Mock' : '') + '</h3><p class="result-summary">' + agentEscape(report.summary) + '</p>' +
-                (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">No package path provided.</p>') +
+                (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">未生成材料包：后端未提供 package_path。</p>') +
                 warnings.map(([label,items]) => '<p class="result-warning">⚠ ' + items.length + ' ' + label + ' — review the analysis before submitting materials.</p>').join('') +
                 '<div class="agent-summary">' + counts.filter(([,items]) => Array.isArray(items) && items.length).map(([label,items]) => '<div>' + label + '<strong>' + items.length + '</strong></div>').join('') + '</div>';
             if (!mock) {
-                byId('agentFinal').innerHTML += '<p class="agent-note">材料匹配尚未接入。缺项数组为空不代表已检查材料齐全；任务完成不等于所有分析能力均已执行。</p>';
+                byId('agentFinal').innerHTML += '<p class="agent-note">任务完成不等于所有分析能力均已执行，也不表示材料已审核通过。文件操作结果以后台执行与验证信息为准。</p>' + AgentResults.matchingReport(agentState.snapshot?.results, report.missing_items);
                 const conflictResult = AgentResults.latest(agentState.snapshot?.results, 'detect_conflicts');
                 if (!conflictResult || conflictResult.success !== true) byId('agentFinal').innerHTML += '<p class="result-warning">冲突检查未执行或失败，不能将空报告解释为没有冲突。</p>';
             }

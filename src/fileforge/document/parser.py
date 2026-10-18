@@ -17,8 +17,8 @@ def read_document(path: str) -> dict[str, Any]:
     """Return a Document in the shared ToolResult envelope.
 
     Identity uses the resolved absolute target path, not file contents.
-    Supports TXT, PDF text layers, DOCX body paragraphs and XLSX cell values.
-    No OCR, DOCX tables or spreadsheet formula calculation is performed.
+    Supports TXT, PDF text layers, DOCX body paragraphs/tables and XLSX cell values.
+    No OCR or spreadsheet formula calculation is performed.
     Task workspace authorization belongs to the caller.
     """
     return _read_document(path)
@@ -70,8 +70,8 @@ def _read_document(path: str) -> dict[str, Any]:
                 )
             if extension == ".docx":
                 return _failure(
-                    "No extractable text found in DOCX body paragraphs; "
-                    "tables, headers and footers are not read"
+                    "No extractable text found in DOCX body paragraphs or tables; "
+                    "headers, footers and images are not read"
                 )
             return _failure(
                 "No extractable text found in PDF text layer; OCR is not performed; "

@@ -181,8 +181,26 @@ The complete readable content is held in memory; this is not a streaming reader.
 | --- | --- | --- |
 | TXT | Full decoded text using the existing encoding detection and replacement behavior | Whitespace-only/empty content fails |
 | PDF | Text layer across all pages | No OCR or guaranteed table/layout reconstruction; no text does not establish that a file is scanned |
-| DOCX | Body paragraphs in order | Tables, headers, footers, images and other Office content are not read; this is not complete Office extraction |
+| DOCX | Body paragraphs and table grids in original block order, including nested cell tables | Merged cells use text anchors/references, not duplicated values; headers, footers, textboxes and images are not read; no complete Office/layout understanding |
 | XLSX | Cell values across worksheets in workbook order, with sheet-name headers | Read-only, `data_only=True`; formula caches may be stale, missing caches are omitted, and formulas are never calculated; styles, charts and cell coordinates are not preserved |
+
+DOCX table text uses `[TABLE]` / `[/TABLE]` boundaries and 1-based rows/columns:
+`R1: C1="Category" | C2="Points"`. Cell text is JSON-string escaped (including
+newlines, quotes and literal separators), preserving internal spaces; paragraph
+edge whitespace and empty paragraphs are omitted as in the existing reader.
+Empty cells are `""`; omitted Word grid slots are `[omitted]`, never shifted left.
+A merged origin is emitted once, e.g. `C1(rowspan=2,colspan=2)="Category"`;
+covered slots use `@R1C1`. References are local to the containing table, not IDs
+or evidence fields. Nested tables remain within the containing cell's escaped
+text with their own boundaries and local coordinates. Empty tables add no content;
+a document with only empty paragraphs/cells still fails. Invalid merge geometry,
+nonempty vertical continuation cells and legacy `w:hMerge` fail explicitly rather
+than guessing associations; standard `gridSpan`/`vMerge` are supported.
+These markers describe text structure, not scoring/category interpretation.
+DOCX tables increase `Document.text`, including structural characters: all existing
+Version text/total/complete-input quotas apply unchanged, without truncation.
+New DOCX table behavior requires fresh Windows validation; earlier Windows Parser
+and C-tool pipeline evidence applies only to the previous body-only extractor.
 
 XLSM remains unsupported by this public entry point, even though the upstream
 extractor can handle it. Source files are never saved or modified by the reader.
@@ -351,8 +369,8 @@ MVP public tools are fixed as follows.
 - `compare_versions`
 - `detect_conflicts`
 - `extract_requirements`
-- `match_requirements` — Phase 1 team-confirmed; final HEAD review/merge pending,
-  not implemented/exported/registered
+- `match_requirements` — Phase 1 filename-candidate tool; contract and public
+  implementation merged, with Agent routing reviewed separately.
 - `verify_result`
 
 ### File-changing tools
@@ -728,10 +746,9 @@ before treating it as frozen and implementing strict consumers.
 
 ### match_requirements — Phase 1 contract
 
-**团队已确认，待最终 HEAD 独立复审及合入。** Formal freezing is completed
-through final document HEAD review and merge, not by team confirmation alone.
-This documentation does not implement, export, register or verify the tool.
-The public tool list records its contract status, not runtime availability.
+**Phase 1 契约已冻结。** PR #19 completed contract review and merge; PR #24
+completed public implementation, export, independent review and merge. Agent
+routing and Windows Real Mode acceptance are separate integration steps.
 
 #### Confirmation provenance
 
@@ -745,9 +762,8 @@ The public tool list records its contract status, not runtime availability.
   accepted by A, as is whitespace-only requirement rejection.
 - No matching-specific quota in v1, no inherited Version limits and no
   arbitrary-scale guarantee are confirmed boundaries, not open blockers.
-- Phase 2 remains required and unfinished. Final HEAD independent review/merge,
-  tool implementation/export/registration and integration acceptance remain
-  separate steps; none is certified complete by this confirmation record.
+- Phase 2 remains required and unfinished. Contract and public-tool merges do
+  not by themselves certify Agent integration or Windows Real Mode acceptance.
 
 #### Entry point and input
 
@@ -868,7 +884,7 @@ Package and classify_files contracts are outside this change.
 
 #### Complete JSON examples
 
-These illustrate the team-confirmed contract, not implemented tool output. IDs are illustrative.
+These illustrate the frozen Phase 1 contract. IDs are illustrative.
 
 Request:
 

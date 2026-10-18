@@ -124,7 +124,7 @@ Document identity follows the confirmed [path-based Document identity contract](
 
 Parser support and omissions are defined in
 [read_document extraction scope](API_CONTRACT.md#read_document-extraction-scope).
-TXT, PDF text layers, DOCX body paragraphs, and XLSX cached cell values share the
+TXT, PDF text layers, DOCX body paragraphs/tables, and XLSX cached cell values share the
 same Document/ToolResult and ID rules. Do not infer complete Office extraction,
 OCR, formula evaluation, or XLSM support from the supported extension list.
 
@@ -135,8 +135,10 @@ another identity policy. D owns adaptation and tests of its existing tools.
 The [compare_versions v1 contract](API_CONTRACT.md#compare_versions) is confirmed;
 the public C implementation/export is verified on Linux, with fixed-commit Windows
 unit/lifecycle and four-format C-tool pipeline evidence reconciled in
-[the validation record](docs/version-windows-validation.md). Agent registration
-and integration acceptance remain pending. Unknown Workspaces need not contain versions; controlled fixtures are for
+[the validation record](docs/version-windows-validation.md). Default Agent routing
+and scoped Linux integration are checked in the
+[C/A record](docs/c-agent-integration-validation.md); full integration acceptance
+remains separate and pending. Unknown Workspaces need not contain versions; controlled fixtures are for
 acceptance tests, not a runtime or classroom prerequisite.
 
 Integration boundaries:
