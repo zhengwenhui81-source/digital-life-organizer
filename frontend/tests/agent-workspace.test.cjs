@@ -84,3 +84,32 @@ test('every organization preview sends no requests and material Mock happy path 
     assert.equal(h.state.task.status,'awaiting_approval');await h.c.decideAgent(true);for(let i=0;i<3;i++)await h.c.pollAgent();
     assert.equal(h.state.task.status,'completed');assert.equal(h.calls.length,0);
 });
+
+test('Real Snapshot retains matching ToolResults and renders them separately from extraction',async()=>{
+    const h=harness();const candidates=[{file_id:'file_second',filename:'表_v2.txt',path:'E:\\unknown\\表_v2.txt'},{file_id:'file_first',filename:'表.txt',path:'E:\\unknown\\表.txt'}];
+    const matching={tool:'match_requirements',success:true,data:{required_documents:['表','证明'],matched:[{requirement:'表',documents:candidates}],missing:['证明']},message:'matched',error:null};
+    let results=[matching,{tool:'extract_requirements',success:true,data:{required_documents:['只提取到的要求']}}];
+    h.c.respond=url=>url==='/api/agent/tasks'?response({task_id:'task',status:'created'},202):url.endsWith('/report')?response({task_id:'task',status:'completed',missing_items:['证明'],package_path:''}):response(snapshot('completed',{results}));
+    await h.c.runAgent();await h.c.pollAgent();
+    assert.equal(JSON.stringify(h.state.snapshot.results[0]),JSON.stringify(matching));
+    assert.match(h.el('agentMaterials').innerHTML,/只提取到的要求/);assert.doesNotMatch(h.el('agentMaterials').innerHTML,/file_second/);
+    for(const target of ['agentMatching','agentFinal']){
+        const html=h.el(target).innerHTML;assert.match(html,/file_second/);assert.match(html,/file_first/);assert.ok(html.indexOf('file_second')<html.indexOf('file_first'));
+        assert.match(html,/本次未找到文件名候选/);assert.doesNotMatch(html,/匹配尚未接入/);
+    }
+    assert.match(h.el('agentFinal').innerHTML,/未生成材料包/);assert.equal(h.el('copyPackagePath').hidden,true);
+    results=[matching,{tool:'match_requirements',success:false,data:null,error:'matching failed'}];
+    h.c.respond=()=>response(snapshot('failed',{results,error:'matching failed'}));await h.c.pollAgent();
+    assert.match(h.el('agentMatching').innerHTML,/matching failed/);assert.doesNotMatch(h.el('agentMatching').innerHTML,/file_second/);assert.equal(h.state.report,null);
+    assert.equal(h.calls.filter(r=>r.url.endsWith('/report')).length,1);
+});
+
+test('approval displays exact backend arguments and failure details without promoting partial operations',async()=>{
+    const h=harness(), operation={step_id:'copy',tool:'copy_file',risk:'medium',status:'awaiting_approval',description:'copy candidate',arguments:{source:'E:\\in\\candidate.txt',destination:'E:\\out\\candidate.txt'}};
+    h.c.respond=url=>url==='/api/agent/tasks'?response({task_id:'task',status:'created'},202):response(snapshot('awaiting_approval',{pending_operations:[operation],preview_id:'frozen-preview'}));
+    await h.c.runAgent();await h.c.pollAgent();for(const value of [operation.arguments.source,operation.arguments.destination,'copy_file','frozen-preview'])assert.ok(h.el('agentActions').innerHTML.includes(value.replaceAll('\\','\\\\'))||h.el('agentActions').innerHTML.includes(value));
+    h.c.respond=()=>response(snapshot('failed',{results:[{tool:'copy_file',success:true,data:{},message:'one copy completed'},{tool:'copy_file',success:false,data:null,error:'verification failed'}],error:'verification failed; one copy may already exist'}));
+    await h.c.pollAgent();assert.match(h.el('agentErrorDetail').textContent,/verification failed; one copy may already exist/);
+    assert.match(h.el('agentOtherResults').innerHTML,/one copy completed/);assert.match(h.el('agentOtherResults').innerHTML,/verification failed/);
+    assert.equal(h.state.report,null);assert.equal(h.calls.some(c=>c.url.endsWith('/report')),false);
+});

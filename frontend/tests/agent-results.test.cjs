@@ -59,8 +59,53 @@ test('latest tool lookup is independent of position and does not hide latest fai
 });
 test('unfrozen tools get generic execution status without interpreting draft fields', () => {
     for (const documents of [[],[doc('a.txt','a')],[doc('a.txt','a'),doc('b.txt','b')]]) {
-        const html=ui.otherResults([result('match_requirements',{matched:[{documents}],missing:[]})]);
+        const html=ui.otherResults([result('build_package',{example:[{documents}]})]);
         assert.match(html,/不推断未冻结数据的含义/); assert.doesNotMatch(html,/材料齐全|缺失材料|已确认采用/);
     }
-    assert.match(ui.otherResults([result('match_requirements',null,false)]),/工具执行失败/);
+    assert.match(ui.otherResults([result('build_package',null,false)]),/工具执行失败/);
+});
+
+test('matching distinguishes absent, failed, empty requirements and all unmatched',()=>{
+    assert.match(ui.matching(undefined),/未执行/);
+    const failure=result('match_requirements',null,false);failure.error='候选输入冲突 <bad>';
+    assert.match(ui.matching(failure),/候选输入冲突 &lt;bad&gt;/);assert.match(ui.matching(failure),/工具执行失败/);
+    assert.match(ui.matching(result('match_requirements',{required_documents:[],matched:[],missing:[]})),/没有明确的材料要求/);
+    const html=ui.matching(result('match_requirements',{required_documents:['a','b'],matched:[],missing:['a','b']}));
+    assert.match(html,/2 项本次未找到文件名候选/);assert.match(html,/不等于 Workspace/);assert.doesNotMatch(html,/工具执行失败|材料齐全/);
+});
+test('matching preserves exact references, all 1/N candidates, and backend order without selecting',()=>{
+    const documents=[{file_id:'file_z',filename:'申请表_v2.txt',path:'E:\\unknown\\申请表_v2.txt'},{file_id:'file_a',filename:'申请表.txt',path:'E:\\unknown\\申请表.txt'}];
+    const value=result('match_requirements',{required_documents:['申请表','单个'],matched:[{requirement:'申请表',documents},{requirement:'单个',documents:[documents[1]]}],missing:[]});
+    const before=JSON.stringify(value), html=ui.matching(value);
+    assert.ok(html.indexOf('file_z')<html.indexOf('file_a'));
+    for(const d of documents)for(const key of ['filename','path','file_id'])assert.ok(html.includes(d[key]));
+    assert.match(html,/2 个文件名候选/);assert.match(html,/1 个文件名候选/);assert.match(html,/候选材料，尚未审核/);
+    assert.doesNotMatch(html,/selected=|checked|推荐最新/);assert.equal(JSON.stringify(value),before);
+});
+test('matching rejects incomplete or contradictory shapes rather than claiming empty success',()=>{
+    for(const data of [{required_documents:[]},{required_documents:['a'],matched:[],missing:[]},{required_documents:['a'],matched:[{requirement:'a',documents:[]}],missing:[]},{required_documents:[],matched:[],missing:['a']},{required_documents:['a'],matched:[{requirement:'a',documents:[{filename:'a',path:'x'}]}],missing:[]}]){
+        assert.equal(ui.matchingState(result('match_requirements',data)).kind,'unavailable');
+    }
+});
+test('matching escapes requirement, file identity, filename, path and error',()=>{
+    const evil='<img src=x onerror="alert(1)">';
+    const html=ui.matching(result('match_requirements',{required_documents:[evil],matched:[{requirement:evil,documents:[{file_id:evil,path:evil,filename:evil}]}],missing:[]}));
+    assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img/);
+});
+test('matching report requires latest success; never falls back or assumes empty report completeness',()=>{
+    const success=result('match_requirements',{required_documents:['a'],matched:[],missing:['a']}), failure=result('match_requirements',null,false);
+    assert.match(ui.matchingReport([success],[]),/不一致/);assert.match(ui.matchingReport([success],['a']),/本次未找到文件名候选/);
+    const html=ui.matchingReport([success,failure],[]);assert.match(html,/工具执行失败/);assert.match(html,/不能解释 missing_items/);
+    assert.doesNotMatch(html,/匹配执行成功/);assert.match(ui.matchingReport([],[]),/未执行/);
+    assert.doesNotMatch(ui.otherResults([success]),/match_requirements/);
+});
+
+test('empty requirements and all requirements with candidates have distinct report meanings',()=>{
+    const empty=result('match_requirements',{required_documents:[],matched:[],missing:[]});
+    assert.match(ui.matchingReport([empty],[]),/没有明确的材料要求/);
+    assert.doesNotMatch(ui.matchingReport([empty],[]),/每项要求均有/);
+    const reference={file_id:'file_same',filename:'申请表_v1_v2.txt',path:'E:\\unknown\\申请表_v1_v2.txt'};
+    const matched=result('match_requirements',{required_documents:['申请表_v1','申请表_v1_v2'],matched:[{requirement:'申请表_v1',documents:[reference]},{requirement:'申请表_v1_v2',documents:[reference]}],missing:[]});
+    const html=ui.matchingReport([matched],[]);assert.match(html,/每项要求均有文件名候选/);
+    assert.equal((html.match(/file_same/g)||[]).length,2);assert.match(html,/不代表材料已审核通过/);
 });

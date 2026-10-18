@@ -86,6 +86,7 @@ Expected analysis mapping:
 - `compare_versions` ToolResult -> Version Groups
 - `detect_conflicts` ToolResult -> Conflicts
 - `extract_requirements` ToolResult -> Required Materials / requirement analysis
+- `match_requirements` ToolResult -> separate Matching Phase 1 panel, preserving every filename candidate, file_id, filename, path and backend order
 - other ToolResults may be shown as progress/details without creating undocumented shared fields
 
 ## Approval behavior
@@ -108,43 +109,58 @@ The Version v1 structure is now confirmed in API_CONTRACT.md and rendered by
 agent-results.js. Its recommendation never means an approved final selection.
 The following remaining structures must not be guessed by the frontend:
 
-- exact shared structure for matched and missing requirement items beyond `extract_requirements.data.required_documents`
 - exact `build_package` ToolResult data for actual output path and verification targets
 
-Developer D and consuming A/B developers must finalize matching/package structures
-in API_CONTRACT.md before strict Real Mode rendering depends on them. No public
-matching or classification transport is introduced here. Generic tool execution
-records can show failures/success without interpreting unfrozen result data.
+Package and classification still require agreed contracts before strict consumers.
+Matching Phase 1's three-array shape is in API_CONTRACT.md and implemented by the
+public D tool merged in PR #24. Some contract/task prose still says review/merge
+pending; that wording is stale and is not edited by B. This frontend consumes the
+documented result shape only when supplied in TaskSnapshot.results. No additional
+matching/classification endpoint or tool-call parameters are introduced.
 
 ## Matching and final-report semantics
 
 Requirement extraction alone does not confirm candidate matching. Successful empty
 requirements mean no explicit requirements were extracted; they do not establish
-completeness. Current Real Mode always identifies matching as not integrated and
-does not interpret an empty FinalReport.missing_items as "all materials present".
+completeness. Real Mode selects the latest match_requirements ToolResult by tool
+name; it does not interpret an empty FinalReport.missing_items alone as completeness.
 Task completion alone does not prove every analysis tool executed. A failed or
 absent conflict result is explicitly marked unknown even when the report array
 is empty. A failed task clears any stale successful report and copy action.
 
-After matching is frozen, the UI must distinguish not-run, running, failed,
-successful no requirements, successful all unmatched, partially matched and all
-matched states. A successful match with N candidate documents must preserve all N;
-zero candidates can be labeled missing only after a successful agreed matching
-result. A candidate is not an approval and B must never rank/select versions.
-No new unresolved field or temporary matching schema is implemented.
+The Matching panel distinguishes absent result (not executed), failure, incomplete
+response, successful no requirements, all unmatched, partially matched and all
+requirements with candidates. Zero candidates is conveyed by data.missing and
+displayed as “本次未找到文件名候选”, not proof of absence or failed review. All N
+candidates and their order are preserved. Requirements/candidate identity fields
+are rendered verbatim with HTML escaping. No ranking, content review, selected
+version, unresolved field or new Mock shape is added.
+
+Final Result repeats the latest Matching evidence, never falls back to an older
+success after a failure, and warns if report.missing_items differs from the latest
+successful data.missing. Completed is not materials approved. Empty package_path
+means no generated package path was reported; the copy-path button stays hidden.
+
+Readiness baseline: origin/dev 43a723a (PR #24 merged). A's executor/planner still
+does not register Matching, and service._report still initializes missing_items
+to []. Matching HTTP retention/mapping/failure propagation are NOT accepted by
+this UI change. A must supply authorized successfully read candidates, exclude
+notices, retain complete ToolResults and stop execution on failure before genuine
+HTTP Matching acceptance. D's Phase 2 aliases/semantic proof remain unfinished.
 
 ## Frontend checks
 
 Run the dependency-free Node checks from the repository root:
 
 ```sh
-node --test frontend/tests/agent-results.test.cjs frontend/tests/agent-workspace.test.cjs
+node --test frontend/tests/*.test.cjs
 ```
 
 With the project Python dependencies installed, also run:
 
 ```sh
 python -B frontend/tests/real-results-smoke.py
+python -B frontend/tests/matching-public-smoke.py
 ```
 
 This uses real HTTP handlers, TaskService and public C/D results in temporary
@@ -152,6 +168,14 @@ unknown course workspaces (0/1/2 documents) and passes them to the frontend
 renderer. A fixed test planner isolates model availability; D tools are called
 directly for this check, not silently registered into the Agent. This test is
 not proof of the unfinished LLM/Matching/Package classroom workflow.
+
+matching-public-smoke.py separately invokes the actual D public Matching tool on
+six in-memory cases and passes its untouched output to the JS renderer. No model,
+Workspace file operations, HTTP endpoint or Agent registration is involved.
+Snapshot/FinalReport Matching UI integration tests use explicitly stubbed HTTP
+responses. These do not certify the absent Agent Matching path. The older
+real-results-smoke.py is a separate C/D historical test, not run as Matching
+acceptance and not a substitute for the new check.
 
 The tests cover result states, version abstention and recommendations, escaped
 evidence, arbitrary source paths, multiple candidates, real polling/approval and
