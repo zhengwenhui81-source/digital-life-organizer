@@ -181,8 +181,26 @@ The complete readable content is held in memory; this is not a streaming reader.
 | --- | --- | --- |
 | TXT | Full decoded text using the existing encoding detection and replacement behavior | Whitespace-only/empty content fails |
 | PDF | Text layer across all pages | No OCR or guaranteed table/layout reconstruction; no text does not establish that a file is scanned |
-| DOCX | Body paragraphs in order | Tables, headers, footers, images and other Office content are not read; this is not complete Office extraction |
+| DOCX | Body paragraphs and table grids in original block order, including nested cell tables | Merged cells use text anchors/references, not duplicated values; headers, footers, textboxes and images are not read; no complete Office/layout understanding |
 | XLSX | Cell values across worksheets in workbook order, with sheet-name headers | Read-only, `data_only=True`; formula caches may be stale, missing caches are omitted, and formulas are never calculated; styles, charts and cell coordinates are not preserved |
+
+DOCX table text uses `[TABLE]` / `[/TABLE]` boundaries and 1-based rows/columns:
+`R1: C1="Category" | C2="Points"`. Cell text is JSON-string escaped (including
+newlines, quotes and literal separators), preserving internal spaces; paragraph
+edge whitespace and empty paragraphs are omitted as in the existing reader.
+Empty cells are `""`; omitted Word grid slots are `[omitted]`, never shifted left.
+A merged origin is emitted once, e.g. `C1(rowspan=2,colspan=2)="Category"`;
+covered slots use `@R1C1`. References are local to the containing table, not IDs
+or evidence fields. Nested tables remain within the containing cell's escaped
+text with their own boundaries and local coordinates. Empty tables add no content;
+a document with only empty paragraphs/cells still fails. Invalid merge geometry,
+nonempty vertical continuation cells and legacy `w:hMerge` fail explicitly rather
+than guessing associations; standard `gridSpan`/`vMerge` are supported.
+These markers describe text structure, not scoring/category interpretation.
+DOCX tables increase `Document.text`, including structural characters: all existing
+Version text/total/complete-input quotas apply unchanged, without truncation.
+New DOCX table behavior requires fresh Windows validation; earlier Windows Parser
+and C-tool pipeline evidence applies only to the previous body-only extractor.
 
 XLSM remains unsupported by this public entry point, even though the upstream
 extractor can handle it. Source files are never saved or modified by the reader.

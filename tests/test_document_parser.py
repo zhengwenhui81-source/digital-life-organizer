@@ -333,23 +333,28 @@ def test_docx_long_body_paragraphs_and_source_preserved(tmp_dir: Path) -> None:
     result = read_document(str(source))
     assert result["success"] is True, result
     document = result["data"]["document"]
-    assert document["text"].endswith("第二段\nDOCX_END_MARKER")
+    assert document["text"].startswith("正文第一段")
+    assert "第二段\nDOCX_END_MARKER\n[TABLE]" in document["text"]
     assert len(document["text"]) > 2000
-    assert "TABLE_ONLY_MARKER" not in document["text"]
+    assert 'C1="TABLE_ONLY_MARKER"' in document["text"]
     assert document["extension"] == ".docx"
     assert document == read_document(str(source))["data"]["document"]
     assert before == (source.read_bytes(), source.stat().st_mtime_ns)
 
 
 @pytest.mark.parametrize("table", [False, True])
-def test_docx_no_body_text_returns_explicit_failure(tmp_dir: Path, table: bool) -> None:
+def test_docx_no_body_text_and_optional_table(tmp_dir: Path, table: bool) -> None:
     source = tmp_dir / "HARNESS_no_body.docx"
     _make_docx(source, ["   "], table=table)
     result = read_document(str(source))
-    assert result["success"] is False
-    assert result["data"] is None
-    assert "No extractable text" in result["error"]
-    assert "body paragraphs" in result["error"]
+    if table:
+        assert result["success"] is True
+        assert 'C1="TABLE_ONLY_MARKER"' in result["data"]["document"]["text"]
+    else:
+        assert result["success"] is False
+        assert result["data"] is None
+        assert "No extractable text" in result["error"]
+        assert "body paragraphs or tables" in result["error"]
 
 
 def test_docx_corrupt_is_parse_failure(tmp_dir: Path) -> None:

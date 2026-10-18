@@ -124,7 +124,7 @@ Document identity follows the confirmed [path-based Document identity contract](
 
 Parser support and omissions are defined in
 [read_document extraction scope](API_CONTRACT.md#read_document-extraction-scope).
-TXT, PDF text layers, DOCX body paragraphs, and XLSX cached cell values share the
+TXT, PDF text layers, DOCX body paragraphs/tables, and XLSX cached cell values share the
 same Document/ToolResult and ID rules. Do not infer complete Office extraction,
 OCR, formula evaluation, or XLSM support from the supported extension list.
 
