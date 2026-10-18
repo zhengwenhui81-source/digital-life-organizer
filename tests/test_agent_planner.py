@@ -11,12 +11,16 @@ from unittest.mock import patch
 import pytest
 
 from fileforge.agent import plan_task, validate_plan
+from fileforge.agent.executor import ToolRouter
+from fileforge.agent.service import TaskService
 
 
 def test_plan_task_generates_contract_fields(tmp_path: Path) -> None:
     def generate(prompt: str) -> str:
         assert "hackathon" in prompt
         assert str(tmp_path) in prompt
+        assert "list_files(workspace: string" in prompt
+        assert "Use workspace, never path, for list_files" in prompt
         return json.dumps(
             {
                 "steps": [
@@ -66,7 +70,7 @@ def test_model_cannot_set_risk_or_status() -> None:
                 {
                     "tool": "move_file",
                     "description": "archive",
-                    "arguments": {},
+                    "arguments": {"source": "", "destination": ""},
                     "risk": "low",
                     "status": "completed",
                 }
@@ -77,6 +81,79 @@ def test_model_cannot_set_risk_or_status() -> None:
     )
     assert plan["steps"][0]["risk"] == "medium"
     assert plan["steps"][0]["status"] == "pending"
+
+
+@pytest.mark.parametrize(
+    "tool,arguments,invalid",
+    [
+        ("list_files", {"path": "/somewhere"}, "path"),
+        ("list_files", {"workspace": "/somewhere", "path": "/other"}, "path"),
+        ("search_files", {"workspace": "/somewhere", "path": "x"}, "path"),
+        ("list_files", {"workspace": "/somewhere", "recursive": "yes"}, "recursive"),
+    ],
+)
+def test_invalid_tool_arguments_fail_during_planning(tool, arguments, invalid):
+    with pytest.raises(ValueError, match=invalid):
+        validate_plan(
+            {"steps": [{"tool": tool, "description": "Scan", "arguments": arguments}]},
+            "task_001",
+            "scan files",
+        )
+
+
+def test_router_rejects_invalid_resolved_arguments_before_call():
+    called = False
+
+    def scan(workspace: str) -> dict:
+        nonlocal called
+        called = True
+        return {
+            "success": True,
+            "tool": "list_files",
+            "data": {"files": []},
+            "message": "ok",
+            "error": None,
+        }
+
+    result = ToolRouter({"list_files": scan}).call("list_files", {"path": "x"})
+    assert result["success"] is False
+    assert "path" in result["error"]
+    assert not called
+
+
+def test_llm_plan_scans_real_workspace_without_writes(tmp_path: Path):
+    (tmp_path / "first.txt").write_text("first")
+    (tmp_path / "second.pdf").write_bytes(b"sample")
+
+    def planner(task_id: str, goal: str, workspace: str) -> dict:
+        return plan_task(
+            task_id,
+            goal,
+            workspace,
+            generate=lambda prompt: json.dumps(
+                {
+                    "steps": [
+                        {
+                            "tool": "list_files",
+                            "description": "List files",
+                            "arguments": {"workspace": workspace},
+                        }
+                    ]
+                }
+            ),
+        )
+
+    service = TaskService(planner=planner)
+    task_id = service.create("List files without writes", str(tmp_path))["task_id"]
+    service.run(task_id)
+    snapshot = service.snapshot(task_id)
+    assert snapshot["task"]["status"] == "completed"
+    assert snapshot["pending_operations"] == []
+    names = {
+        Path(item["path"]).name for item in snapshot["results"][0]["data"]["files"]
+    }
+    assert {"first.txt", "second.pdf"} <= names
+    assert service.report(task_id)["status"] == "completed"
 
 
 def test_invalid_response_rejected(tmp_path: Path) -> None:

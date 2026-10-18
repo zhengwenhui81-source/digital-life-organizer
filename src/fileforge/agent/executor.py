@@ -6,7 +6,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
-from fileforge.agent.planner import TOOL_RISKS, validate_plan
+from fileforge.agent.planner import TOOL_RISKS, validate_plan, validate_tool_arguments
 from fileforge.tools import (
     copy_file,
     create_folder,
@@ -79,6 +79,10 @@ class ToolRouter:
             return _failure(name, "Tool is unavailable")
         if "approved" in arguments:
             return _failure(name, "Approval cannot be supplied in tool arguments")
+        try:
+            validate_tool_arguments(name, arguments)
+        except ValueError as exc:
+            return _failure(name, str(exc))
         kwargs = dict(arguments)
         if TOOL_RISKS[name] == "medium":
             if not approved:
