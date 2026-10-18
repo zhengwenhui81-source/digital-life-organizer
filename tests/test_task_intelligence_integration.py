@@ -11,7 +11,11 @@ from unittest.mock import Mock, patch
 import pytest
 
 from fileforge.document import read_document
-from fileforge.task_intelligence import detect_conflicts, extract_requirements
+from fileforge.task_intelligence import (
+    detect_conflicts,
+    extract_requirements,
+    match_requirements,
+)
 
 
 def _read_notices(tmp_path: Path, texts: list[str]):
@@ -130,3 +134,57 @@ def test_demo_outputs_json_and_cleans_up_temporary_notices(capsys):
     }
     for read in report["read_results"]:
         assert not Path(read["data"]["document"]["path"]).parent.exists()
+
+
+@pytest.mark.parametrize(
+    "requirements,filenames,expected_names,missing",
+    [
+        (
+            ["奖学金申请表", "社会实践证明"],
+            ["奖学金申请表.txt", "奖学金申请表_v2.txt", "社区志愿服务证明.txt"],
+            ["奖学金申请表.txt", "奖学金申请表_v2.txt"],
+            ["社会实践证明"],
+        ),
+        (
+            ["结题报告", "测试记录"],
+            ["结题报告_v2.txt", "结题报告.txt", "测试记录模板.txt"],
+            ["结题报告_v2.txt", "结题报告.txt"],
+            ["测试记录"],
+        ),
+    ],
+)
+def test_real_txt_matching_keeps_candidates_without_content_approval(
+    tmp_path, requirements, filenames, expected_names, missing
+):
+    docs = []
+    for filename in filenames:
+        path = tmp_path / filename
+        path.write_text(
+            "空白模板说明：请填写后签字，本文件未完成审核。", encoding="utf-8"
+        )
+        read = read_document(path=str(path))
+        assert read["success"] is True, read
+        docs.append(read["data"]["document"])
+    before = deepcopy(docs)
+    result = match_requirements(
+        required_documents=requirements, candidate_documents=docs
+    )
+    assert result["success"] is True
+    assert result["data"] == {
+        "required_documents": requirements,
+        "matched": [
+            {
+                "requirement": requirements[0],
+                "documents": [
+                    {key: doc[key] for key in ("file_id", "path", "filename")}
+                    for doc in docs
+                    if doc["filename"] in expected_names
+                ],
+            }
+        ],
+        "missing": missing,
+    }
+    assert [
+        d["filename"] for d in result["data"]["matched"][0]["documents"]
+    ] == expected_names
+    assert docs == before
