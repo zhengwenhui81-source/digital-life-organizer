@@ -105,7 +105,9 @@ class TaskService:
             execute(
                 state,
                 self._router,
-                resolver=self._scoped_resolver(Path(task["workspace"])),
+                resolver=self._scoped_resolver(
+                    Path(task["workspace"]), state["plan"]["steps"]
+                ),
             )
             self._finish(entry)
         except Exception as exc:
@@ -129,12 +131,13 @@ class TaskService:
                 (key, args.get(key))
                 for key in ("workspace", "path", "source", "destination")
             ]
-            if isinstance(args.get("documents"), list):
-                paths.extend(
-                    ("documents[].path", document.get("path"))
-                    for document in args["documents"]
-                    if isinstance(document, dict)
-                )
+            for field in ("documents", "candidate_documents"):
+                if isinstance(args.get(field), list):
+                    paths.extend(
+                        (f"{field}[].path", document.get("path"))
+                        for document in args[field]
+                        if isinstance(document, dict)
+                    )
             for key, value in paths:
                 if value is None or value == "":
                     continue
@@ -144,7 +147,9 @@ class TaskService:
                 if not resolved.is_relative_to(root):
                     raise ValueError(f"Tool path escapes workspace: {key}")
 
-    def _scoped_resolver(self, root: Path) -> Resolver:
+    def _scoped_resolver(
+        self, root: Path, plan_steps: list[dict[str, Any]]
+    ) -> Resolver:
         def resolve(
             step: dict[str, Any], results: list[dict[str, Any]]
         ) -> dict[str, Any] | list[dict[str, Any]]:
@@ -197,6 +202,23 @@ class TaskService:
                     )
                 if not paths:
                     if not candidates:
+                        position = next(
+                            index
+                            for index, planned in enumerate(plan_steps)
+                            if planned["step_id"] == step["step_id"]
+                        )
+                        if (
+                            position + 1 < len(plan_steps)
+                            and plan_steps[position + 1]["tool"] == "match_requirements"
+                            and any(
+                                result.get("tool") == "extract_requirements"
+                                and result.get("success")
+                                for result in results
+                            )
+                        ):
+                            # No material candidates were collected. The read
+                            # step is skipped; matching can report missing names.
+                            return []
                         raise ValueError(
                             "No matching document found; read_document was not "
                             "called and analysis was not performed"
@@ -257,6 +279,99 @@ class TaskService:
                         "or establish an empty candidate collection first"
                     )
                 arguments = {**arguments, "documents": read_documents}
+            if step["tool"] == "match_requirements":
+                extraction_index = next(
+                    (
+                        index
+                        for index in range(len(results) - 1, -1, -1)
+                        if results[index].get("tool") == "extract_requirements"
+                    ),
+                    None,
+                )
+                if extraction_index is None:
+                    raise ValueError(
+                        "match_requirements requires a completed requirement extraction"
+                    )
+                extraction = results[extraction_index]
+                data = extraction.get("data")
+                if not extraction.get("success") or not isinstance(data, dict):
+                    raise ValueError(
+                        "Requirement extraction failed; matching cannot run"
+                    )
+                required = data.get("required_documents")
+                if not isinstance(required, list) or not all(
+                    type(name) is str for name in required
+                ):
+                    raise ValueError("Requirement extraction returned invalid data")
+                if arguments.get("required_documents") not in (None, [], required):
+                    raise ValueError(
+                        "Matching requirements must come from requirement extraction"
+                    )
+                candidate_collection = (
+                    candidates
+                    if collection_index is not None
+                    and collection_index > extraction_index
+                    else None
+                )
+                start = (
+                    collection_index + 1
+                    if candidate_collection is not None
+                    else extraction_index + 1
+                )
+                candidate_reads = [
+                    result
+                    for result in results[start:]
+                    if result.get("tool") == "read_document" and result.get("success")
+                ]
+                if any(
+                    not isinstance(result.get("data"), dict)
+                    or not isinstance(result["data"].get("document"), dict)
+                    for result in candidate_reads
+                ):
+                    raise ValueError("Candidate read returned invalid Document data")
+                notice_collection_index = next(
+                    (
+                        index
+                        for index in range(extraction_index - 1, -1, -1)
+                        if results[index].get("tool") in {"list_files", "search_files"}
+                    ),
+                    None,
+                )
+                notice_start = (
+                    notice_collection_index + 1
+                    if notice_collection_index is not None
+                    else 0
+                )
+                notice_ids = {
+                    result["data"]["document"].get("file_id")
+                    for result in results[notice_start:extraction_index]
+                    if result.get("tool") == "read_document"
+                    and result.get("success")
+                    and isinstance(result.get("data"), dict)
+                    and isinstance(result["data"].get("document"), dict)
+                }
+                documents = [
+                    result["data"]["document"]
+                    for result in candidate_reads
+                    if result["data"]["document"].get("file_id") not in notice_ids
+                ]
+                if (
+                    not documents
+                    and candidate_collection != []
+                    and (required or candidate_collection is not None)
+                ):
+                    raise ValueError(
+                        "Candidate documents are unresolved; collect and read "
+                        "materials after requirement extraction"
+                    )
+                if arguments.get("candidate_documents") not in (None, [], documents):
+                    raise ValueError(
+                        "Matching candidates must come from successful read_document"
+                    )
+                arguments = {
+                    "required_documents": required,
+                    "candidate_documents": documents,
+                }
             self._check_plan_paths({"steps": [{"arguments": arguments}]}, root)
             if step["tool"] in {
                 "compare_versions",
@@ -408,6 +523,7 @@ class TaskService:
         conflicts = []
         operations = []
         empty_requirements = False
+        matching = None
         for result in state["results"]:
             if result["success"] and result["tool"] in {"list_files", "search_files"}:
                 key = "files" if result["tool"] == "list_files" else "matches"
@@ -418,6 +534,8 @@ class TaskService:
                 conflicts.extend(result["data"].get("conflicts", []))
             if result["tool"] == "extract_requirements" and result["success"]:
                 empty_requirements = not result["data"].get("required_documents", [])
+            if result["tool"] == "match_requirements":
+                matching = result
             if result["tool"] in {"create_folder", "copy_file", "move_file"}:
                 operations.append(result)
         return {
@@ -426,7 +544,11 @@ class TaskService:
             "found_files": found,
             "version_groups": version_groups,
             "conflicts": conflicts,
-            "missing_items": [],
+            "missing_items": (
+                matching["data"]["missing"]
+                if matching is not None and matching["success"]
+                else []
+            ),
             "operations": operations,
             "package_path": "",
             "summary": (
@@ -435,7 +557,11 @@ class TaskService:
                 else (
                     "Documents read; no material requirements found"
                     if empty_requirements
-                    else "Completed the available plan steps"
+                    else (
+                        "Filename candidate matching completed; materials not reviewed"
+                        if matching is not None
+                        else "Completed the available plan steps"
+                    )
                 )
             ),
         }
@@ -465,7 +591,9 @@ class TaskService:
                 state,
                 self._router,
                 approve_all=True,
-                resolver=self._scoped_resolver(Path(entry["task"]["workspace"])),
+                resolver=self._scoped_resolver(
+                    Path(entry["task"]["workspace"]), state["plan"]["steps"]
+                ),
             )
             self._finish(entry, approved_operations)
         except Exception as exc:

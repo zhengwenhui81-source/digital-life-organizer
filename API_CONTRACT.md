@@ -347,8 +347,8 @@ MVP public tools are fixed as follows.
 - `compare_versions`
 - `detect_conflicts`
 - `extract_requirements`
-- `match_requirements` — Phase 1 team-confirmed; final HEAD review/merge pending,
-  not implemented/exported/registered
+- `match_requirements` — Phase 1 filename-candidate tool; contract and public
+  implementation merged, with Agent routing reviewed separately.
 - `verify_result`
 
 ### File-changing tools
@@ -724,10 +724,9 @@ before treating it as frozen and implementing strict consumers.
 
 ### match_requirements — Phase 1 contract
 
-**团队已确认，待最终 HEAD 独立复审及合入。** Formal freezing is completed
-through final document HEAD review and merge, not by team confirmation alone.
-This documentation does not implement, export, register or verify the tool.
-The public tool list records its contract status, not runtime availability.
+**Phase 1 契约已冻结。** PR #19 completed contract review and merge; PR #24
+completed public implementation, export, independent review and merge. Agent
+routing and Windows Real Mode acceptance are separate integration steps.
 
 #### Confirmation provenance
 
@@ -741,9 +740,8 @@ The public tool list records its contract status, not runtime availability.
   accepted by A, as is whitespace-only requirement rejection.
 - No matching-specific quota in v1, no inherited Version limits and no
   arbitrary-scale guarantee are confirmed boundaries, not open blockers.
-- Phase 2 remains required and unfinished. Final HEAD independent review/merge,
-  tool implementation/export/registration and integration acceptance remain
-  separate steps; none is certified complete by this confirmation record.
+- Phase 2 remains required and unfinished. Contract and public-tool merges do
+  not by themselves certify Agent integration or Windows Real Mode acceptance.
 
 #### Entry point and input
 
@@ -864,7 +862,7 @@ Package and classify_files contracts are outside this change.
 
 #### Complete JSON examples
 
-These illustrate the team-confirmed contract, not implemented tool output. IDs are illustrative.
+These illustrate the frozen Phase 1 contract. IDs are illustrative.
 
 Request:
 

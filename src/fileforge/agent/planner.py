@@ -19,6 +19,7 @@ TOOL_RISKS = {
     "compare_versions": "low",
     "detect_conflicts": "low",
     "extract_requirements": "low",
+    "match_requirements": "low",
     "verify_result": "low",
     "create_folder": "medium",
     "copy_file": "medium",
@@ -36,6 +37,10 @@ _TOOL_ARGUMENTS = {
     "compare_versions": ({"documents": list}, {}),
     "detect_conflicts": ({"documents": list}, {}),
     "extract_requirements": ({"documents": list}, {}),
+    "match_requirements": (
+        {"required_documents": list, "candidate_documents": list},
+        {},
+    ),
     "verify_result": ({"task_id": str, "expected": dict, "workspace": str}, {}),
     "create_folder": ({"path": str}, {}),
     "copy_file": ({"source": str, "destination": str}, {}),
@@ -62,6 +67,7 @@ def validate_tool_arguments(
             "compare_versions",
             "detect_conflicts",
             "extract_requirements",
+            "match_requirements",
             "create_folder",
             "copy_file",
             "move_file",
@@ -81,6 +87,16 @@ def validate_tool_arguments(
             raise ValueError("search_files.extensions must contain strings")
         if key == "documents" and not all(type(item) is dict for item in value):
             raise ValueError(f"{tool}.documents must contain objects")
+        if key == "candidate_documents" and not all(
+            type(item) is dict for item in value
+        ):
+            raise ValueError(
+                "match_requirements.candidate_documents must contain objects"
+            )
+        if key == "required_documents" and not all(type(item) is str for item in value):
+            raise ValueError(
+                "match_requirements.required_documents must contain strings"
+            )
 
 
 _PROMPT = """Plan a local file task. Respond with JSON only, as an object with a
@@ -91,6 +107,8 @@ search_files(workspace: string, query: string, extensions?: string[]);
 read_document(path: string) or empty object after collection;
 compare_versions(documents: object[]), detect_conflicts(documents: object[]),
 extract_requirements(documents: object[]) or empty object after reads;
+match_requirements(required_documents: string[], candidate_documents: object[])
+or empty object after requirement extraction and candidate reads;
 find_duplicates(workspace: string); verify_result(task_id: string,
 expected: object, workspace: string); create_folder(path: string);
 copy_file(source: string, destination: string);
@@ -108,6 +126,10 @@ For detect_conflicts or extract_requirements, collect and read the relevant
 notice/rule documents first, then use empty arguments. Keep notice/rule documents
 separate from candidate materials; a material mentioned in a notice is not an
 existing candidate file. Do not guess document roles from a fixed demo filename.
+For filename candidate matching, extract requirements from read notices first,
+then separately collect and read candidate materials, then call
+match_requirements with empty arguments. Filename matches are only candidates,
+not proof that materials are valid or complete.
 Never plan deletion or overwrite. File-changing steps will require user approval.
 Workspace: {workspace}
 Goal: {goal}
