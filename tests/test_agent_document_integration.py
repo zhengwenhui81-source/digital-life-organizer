@@ -105,6 +105,206 @@ def test_default_router_compares_read_documents_without_a_custom_resolver(
     assert service.report(task["task_id"])["version_groups"] == groups
 
 
+def _dynamic_plan(*tools: str):
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": tool,
+                        "description": f"Run {tool} against runtime candidates",
+                        "arguments": (
+                            {"workspace": workspace} if tool == "list_files" else {}
+                        ),
+                    }
+                    for tool in tools
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    return plan
+
+
+def test_runtime_candidates_are_read_and_compared(tmp_path: Path) -> None:
+    for name in ("arbitrary_notes_v1.txt", "arbitrary_notes_v2.txt"):
+        (tmp_path / name).write_text("A reusable project note " * 20, encoding="utf-8")
+    (tmp_path / "unrelated.bin").write_bytes(b"unreadable format")
+    service = TaskService(
+        planner=_dynamic_plan("list_files", "read_document", "compare_versions")
+    )
+    task = service.create("Compare current workspace documents", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "completed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "list_files",
+        "read_document",
+        "read_document",
+        "compare_versions",
+    ]
+    compared = [
+        document
+        for group in snapshot["results"][-1]["data"]["groups"]
+        for document in group["documents"]
+    ]
+    assert {document["filename"] for document in compared} == {
+        "arbitrary_notes_v1.txt",
+        "arbitrary_notes_v2.txt",
+    }
+
+
+def test_runtime_read_failure_stops_before_analysis_or_file_change(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "a_readable.txt").write_text("Useful text", encoding="utf-8")
+    (tmp_path / "b_empty.txt").write_text("   ", encoding="utf-8")
+    destination = tmp_path / "output"
+
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        base = _dynamic_plan("list_files", "read_document", "compare_versions")(
+            task_id, goal, workspace
+        )
+        base["steps"].append(
+            {
+                "tool": "create_folder",
+                "description": "Create output",
+                "arguments": {"path": str(destination)},
+            }
+        )
+        return validate_plan({"steps": base["steps"]}, task_id, goal)
+
+    service = TaskService(planner=plan)
+    task = service.create("Analyze then organize", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "failed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "list_files",
+        "read_document",
+        "read_document",
+    ]
+    assert snapshot["results"][-1]["success"] is False
+    assert snapshot["results"][-1]["data"] is None
+    assert "empty" in snapshot["error"].lower()
+    assert not destination.exists()
+    with pytest.raises(TaskConflict):
+        service.report(task["task_id"])
+
+
+def test_runtime_empty_collection_is_distinct_from_failed_read(tmp_path: Path) -> None:
+    service = TaskService(
+        planner=_dynamic_plan("list_files", "read_document", "compare_versions")
+    )
+    task = service.create("Find document versions", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "completed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "list_files",
+        "compare_versions",
+    ]
+    assert snapshot["results"][-1]["data"] == {"groups": []}
+
+
+def test_runtime_comparison_uses_only_latest_search_candidates(tmp_path: Path) -> None:
+    (tmp_path / "notice.txt").write_text("A notice", encoding="utf-8")
+    (tmp_path / "candidate.txt").write_text("A candidate", encoding="utf-8")
+
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": "search_files",
+                        "description": "Find notices",
+                        "arguments": {"workspace": workspace, "query": "notice"},
+                    },
+                    {
+                        "tool": "read_document",
+                        "description": "Read notices",
+                        "arguments": {},
+                    },
+                    {
+                        "tool": "search_files",
+                        "description": "Find candidates",
+                        "arguments": {"workspace": workspace, "query": "candidate"},
+                    },
+                    {
+                        "tool": "read_document",
+                        "description": "Read candidates",
+                        "arguments": {},
+                    },
+                    {
+                        "tool": "compare_versions",
+                        "description": "Compare candidates",
+                        "arguments": {},
+                    },
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    service = TaskService(planner=plan)
+    task = service.create("Analyze unknown workspace", str(tmp_path))
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "completed"
+    groups = snapshot["results"][-1]["data"]["groups"]
+    assert [
+        document["filename"] for group in groups for document in group["documents"]
+    ] == ["candidate.txt"]
+
+
+def test_runtime_candidate_limit_fails_without_partial_reads(tmp_path: Path) -> None:
+    for index in range(11):
+        (tmp_path / f"document_{index:02d}.txt").write_text("content", encoding="utf-8")
+    service = TaskService(planner=_dynamic_plan("list_files", "read_document"))
+    task = service.create("Read the documents", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "failed"
+    assert "exceeds 10 candidates" in snapshot["error"]
+    assert [result["tool"] for result in snapshot["results"]] == ["list_files"]
+
+
+def test_runtime_candidate_path_cannot_escape_workspace(tmp_path: Path) -> None:
+    outside = tmp_path.parent / "outside.txt"
+
+    def untrusted_list(workspace: str) -> dict:
+        return {
+            "success": True,
+            "tool": "list_files",
+            "data": {"files": [{"path": str(outside)}]},
+            "message": "Completed",
+            "error": None,
+        }
+
+    service = TaskService(
+        planner=_dynamic_plan("list_files", "read_document"),
+        router=ToolRouter({"list_files": untrusted_list}),
+    )
+    task = service.create("Read runtime candidates", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "failed"
+    assert "escapes workspace" in snapshot["error"]
+    assert [result["tool"] for result in snapshot["results"]] == ["list_files"]
+
+
 def test_empty_candidate_collection_can_compare_successfully(tmp_path: Path) -> None:
     def plan(task_id: str, goal: str, workspace: str) -> dict:
         return validate_plan(
