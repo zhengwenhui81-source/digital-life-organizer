@@ -1,5 +1,6 @@
 """Shared validation for contract-shaped task-intelligence input."""
 
+from collections.abc import Callable
 from math import isfinite
 from typing import Any
 
@@ -87,17 +88,25 @@ def _same_snapshot(left: Any, right: Any) -> bool:
     return True
 
 
-def prepare_documents(documents: object) -> tuple[list[dict[str, Any]], str | None]:
+def prepare_documents(
+    documents: object,
+    *,
+    validate_raw: Callable[[list[dict[str, Any]]], str | None] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     """Validate the whole original collection, then preserve first equal snapshots.
 
     These tools currently have no formal quantity/text/serialized-size limits.
     Any future tool-specific resource checks belong before deduplication here;
     compare_versions limits do not apply. References and nested data stay intact.
-    No parser receives any Documents until this entire preparation succeeds.
+    An optional tool-specific validator sees all original structurally valid
+    Documents before any snapshot comparison or deduplication. Existing analysis
+    callers omit it. No parser receives input until preparation succeeds.
     """
     error = _json_error(documents)
     if not error:
         error = validate_documents(documents)
+    if not error and validate_raw is not None:
+        error = validate_raw(documents)
     if error:
         return [], error
     unique = {}
