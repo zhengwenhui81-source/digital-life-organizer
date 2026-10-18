@@ -315,10 +315,16 @@ bytes before approval and keep runtime outcomes in Snapshot/ToolResult. The
 proposed accept_incomplete increment, restricted report write and child-result
 correlation are not implemented. PR #27 is unmerged reference, not baseline
 capability. No Package completion/acceptance is claimed here; Phase 2 matching
-remains required. The fragment-cleanup policy is still a specific A/D decision.
+remains required. Planning selected_files are proposals, confirmed with mappings/report in the
+same preview approval; accept_incomplete only additionally accepts its risks.
+Any upstream failure ends the current Task; no Package recovery or historical
+result import is supplied. The fixed proposed cleanup rule is fail-closed:
+remove only safely bound, exclusively-created failed fragments; otherwise retain
+and disclose. Current A unlink-by-path is insufficient. Cleanup record fields
+and the Package execution integration remain for A/B review.
 
 - [ ] Implement package selection/generation logic under `src/fileforge/package/**`
-- [ ] Use only resolved / selected files; do not silently convert multiple candidates or `newest_candidate=null` into a final choice
+- [ ] Use explicit proposed file mappings at planning and obtain same-preview file/report approval before execution; do not present candidates or `newest_candidate` as a user choice.
 - [x] Architecture: allow incomplete packages only with explicit acceptance of the specific frozen missing/undecided risks in the same approval.
 - [ ] Finalize A/B schema, accept_incomplete request/409 behavior and report/UI implementation; architecture agreement is not integration acceptance.
 - [ ] Default to copy, not move

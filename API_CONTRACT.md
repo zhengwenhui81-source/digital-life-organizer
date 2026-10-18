@@ -1037,7 +1037,8 @@ for matching integration, not merged baseline capability.
 D owns plan validation, read-only snapshots and frozen report rendering. A owns
 service authority, approval, composite execution, filesystem defenses and result
 recording. B owns preview/risk acceptance and actual-result display. C Version
-results remain evidence/recommendations, not selected_files or approval.
+results remain evidence/recommendations, never a claim of user-confirmed selection
+or approval. A may use current successful evidence to propose selected_files.
 
 #### Proposed planning request
 
@@ -1049,7 +1050,7 @@ plan only, never completed packaging or guaranteed future execution.
 | Field | Proposed shape and authority |
 | --- | --- |
 | task | Exactly `{task_id, user_goal, workspace}`. A obtains these from its authoritative Task record, checks equality at the boundary and binds them to the execution. D checks structure/scope but cannot authenticate a caller. No second context object. |
-| selected_files | Nonempty ordered array of `{source:{file_id,path,filename}, requirements:string[], reason:string}` explicitly chosen by the user/caller. reason records the selection basis, not content approval. Candidate matches or newest_candidate do not create a selection. |
+| selected_files | Nonempty ordered array of `{source:{file_id,path,filename}, requirements:string[], reason:string}` describing proposed selections, not already user-confirmed files. A may propose them from current successful analysis; reason states the proposal basis. Candidate hits and Version recommendations never prove the user selected or approved a file. |
 | destination | Final task-neutral package directory, absolute native-host path inside task.workspace. Do not append a fixed Hackathon name. |
 | analysis | Exactly four slots: extract_requirements, match_requirements, detect_conflicts, compare_versions. Each is null (not run), or `{result_index, result:ToolResult}` from this Task's current effective execution. A validates provenance/freshness; a failed latest result cannot be replaced with an older success. Slot/tool names must agree. |
 
@@ -1057,8 +1058,8 @@ All request/manifest objects have exactly their listed keys; source references
 have exactly file_id/path/filename, all nonempty built-in strings. Requirements
 are nonempty/non-whitespace built-in strings, stably deduplicated without rewriting;
 reason is nonempty. A successful extraction constrains selection requirements to
-its checklist; an empty selection requirements array means an explicitly selected
-extra, not inferred satisfaction. result_index/selected_file_index/selected_file_indices entries
+its checklist; an empty selection requirements array means a proposed
+extra, not inferred satisfaction or prior user confirmation. result_index/selected_file_index/selected_file_indices entries
 are nonnegative exact integers (not bool), referencing their declared arrays.
 Snapshot size is a nonnegative exact integer; mtime_ns is an exact integer;
 SHA-256 hex values have exactly 64 lowercase hex digits.
@@ -1066,10 +1067,19 @@ This is the only analysis evidence representation. Do not add parallel
 context/decision/result copies. Requirements are read from successful extraction
 results; unknown requirements stay unknown, not a fabricated successful empty
 checklist. Each successful match result must refer to the same effective
-requirements; incompatible supplied evidence fails planning. Existing ordinary
-Agent failure policy is unchanged: this proposal does not resume a failed Task.
-Displaying failed analysis in a new planning/review task does not authorize its
-execution; A must explicitly admit and bind that context under this proposal.
+requirements; incompatible supplied evidence fails planning.
+
+Any upstream tool failure in the current Task terminates that Task under the
+existing Agent policy, even if the failed tool is not one of these four slots.
+A must not invoke planning, offer approval or execute Package in that failed Task.
+If plan_package is directly supplied any failed analysis record, return standard
+failure/data=null, not a ready-to-preview plan; do not register a plan_id for it.
+V1 has no failed-task recovery, continuation or historical-result import into a
+new Task. Such references require a separately agreed recovery/reference contract,
+not implicit acceptance here. An analysis_failed label, if used in diagnostics,
+only describes the original retained failed ToolResult; it is not an executable
+plan's unresolved kind and cannot be accepted away by accept_incomplete.
+A null not-run slot is distinct from a failed upstream call and is handled below.
 
 Validate complete strict JSON before tool-specific validation/deduplication.
 Use file_id identity and all supplied reference fields; contradictions fail the
@@ -1115,10 +1125,10 @@ execution; it does not invalidate its own in-progress child operations. Retained
 | plan_id | Server-registered, task-scoped plan identifier generated as above; never an authorization credential. |
 | task | Same authoritative task tuple, one copy. |
 | destination | Final package path; planned until build succeeds. |
-| selected_files | Unique source/target/snapshot mapping in selected order: `{source, requirements, reason, target, snapshot:{size,mtime_ns,sha256}}`. Enriches request selected_files without retaining a second copy. Snapshots reflect a stable read before preview. |
+| selected_files | Unique proposed source/target/snapshot mapping in proposal order: `{source, requirements, reason, target, snapshot:{size,mtime_ns,sha256}}`. Enriches request selected_files without retaining a second copy. Snapshots reflect a stable read before preview. |
 | analysis | The four evidence slots above, frozen verbatim with original result indices. |
 | missing | Stable string[] of known filename-candidate gaps from the current successful match_requirements result; provenance stays in analysis.match_requirements. A manual selection does not silently rewrite that result. Empty does not prove completeness when an analysis is unknown/failed. |
-| unresolved | Proposed Package-local array `{kind, text, source_tool, source_result_index, documents}`. kind is selection_pending, version_undecided, conflict, analysis_not_run or analysis_failed. source_tool names the affected analysis; source_result_index is null only for not-run. documents contains ordered existing references, possibly empty. NOT a global shared unresolved schema. |
+| unresolved | Proposed Package-local array `{kind, text, source_tool, source_result_index, documents}`. kind is selection_pending, version_undecided, conflict or analysis_not_run. Failed analysis prevents a successful plan rather than entering this executable schema. source_tool names the affected analysis; source_result_index is null only for not-run. documents contains ordered existing references, possibly empty. NOT a global shared unresolved schema. |
 | report | Exactly `{path, content, sha256}`; full frozen Markdown body and bytes digest. |
 | operations | Ordered descriptors: `{step_id,kind}` for create_directory/write_report/verify; `{step_id,kind:"copy",selected_file_index}` for each selected_files entry. References resolve only against this frozen manifest. No second copy of path/hash facts. |
 | verification_targets | `{selected_file_indices:[0,...], report:true, exact_directory_entries:true}`. Indices reference selected_files, report references report.path/sha256. Proposed Package verification format, NOT directly public verify_result.expected. |
@@ -1139,25 +1149,25 @@ Derive missing/unresolved once from the frozen effective evidence:
 
 - Successful match_requirements: copy its known missing names, stably deduplicated,
   to missing. Do not also create an unresolved item for the same missing fact.
-- A matching slot that is null or failed yields no invented missing names; missing
-  is empty for unknown gaps and unresolved must contain analysis_not_run or
-  analysis_failed respectively, identifying the tool and current failed index.
-- For every other null analysis slot, add analysis_not_run with source_tool and
-  null source_result_index; for a failed ToolResult add analysis_failed with its
-  source index. Neither is a successful empty analysis. Success with empty output
-  creates no such unknown/failure record.
+- A null matching slot yields no invented missing names; unresolved contains
+  analysis_not_run identifying match_requirements and a null source result index.
+- Every other null slot likewise adds analysis_not_run. A failed slot stops
+  planning outright, rather than producing a successful incomplete plan. A
+  successful empty result creates no not-run diagnostic.
 - A successful nonempty detect_conflicts result creates conflict unresolved
   records tied to that result. Do not choose the correct notice automatically.
-- A required candidate group with no explicit selected file creates
-  selection_pending, unless the requirement is already listed in missing.
-  A Version group with newest_candidate=null creates version_undecided unless
-  the user explicitly resolved its selection; recommendation never selects a file.
-- Unused alternatives remain in frozen analysis/report, not automatically risks
-  when a user's explicit choice has resolved the group. Deduplicate the same
-  unresolved cause/source/affected references; do not produce parallel issues.
+- A required candidate group with no proposed file creates selection_pending,
+  unless already listed in missing. A Version group with newest_candidate=null
+  creates version_undecided; proposing a file does not resolve that evidence gap
+  or imply a user choice. Same-preview approval may accept the proposal and
+  risk, but must not retroactively rewrite the frozen report/unresolved facts.
+- Report unused alternatives from frozen analysis. They are not automatically
+  incomplete requirements merely because the proposal lists another candidate.
+  Deduplicate identical unresolved cause/source/references; no parallel issues.
 
 These Package-only unresolved kinds/records and derivation details remain for A/B
-review. No empty missing/unresolved pair may conceal absent or failed analysis.
+review. No empty missing/unresolved pair may hide not-run analysis; failed
+analysis never produces a successful plan.
 
 #### Source, report and plan byte digests
 
@@ -1212,6 +1222,14 @@ Snapshot/ToolResult. A report containing final execution status would require a
 separately confirmed mechanism; this proposal does not promise both immutable full
 content and execution-time body updates. Escape Markdown/HTML/newlines in input.
 
+No independent post-analysis file-selection HTTP endpoint is introduced. The
+same preview_id approval confirms the concrete proposed files, exact source/target
+mappings, frozen report body and all operations. When required, accept_incomplete
+additionally accepts that preview's specific gaps/risks. Setting that flag alone
+is neither file-selection approval nor permission to execute outside the current
+preview. User confirmation occurs at this existing approve interaction, not when
+A populates selected_files during planning.
+
 Proposed minimal approve request extends only the existing approve route:
 `{preview_id:string, accept_incomplete?:boolean}`, exact built-in bool, default
 false. Reject unknown fields/invalid types with 400. Reject still accepts only
@@ -1221,13 +1239,14 @@ preview_id; do not add acceptance to rejection.
   checks this preview's frozen missing/unresolved before consuming approval.
 - For a Package preview with nonempty missing or unresolved, true explicitly
   accepts exactly the frozen missing names and unresolved texts/sources/references. An incomplete package is allowed
-  only with nonempty explicit selection and this same-preview risk acceptance.
+  only with a nonempty proposed mapping, its same-preview selection approval and
+  the required same-preview risk acceptance.
 - Missing/false acceptance with either list nonempty returns 409, does not consume preview_id,
   change awaiting_approval or execute anything; the same still-valid preview may
   be retried with true. This acceptance check must precede current decide()'s
   preview consumption. It does not revive a stale/changed/failed Task.
 - Both lists empty: ordinary preview approval works without the new field. True never
-  creates a permanent authorization or substitutes for file selection.
+  creates a permanent authorization or substitutes for selection approval.
 - Stale/duplicate/wrong previews return 409 without operations; changed selection,
   path, content snapshot, missing/unresolved or report requires a new plan/preview and approval.
   Reject follows existing failed/skipped behavior. Rejected tasks do not retry.
@@ -1278,7 +1297,7 @@ paths/types, and the exact expected flat file set. Presence-only verification or
 source-vs-target equality at the end is insufficient. No final re-render of report.
 
 Proposed minimal Snapshot extension (not currently implemented):
-`package_execution:{plan_id, plan_sha256, operation_results:[{step_id,result_index}], final_result_index}`,
+`package_execution:{plan_id, plan_sha256, operation_results:[{step_id,result_index}], cleanup_results, final_result_index}`,
 nullable when no Package execution exists; final_result_index is null until a
 terminal result. It correlates existing results, not duplicate envelopes or a new
 Task status. A alone appends child results and owns this mapping; the executor
@@ -1291,14 +1310,53 @@ examples: create_folder/copy_file keep existing data; report write returns its
 actual path and digest; package verify_result uses ordinary checks/passed with
 scope labels for source-snapshot, material-digest, report-digest and file-set.
 
-On partial failure keep child results, mark Task failed and expose Snapshot; final
-build data=null and FinalReport GET returns 409. No transaction rollback or
-automatic retry is promised. Existing copy_file may unlink its own newly-created
-failed-copy fragment; retaining fragments vs permitting that narrowly scoped
-cleanup is an explicit A/D decision before execution implementation. Never delete
-sources, preexisting files or recursively clean a package. Cleanup failure must be
-visible, not mislabeled as rollback success. New attempts require reinspection,
-new plan/preview and explicit approval, not silent reuse of a partial directory.
+On partial failure retain child results, mark Task failed and expose Snapshot;
+final build data=null and FinalReport GET returns 409. No rollback, empty-directory
+claim or automatic retry. V1 never continues/reapproves that failed Task. A fresh
+independent task may inspect the current Workspace, but this proposal supplies no
+history import/resume interface and no silent reuse of a partial directory.
+
+#### Fixed proposed failed-copy fragment rule (A implementation required)
+
+- Never delete a source, preexisting target, replacement object or successfully
+  copied file; never recursively clean the package directory.
+- If no target was exclusively created by this failing copy, do not attempt
+  cleanup. If one was created, permit at most one removal attempt only when the
+  backend can bind the target to the exact exclusively-created object and ensure
+  safe removal without deleting a path replacement. Keep source/target handles
+  and parent ownership evidence as needed; a pathname/created boolean or a
+  non-atomic lstat-then-unlink check is not sufficient ownership proof.
+- If the platform/access mechanism cannot guarantee that binding at removal, or
+  the path is replaced/ownership is uncertain, do not delete. Retain any fragment
+  and record not_attempted with the reason. This fail-closed branch makes the v1
+  rule implementable without promising portable conditional-unlink primitives.
+- Record succeeded only when that owned fragment was removed; record failed if
+  an allowed cleanup attempt fails. Preserve both the original copy failure and
+  cleanup outcome/reason. Cleanup failure leaves the Package failed; disclose
+  observed residue, including unknown state. Cleanup success does not undo
+  completed operations or make the Package successful.
+
+Actual baseline _copy_exclusive uses destination.open("xb"), a created flag, and
+unconditional destination.unlink() on copy exceptions. It does not bind deletion
+to the held object's identity or protect against replacement; an unlink error can
+mask the original error, and no structured cleanup outcome is retained. Therefore
+it does NOT satisfy this rule. A must replace/guard that cleanup in the Package
+execution path and add durable result recording before enabling Package execution.
+This documentation does not authorize calling the existing path as if compliant.
+
+Proposed additional package_execution.cleanup_results, **pending A/B review**:
+array of `{step_id,status,reason,residual_state}` for each attempted copy.
+status is not_attempted, succeeded or failed. residual_state is absent,
+owned_fragment, other_object or unknown; it records observation, not a rollback
+promise. Here absent means no failed-copy fragment, not absence of a successfully
+created target. For successful copies use not_attempted/reason=copy_succeeded
+(no deletion; the successful target is retained).
+For a source failure before target creation use not_attempted with absent when
+observed. The target is obtained from the step's frozen selected_file_index;
+do not duplicate its path or put cleanup data in failed ToolResult.data.
+A owns recording, including failures before any target is created. The Snapshot
+field and exact status/reason vocabulary remain concrete schema for A/B review;
+the fail-closed ownership requirement above is the fixed proposed behavior.
 
 Successful build data is exactly `{plan_id,plan_sha256,package_path,generated_files,
 report_path,verification_result_index}`. generated_files lists only created
@@ -1313,6 +1371,10 @@ only after completed; it must not label a planned path as an actual package.
 
 Examples below are illustrative schema/byte-digest fixtures, NOT evidence of an
 implemented Package. They include full manifest, report body and computed hashes.
+Embedded matching results were reproduced using public match_requirements with
+complete Document fixtures for the proposed files and, in the incomplete case,
+测试记录_v2.txt. That valid filename candidate remains outside the proposed
+selected_files, so selection_pending is retained; no Phase 2 association is used.
 
 ##### Complete plan
 
@@ -1325,7 +1387,7 @@ Request:
     {
       "source": {"file_id": "file_e51eaa4886a308a14b0d2bed7e0062a6ec7b05548ed473cb2115936f180708b2", "path": "/work/结题报告.txt", "filename": "结题报告.txt"},
       "requirements": ["结题报告"],
-      "reason": "用户明确选择"
+      "reason": "基于当前成功分析的提议，待同次预览批准"
     }
   ],
   "destination": "/work/课程结题材料包",
@@ -1359,7 +1421,7 @@ Request:
           ],
           "missing": []
         },
-        "message": "match_requirements completed",
+        "message": "Requirement candidate matching completed",
         "error": null
       }
     },
@@ -1399,14 +1461,14 @@ Planning success:
   "tool": "plan_package",
   "data": {
     "plan": {
-      "plan_id": "package_plan_11111111111111111111111111111111",
+      "plan_id": "package_plan_77777777777777777777777777777777",
       "task": {"task_id": "task_complete", "user_goal": "准备课程结题材料", "workspace": "/work"},
       "destination": "/work/课程结题材料包",
       "selected_files": [
         {
           "source": {"file_id": "file_e51eaa4886a308a14b0d2bed7e0062a6ec7b05548ed473cb2115936f180708b2", "path": "/work/结题报告.txt", "filename": "结题报告.txt"},
           "requirements": ["结题报告"],
-          "reason": "用户明确选择",
+          "reason": "基于当前成功分析的提议，待同次预览批准",
           "target": "/work/课程结题材料包/结题报告.txt",
           "snapshot": {"size": 6, "mtime_ns": 1792310400000000000, "sha256": "b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060"}
         }
@@ -1441,7 +1503,7 @@ Planning success:
               ],
               "missing": []
             },
-            "message": "match_requirements completed",
+            "message": "Requirement candidate matching completed",
             "error": null
           }
         },
@@ -1474,8 +1536,8 @@ Planning success:
       "unresolved": [],
       "report": {
         "path": "/work/课程结题材料包/PACKAGE_REPORT.md",
-        "content": "# 课程结题材料包计划\n\n审批前冻结的计划记录；不证明实际执行或验证成功。\n\n任务目标：准备课程结题材料\n要求：结题报告\n计划复制：/work/结题报告.txt → /work/课程结题材料包/结题报告.txt；选择依据：用户明确选择\n调用方提供成功分析：未报告缺项、冲突或版本未决；不代表材料审核通过。\n分析来源：当前任务 results[0..3]；本报告不记录实际执行或验证状态。\n计划顺序：创建目录、逐项复制、写入本报告、验证。\n",
-        "sha256": "85942afe005f7356775039142ff8bc7cee63b077bdd57ab30f8f2752ff8b5a9c"
+        "content": "# 课程结题材料包计划\n\n审批前冻结的计划记录；不证明实际执行或验证成功。\n\n任务目标：准备课程结题材料\n选材是提议，尚未获得用户确认；批准同一预览时才确认具体映射及报告正文。\n要求：结题报告\n计划复制：/work/结题报告.txt → /work/课程结题材料包/结题报告.txt；提议依据：当前成功分析，待同次预览批准\n调用方提供成功分析：未报告缺项、冲突或版本未决；不代表材料审核通过。\n分析来源：当前任务 results[0..3]；本报告不记录实际执行或验证状态。\n计划顺序：创建目录、逐项复制、写入本报告、验证。\n",
+        "sha256": "2c5eb9f95dfbc8fd409d28e8a3c9b81598f3ad7ce402005c84a2d562f619924d"
       },
       "operations": [
         {"kind": "create_directory", "step_id": "package_001"},
@@ -1489,7 +1551,7 @@ Planning success:
         "selected_file_indices": [0]
       }
     },
-    "plan_sha256": "sha256:eeedf0e37ea8f49ad452ebfea187cb63859b92c3b82b098223a3590801d76cb6"
+    "plan_sha256": "sha256:c113073179351ce2bd8b4fbbba8ffeb579af30638d64ae47af532a9ef927cb42"
   },
   "message": "plan_package completed",
   "error": null
@@ -1507,12 +1569,12 @@ Request:
     {
       "source": {"file_id": "file_e51eaa4886a308a14b0d2bed7e0062a6ec7b05548ed473cb2115936f180708b2", "path": "/work/结题报告.txt", "filename": "结题报告.txt"},
       "requirements": ["结题报告"],
-      "reason": "用户明确选择"
+      "reason": "基于当前成功分析的提议，待同次预览批准"
     },
     {
       "source": {"file_id": "file_14292727e6298fa05953a29ad76c1c05b82abcfe0f09b2c07d2dc36710465d4b", "path": "/work/原始记录.txt", "filename": "原始记录.txt"},
       "requirements": ["原始记录"],
-      "reason": "用户明确选择"
+      "reason": "基于当前成功分析的提议，待同次预览批准"
     }
   ],
   "destination": "/work/课程结题材料包",
@@ -1552,13 +1614,13 @@ Request:
             {
               "requirement": "测试记录",
               "documents": [
-                {"file_id": "file_9d85cfd4903f0a5eefc95606f8d9fd6501e6e17d05222529be9024bd9dde4a70", "path": "/work/测试记录候选.txt", "filename": "测试记录候选.txt"}
+                {"file_id": "file_bc9b65c69a82a15ef5d80ea22004dffced363d11219df1faf5cb01d08f40da16", "path": "/work/测试记录_v2.txt", "filename": "测试记录_v2.txt"}
               ]
             }
           ],
           "missing": ["签字页"]
         },
-        "message": "match_requirements completed",
+        "message": "Requirement candidate matching completed",
         "error": null
       }
     },
@@ -1598,21 +1660,21 @@ Planning success:
   "tool": "plan_package",
   "data": {
     "plan": {
-      "plan_id": "package_plan_22222222222222222222222222222222",
+      "plan_id": "package_plan_88888888888888888888888888888888",
       "task": {"task_id": "task_incomplete", "user_goal": "准备课程结题材料", "workspace": "/work"},
       "destination": "/work/课程结题材料包",
       "selected_files": [
         {
           "source": {"file_id": "file_e51eaa4886a308a14b0d2bed7e0062a6ec7b05548ed473cb2115936f180708b2", "path": "/work/结题报告.txt", "filename": "结题报告.txt"},
           "requirements": ["结题报告"],
-          "reason": "用户明确选择",
+          "reason": "基于当前成功分析的提议，待同次预览批准",
           "target": "/work/课程结题材料包/结题报告.txt",
           "snapshot": {"size": 6, "mtime_ns": 1792310400000000000, "sha256": "b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060"}
         },
         {
           "source": {"file_id": "file_14292727e6298fa05953a29ad76c1c05b82abcfe0f09b2c07d2dc36710465d4b", "path": "/work/原始记录.txt", "filename": "原始记录.txt"},
           "requirements": ["原始记录"],
-          "reason": "用户明确选择",
+          "reason": "基于当前成功分析的提议，待同次预览批准",
           "target": "/work/课程结题材料包/原始记录.txt",
           "snapshot": {"size": 5, "mtime_ns": 1792310400000000001, "sha256": "f2c82decdd7181cf98945929a62598db7e6b477e11f6e0eb0ae97020eff151ad"}
         }
@@ -1653,13 +1715,13 @@ Planning success:
                 {
                   "requirement": "测试记录",
                   "documents": [
-                    {"file_id": "file_9d85cfd4903f0a5eefc95606f8d9fd6501e6e17d05222529be9024bd9dde4a70", "path": "/work/测试记录候选.txt", "filename": "测试记录候选.txt"}
+                    {"file_id": "file_bc9b65c69a82a15ef5d80ea22004dffced363d11219df1faf5cb01d08f40da16", "path": "/work/测试记录_v2.txt", "filename": "测试记录_v2.txt"}
                   ]
                 }
               ],
               "missing": ["签字页"]
             },
-            "message": "match_requirements completed",
+            "message": "Requirement candidate matching completed",
             "error": null
           }
         },
@@ -1692,18 +1754,18 @@ Planning success:
       "unresolved": [
         {
           "kind": "selection_pending",
-          "text": "测试记录候选尚未被明确选定",
+          "text": "测试记录_v2.txt 尚未纳入本次提议选择",
           "source_result_index": 1,
           "documents": [
-            {"file_id": "file_9d85cfd4903f0a5eefc95606f8d9fd6501e6e17d05222529be9024bd9dde4a70", "path": "/work/测试记录候选.txt", "filename": "测试记录候选.txt"}
+            {"file_id": "file_bc9b65c69a82a15ef5d80ea22004dffced363d11219df1faf5cb01d08f40da16", "path": "/work/测试记录_v2.txt", "filename": "测试记录_v2.txt"}
           ],
           "source_tool": "match_requirements"
         }
       ],
       "report": {
         "path": "/work/课程结题材料包/PACKAGE_REPORT.md",
-        "content": "# 课程结题材料包计划\n\n审批前冻结的计划记录；不证明实际执行或验证成功。\n\n任务目标：准备课程结题材料\n要求：结题报告、原始记录、签字页、测试记录\n计划复制：/work/结题报告.txt → /work/课程结题材料包/结题报告.txt；选择依据：用户明确选择\n计划复制：/work/原始记录.txt → /work/课程结题材料包/原始记录.txt；选择依据：用户明确选择\n缺项：签字页（匹配结果索引 1）；未选：/work/测试记录候选.txt（匹配结果索引 1）。\n未决：测试记录尚未选定。需同次审批明确接受上述两项风险。\n分析来源：当前任务 results[0..3]；本报告不记录实际执行或验证状态。\n计划顺序：创建目录、逐项复制、写入本报告、验证。\n",
-        "sha256": "fc7436c6d73f8bdf0bddf99b108bfe98bded1d7a48c7401d236c75110e228fed"
+        "content": "# 课程结题材料包计划\n\n审批前冻结的计划记录；不证明实际执行或验证成功。\n\n任务目标：准备课程结题材料\n选材是提议，尚未获得用户确认；批准同一预览时才确认具体映射及报告正文。\n要求：结题报告、原始记录、签字页、测试记录\n计划复制：/work/结题报告.txt → /work/课程结题材料包/结题报告.txt；提议依据：当前成功分析，待同次预览批准\n计划复制：/work/原始记录.txt → /work/课程结题材料包/原始记录.txt；提议依据：当前成功分析，待同次预览批准\n缺项：签字页（匹配结果索引 1）；未纳入提议选择：/work/测试记录_v2.txt（匹配结果索引 1）。\n未决：测试记录尚未纳入本次提议选择。需同次审批明确接受上述两项风险。\n分析来源：当前任务 results[0..3]；本报告不记录实际执行或验证状态。\n计划顺序：创建目录、逐项复制、写入本报告、验证。\n",
+        "sha256": "6d8bd8e630cb1bd5f9ffaa0b3cde051bf82bbf376ce609034de77a5ab0d27586"
       },
       "operations": [
         {"kind": "create_directory", "step_id": "package_001"},
@@ -1718,7 +1780,7 @@ Planning success:
         "selected_file_indices": [0, 1]
       }
     },
-    "plan_sha256": "sha256:51364b3e62d349121ce6a7adc4f0a8f395afefbf53a08aaed68ff4ee6a2c8133"
+    "plan_sha256": "sha256:d98e2f9a972f6efd0d42a9d545aeaa7aee1aa37245aa648ff3204f4f8f5dc7d1"
   },
   "message": "plan_package completed",
   "error": null
@@ -1750,7 +1812,7 @@ Retry against the same still-valid preview:
 Proposed build input, supplied by A inside that authorized execution:
 
 ```json
-{"task_id": "task_incomplete", "plan_sha256": "sha256:51364b3e62d349121ce6a7adc4f0a8f395afefbf53a08aaed68ff4ee6a2c8133", "plan_id": "package_plan_22222222222222222222222222222222"}
+{"task_id": "task_incomplete", "plan_sha256": "sha256:d98e2f9a972f6efd0d42a9d545aeaa7aee1aa37245aa648ff3204f4f8f5dc7d1", "plan_id": "package_plan_88888888888888888888888888888888"}
 ```
 
 ##### Actual execution success (illustrative; all operations must really succeed)
@@ -1783,12 +1845,12 @@ Final result at results[10], after explicit risk acceptance and successful child
   "success": true,
   "tool": "build_package",
   "data": {
-    "plan_sha256": "sha256:51364b3e62d349121ce6a7adc4f0a8f395afefbf53a08aaed68ff4ee6a2c8133",
+    "plan_sha256": "sha256:d98e2f9a972f6efd0d42a9d545aeaa7aee1aa37245aa648ff3204f4f8f5dc7d1",
     "package_path": "/work/课程结题材料包",
     "generated_files": ["/work/课程结题材料包/结题报告.txt", "/work/课程结题材料包/原始记录.txt", "/work/课程结题材料包/PACKAGE_REPORT.md"],
     "report_path": "/work/课程结题材料包/PACKAGE_REPORT.md",
     "verification_result_index": 9,
-    "plan_id": "package_plan_22222222222222222222222222222222"
+    "plan_id": "package_plan_88888888888888888888888888888888"
   },
   "message": "build_package completed",
   "error": null
@@ -1816,7 +1878,7 @@ Snapshot metadata (results omitted here only to avoid repeating the frozen plan)
         "description": "执行同次获批的冻结材料包方案",
         "risk": "medium",
         "status": "failed",
-        "arguments": {"task_id": "task_incomplete", "plan_sha256": "sha256:51364b3e62d349121ce6a7adc4f0a8f395afefbf53a08aaed68ff4ee6a2c8133", "plan_id": "package_plan_22222222222222222222222222222222"}
+        "arguments": {"task_id": "task_incomplete", "plan_sha256": "sha256:d98e2f9a972f6efd0d42a9d545aeaa7aee1aa37245aa648ff3204f4f8f5dc7d1", "plan_id": "package_plan_88888888888888888888888888888888"}
       }
     ]
   },
@@ -1824,14 +1886,18 @@ Snapshot metadata (results omitted here only to avoid repeating the frozen plan)
   "preview_id": null,
   "error": "Package partially created; inspect child results and destination; no retry performed",
   "package_execution": {
-    "plan_sha256": "sha256:51364b3e62d349121ce6a7adc4f0a8f395afefbf53a08aaed68ff4ee6a2c8133",
+    "plan_sha256": "sha256:d98e2f9a972f6efd0d42a9d545aeaa7aee1aa37245aa648ff3204f4f8f5dc7d1",
     "operation_results": [
       {"step_id": "package_001", "result_index": 5},
       {"step_id": "package_002", "result_index": 6},
       {"step_id": "package_003", "result_index": 7}
     ],
     "final_result_index": 8,
-    "plan_id": "package_plan_22222222222222222222222222222222"
+    "plan_id": "package_plan_88888888888888888888888888888888",
+    "cleanup_results": [
+      {"step_id": "package_002", "status": "not_attempted", "reason": "copy_succeeded", "residual_state": "absent"},
+      {"step_id": "package_003", "status": "not_attempted", "reason": "Source digest failed before exclusive target creation; no fragment created", "residual_state": "absent"}
+    ]
   }
 }
 ```
@@ -1867,16 +1933,18 @@ GET /api/agent/tasks/task_incomplete/report returns 409:
 ```
 
 No failed build data contains a partial manifest. The created directory/first
-copy remain observable; the failed copy may leave a fragment under the cleanup
-decision above. Do not claim unchanged filesystem or successful rollback.
+copy remain observable. In this example the second source fails before creation,
+so cleanup is not_attempted and no second-copy fragment exists. Other failures
+may retain a fragment under the fixed ownership-safe rule above. Do not claim unchanged filesystem or successful rollback.
 
 #### Decisions before implementation
 
-A/B review the minimal request/manifest/issue schema, operation descriptors and
+A/B review proposed-selection confirmation, the request/manifest/unresolved schema, operation descriptors and
 proposed plan_id-based Snapshot correlation; A/D review the restricted report tool, source/
-parent race defenses and failed-fragment policy. A must implement acceptance
+parent race defenses and the fixed ownership-safe failed-fragment rule/records. A must implement acceptance
 validation before preview consumption and a single child/final append owner.
-B must display unknown/failed analysis and explicit incomplete risk acceptance.
+B must display not-run analysis and explicit selection/risk approval; failed
+Task diagnostics remain visible only, never an executable recovery plan.
 Only then deliver contract PR → D planning/snapshot/report implementation PR →
 A approval/execution/result-stream PR → cross-task temporary-file integration.
 No Package implementation, generic classification or policy extraction is started
