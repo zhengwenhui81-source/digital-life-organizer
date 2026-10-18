@@ -1,6 +1,7 @@
 """Contract and conservative extraction tests for task conflict detection."""
 
 from copy import deepcopy
+from itertools import count
 from unittest.mock import patch
 
 import pytest
@@ -8,10 +9,13 @@ import pytest
 from fileforge.task_intelligence import detect_conflicts
 from fileforge.task_intelligence._materials import parse_material_evidence
 
+# Each synthetic notice is a separate identity; snapshot tests reuse IDs explicitly.
+_DOCUMENT_IDS = count()
+
 
 def document(text, path="/not-a-real-workspace/通知.txt"):
     return {
-        "file_id": "file_test",
+        "file_id": f"file_fixture_{next(_DOCUMENT_IDS)}",
         "path": path,
         "filename": path.rsplit("/", 1)[-1],
         "extension": ".txt",
