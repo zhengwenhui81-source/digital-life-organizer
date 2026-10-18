@@ -29,6 +29,12 @@ def _read_document(**arguments: Any) -> dict[str, Any]:
     return read_document(**arguments)
 
 
+def _compare_versions(**arguments: Any) -> dict[str, Any]:
+    from fileforge.document import compare_versions
+
+    return compare_versions(**arguments)
+
+
 class ToolRouter:
     """Route only public tools; document tools may register when available."""
 
@@ -37,6 +43,7 @@ class ToolRouter:
             "list_files": list_files,
             "search_files": search_files,
             "read_document": _read_document,
+            "compare_versions": _compare_versions,
             "find_duplicates": find_duplicates,
             "create_folder": create_folder,
             "copy_file": copy_file,

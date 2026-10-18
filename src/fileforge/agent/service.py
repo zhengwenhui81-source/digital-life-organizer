@@ -146,6 +146,42 @@ class TaskService:
             )
             if not isinstance(arguments, dict):
                 raise ValueError("Resolver must return tool arguments")
+            if (
+                step["tool"] == "compare_versions"
+                and arguments.get("documents", []) == []
+            ):
+                read_documents = [
+                    result["data"]["document"]
+                    for result in results
+                    if result.get("tool") == "read_document"
+                    and result.get("success")
+                    and isinstance(result.get("data"), dict)
+                    and isinstance(result["data"].get("document"), dict)
+                ]
+                collection = next(
+                    (
+                        result
+                        for result in reversed(results)
+                        if result.get("success")
+                        and result.get("tool") in {"list_files", "search_files"}
+                    ),
+                    None,
+                )
+                collection_key = (
+                    "files"
+                    if collection and collection["tool"] == "list_files"
+                    else "matches"
+                )
+                if not read_documents and not (
+                    collection
+                    and isinstance(collection.get("data"), dict)
+                    and collection["data"].get(collection_key) == []
+                ):
+                    raise ValueError(
+                        "compare_versions documents are unresolved; read candidates "
+                        "or establish an empty candidate collection first"
+                    )
+                arguments = {**arguments, "documents": read_documents}
             self._check_plan_paths({"steps": [{"arguments": arguments}]}, root)
             if step["tool"] in {
                 "compare_versions",

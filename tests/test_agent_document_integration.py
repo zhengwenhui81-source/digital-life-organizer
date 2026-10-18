@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
+
+import pytest
 
 from fileforge.agent.executor import ToolRouter
 from fileforge.agent.planner import validate_plan
-from fileforge.agent.service import TaskService
+from fileforge.agent.service import TaskConflict, TaskService
+from fileforge.document import read_document
 
 
 def _planner(path: Path, *, compare: bool = False):
@@ -43,6 +47,91 @@ def test_default_router_reads_document_into_snapshot(tmp_path: Path) -> None:
     assert snapshot["task"]["status"] == "completed"
     assert snapshot["results"][0]["tool"] == "read_document"
     assert snapshot["results"][0]["data"]["document"]["text"] == "Useful notes"
+
+
+def test_default_router_compares_read_documents_without_a_custom_resolver(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "notes.txt"
+    source.write_text("Useful notes", encoding="utf-8")
+    service = TaskService(planner=_planner(source, compare=True))
+    task = service.create("Compare notes", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "completed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "read_document",
+        "compare_versions",
+    ]
+    groups = snapshot["results"][1]["data"]["groups"]
+    assert len(groups) == 1
+    assert groups[0]["documents"] == [snapshot["results"][0]["data"]["document"]]
+    assert groups[0]["newest_candidate"] is None
+    assert service.report(task["task_id"])["version_groups"] == groups
+
+
+def test_empty_candidate_collection_can_compare_successfully(tmp_path: Path) -> None:
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": "list_files",
+                        "description": "List candidate files",
+                        "arguments": {"workspace": workspace},
+                    },
+                    {
+                        "tool": "compare_versions",
+                        "description": "Compare candidates",
+                        "arguments": {},
+                    },
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    service = TaskService(planner=plan)
+    task = service.create("Find versions", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "completed"
+    assert snapshot["results"][1]["success"] is True
+    assert snapshot["results"][1]["data"] == {"groups": []}
+    assert service.report(task["task_id"])["version_groups"] == []
+
+
+def test_compare_without_candidate_collection_is_not_an_empty_result(
+    tmp_path: Path,
+) -> None:
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": "compare_versions",
+                        "description": "Compare candidates",
+                        "arguments": {},
+                    }
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    service = TaskService(planner=plan)
+    task = service.create("Find versions", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "failed"
+    assert "documents are unresolved" in snapshot["error"]
+    assert snapshot["results"] == []
 
 
 def test_read_failure_stops_before_comparison(tmp_path: Path) -> None:
@@ -212,3 +301,75 @@ def test_unexpected_tool_error_is_retained_as_failure_result() -> None:
         "message": "compare_versions failed",
         "error": "Comparison worker exited",
     }
+
+
+def test_contradictory_read_snapshots_fail_before_file_operations(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "notes.txt"
+    source.write_text("Useful notes", encoding="utf-8")
+    destination = tmp_path / "package"
+    reads = 0
+
+    def changing_read(path: str) -> dict:
+        nonlocal reads
+        reads += 1
+        result = deepcopy(read_document(path))
+        if reads == 2:
+            result["data"]["document"]["text"] = "Different notes"
+        return result
+
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": "read_document",
+                        "description": "Read first snapshot",
+                        "arguments": {"path": str(source)},
+                    },
+                    {
+                        "tool": "read_document",
+                        "description": "Read second snapshot",
+                        "arguments": {"path": str(source)},
+                    },
+                    {
+                        "tool": "compare_versions",
+                        "description": "Compare snapshots",
+                        "arguments": {},
+                    },
+                    {
+                        "tool": "create_folder",
+                        "description": "Create package after approval",
+                        "arguments": {"path": str(destination)},
+                    },
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    service = TaskService(
+        planner=plan, router=ToolRouter({"read_document": changing_read})
+    )
+    task = service.create("Prepare package", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "failed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "read_document",
+        "read_document",
+        "compare_versions",
+    ]
+    failure = snapshot["results"][-1]
+    assert failure["success"] is False
+    assert failure["data"] is None
+    assert "Contradictory Document snapshot" in failure["error"]
+    assert snapshot["error"] == failure["error"]
+    assert snapshot["pending_operations"] == []
+    assert snapshot["preview_id"] is None
+    assert not destination.exists()
+    with pytest.raises(TaskConflict, match="Report is not available"):
+        service.report(task["task_id"])
