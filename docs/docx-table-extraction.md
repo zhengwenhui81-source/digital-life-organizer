@@ -91,15 +91,56 @@ real Windows path semantics. Black/Ruff for changed Python files and diff/docume
 checks passed. No full-repository run or new full-suite baseline comparison is
 claimed. No failure in this targeted run is dismissed as an old baseline failure.
 
-**New DOCX table behavior is unverified on Windows.** Previous Windows parser /
-Version / four-format evidence covers the old body-only implementation, not this
-increment. Windows merge/nesting/source-preservation/handle-release checks and
-real Agent/UI/LLM end-to-end acceptance remain separate work. No whole C1/C2/C3
-completion or A/B/D adaptation completion is asserted.
+## Verified Windows evidence (2026-10-18)
+
+User-supplied real Windows 11 build 26100 / Python 3.12.10 64-bit evidence applies
+to `0fcc1df7696090ba74136848df57f97495584b04` (the reviewed PR #28 HEAD).
+PR #28 was subsequently merged by the team as
+`53f6dd840df2408024d4f6248fb511751416138b`; this evidence update did not merge it.
+The closeout branch safely fast-forwarded to dev
+`4d43cbd897e95dc91234e8e515f0bf7478699d07`. Comparison from the evidence HEAD found no
+changes in `src/fileforge/document/`, `src/fileforge/extractor/`, the DOCX/parser
+tests or `pyproject.toml`. The fixed-HEAD evidence therefore still applies to the
+unchanged tested C behavior, not subsequent Agent/UI/matching integration. This
+document-only update changes no implementation; future runtime changes require
+reassessing scope.
+
+| Separate Windows run | Passed | Failed / errors | Skipped | Exit |
+| --- | ---: | ---: | ---: | ---: |
+| Existing synthetic DOCX suite | 17 | 0 / 0 | 0 | 0 |
+| Read-only original-document supplement | 1 | 0 / 0 | 0 | 0 |
+
+Logs and JUnit agree. Before/after commits match the fixed HEAD; before/after
+Git status and tracked-diff records are empty. Environment records fixed-source
+import, pytest 9.1.1, python-docx 1.2.0, pdfplumber 0.11.10, openpyxl 3.1.5 and
+chardet 7.6.0. The supplied supplement matches the final chat-provided validation
+logic; its hash matches its recorded SHA-256. It retains exact original-file hash,
+215-slot merged-anchor mapping, complete body/table-order equality, 10,162 text
+characters, byte/mtime/size/path preservation, normalized-path ID/repeat-read
+checks and standard Version over-limit failure (`success=false`, `data=null`).
+The 17-test inventory includes synthetic immediate rename/back for handle release;
+the original user file was never renamed or modified.
+
+Supplement source SHA-256:
+`3a54baa366cc19f0a18e5d7a6cc6cf6604a3c632ba70b1b2eaf22b4a609f83a5`.
+Evidence archive SHA-256:
+`84339d207119d8d9e338133ccfa32a223205dcf2ccd9c3d0e35ceaa323376b6b`.
+Only these compact results are recorded. Raw archive/log/XML/bytecode, machine
+paths/hostname and the original DOCX/full extracted text are not committed.
+The package is run evidence, not a complete independent source-tree snapshot.
+These are user Windows executions reconciled by C, not Windows runs on this
+Linux host. No unrelated tests were rerun for this documentation update.
+
+Reading completeness within the declared scope is not scoring understanding.
+The original document still fails Version's unchanged 10,000-character limit
+as described above. Older Windows evidence remains historical; this separate
+fixed-HEAD evidence covers the DOCX increment's tested scope. Real Agent/UI/LLM
+end-to-end acceptance and all-consumer adaptation remain separate work; no whole
+C1/C2/C3 completion is asserted.
 
 ## Change separation
 
-Pre-existing C/A integration/classification documents and their TASKS Chapter 10
-edits remain uncommitted. This PR includes only the DOCX implementation, synthetic
-tests and related support/validation documentation; its TASKS C1 hunk is staged
-separately from those preserved edits. No A/B/D source or tests are modified.
+PR #28 excluded the then-uncommitted C/A integration/classification documents.
+This separate documentation closeout now gathers those records, the minimal A
+reproduction and verified DOCX Windows evidence. No A/B/D business code, original
+attachments, raw logs/XML/bytecode or personal-machine information is included.

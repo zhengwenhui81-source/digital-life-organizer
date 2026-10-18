@@ -131,9 +131,19 @@ coverage, evidence provenance and version applicability. This closes the declare
 Windows multi-format check, not blanket C1 or Agent integration acceptance.
 Supported content remains limited by
 [extraction scope](API_CONTRACT.md#read_document-extraction-scope): no OCR, Office
-headers/footers/images or formula calculation. DOCX table extraction is a new
-Linux-tested increment; old Windows evidence does not validate it. All formats retain the existing
+headers/footers/images or formula calculation. DOCX table extraction has separate
+fixed-HEAD Windows evidence; old Windows evidence alone does not validate it.
+All formats retain the existing
 [path ID rule](API_CONTRACT.md#path-based-document-identity).
+
+DOCX table-increment Windows evidence reconciled on 2026-10-18:
+`0fcc1df7696090ba74136848df57f97495584b04`, Windows 11 / Python 3.12.10 64-bit;
+**17 passed** synthetic cases and **1 passed** original-file audit, separately,
+with zero failures/errors/skips and both exit codes zero. Six tables / 215 grid
+positions, body order, 10,162 characters, bytes/mtime/size/path/ID preservation
+and standard Version limit failure are verified. See [evidence and limits](docs/docx-table-extraction.md#verified-windows-evidence-2026-10-18).
+PR #28 is merged; this completes the scoped Windows validation record, not whole
+C1/C2/C3, score interpretation or end-to-end delivery.
 
 Windows TXT evidence was reported by the team lead in the 2026-10-15 collaboration
 update: Windows 11 / Python 3.12.12, parser + extractor 42 passed and 3 skipped;
@@ -618,7 +628,22 @@ This is an approved **product direction and task allocation**, NOT approval of a
 
 ### C — Document Parsing & Version Intelligence: new work
 
-- [ ] Document which currently supported document contents and metadata can safely inform `classify_files`; distinguish filename/extension evidence from extracted-content evidence. Do not add OCR or extra readers as prerequisites to this lightweight MVP.
+C/A controlled-plan integration at `5df6777dbe385f7e83167445262c95e698b3e9e1`:
+Linux **48 passed** (new default-route acceptance) and **25 passed** (existing
+Agent/PR #22 tests, including fault injection). See [commands, evidence and A reproduction](docs/c-agent-integration-validation.md).
+PR #25 is merged as `99525cb4a4810dfbb592a4549c0d4273b93fd82d`.
+C's Linux minimal recheck at dev `4d43cbd897e95dc91234e8e515f0bf7478699d07` confirms
+both listing and searching retain two found_files, two read Documents and one
+Version group, with original sources unchanged; report regression **1 passed**.
+The historical zero result belongs only to `5df6777...`; A's 37-pass author result
+is not a C independent run. This is a narrow controlled-plan check, not real
+LLM/HTTP/browser acceptance or whole C2/C3/all-consumer shared-rule adaptation.
+
+DOCX tables are merged through PR #28; fixed-HEAD Windows 17 + 1 evidence and
+its current-source applicability are recorded in the [DOCX record](docs/docx-table-extraction.md).
+Reading table structure does not interpret or calculate scores.
+
+- [x] Document the existing parser contents/field provenance and classification evidence limits in [C input evidence](docs/document-classification-evidence.md): filename/extension clues versus extracted text, currently empty metadata, format omissions and explicit failures. This completes only the explanation, not classifier implementation or acceptance.
 - [ ] Assist with public `Document[]` provenance/limits and tests for unsupported, empty-text, image/scanned, and other unreadable items; keep Version responsibilities and remaining integration/acceptance boundaries unchanged.
 
 ### D — Task Intelligence: new work

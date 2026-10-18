@@ -30,8 +30,9 @@ stable for the same normalized path, but change after moves or renames and are
 not portable across environments. See [TASKS.md](TASKS.md#phase-c1--document-parser)
 for remaining parser work and [AGENTS.md](AGENTS.md) for collaboration rules.
 
-DOCX table extraction is a new increment; previous Windows results cover the
-body-only implementation, not this change. See the [table extraction record](docs/docx-table-extraction.md)
+DOCX table extraction has separate fixed-HEAD Windows evidence: 17 synthetic
+tests and one real-document audit passed. Previous Windows results cover the
+body-only implementation and remain historical. See the [table extraction record](docs/docx-table-extraction.md)
 for current Linux checks, representation and unchanged Version size limits.
 
 ## Version contract status
@@ -41,9 +42,10 @@ The [compare_versions v1 contract](API_CONTRACT.md#compare_versions) and
 are confirmed. `fileforge.document.compare_versions(documents)` is now implemented
 and locally tested on Linux. Fixed-commit Windows unit/lifecycle and four-format
 C-tool pipeline evidence is reconciled in the
-[validation record](docs/version-windows-validation.md); Agent integration
-acceptance remains pending. Existing D tools still need their owned
-collection-rule adaptation and tests. Runtime inputs come from unknown
+[validation record](docs/version-windows-validation.md). Default Agent routing and
+controlled-plan Linux integration have [scoped evidence](docs/c-agent-integration-validation.md);
+full integration/end-to-end acceptance remains pending. D tool collection-rule adaptation/tests and their acceptance remain separately
+tracked by the responsible owner. Runtime inputs come from unknown
 Workspaces; finding no version relationships is a normal successful result.
 Controlled version fixtures are for tests/regression/acceptance, not a guaranteed
 classroom dataset. See [TASKS.md](TASKS.md#phase-c3--version-contract) for pending work.
