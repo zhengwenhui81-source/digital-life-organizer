@@ -12,7 +12,7 @@ import pytest
 
 from fileforge.agent import plan_task, validate_plan
 from fileforge.agent.executor import ToolRouter
-from fileforge.agent.service import TaskService
+from fileforge.agent.service import TaskConflict, TaskService
 
 
 def test_plan_task_generates_contract_fields(tmp_path: Path) -> None:
@@ -87,8 +87,10 @@ def test_model_cannot_set_risk_or_status() -> None:
     "tool,arguments,invalid",
     [
         ("list_files", {"path": "/somewhere"}, "path"),
+        ("list_files", {}, "workspace"),
         ("list_files", {"workspace": "/somewhere", "path": "/other"}, "path"),
         ("search_files", {"workspace": "/somewhere", "path": "x"}, "path"),
+        ("search_files", {"workspace": "/somewhere"}, "query"),
         ("list_files", {"workspace": "/somewhere", "recursive": "yes"}, "recursive"),
     ],
 )
@@ -119,6 +121,40 @@ def test_router_rejects_invalid_resolved_arguments_before_call():
     assert result["success"] is False
     assert "path" in result["error"]
     assert not called
+
+
+def test_tool_call_exception_becomes_failed_task(tmp_path: Path):
+    def broken_scan(workspace: str) -> dict:
+        raise RuntimeError("Scanner unavailable")
+
+    def planner(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": "list_files",
+                        "description": "List files",
+                        "arguments": {"workspace": workspace},
+                    }
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    service = TaskService(
+        planner=planner, router=ToolRouter({"list_files": broken_scan})
+    )
+    task_id = service.create("List files", str(tmp_path))["task_id"]
+    service.run(task_id)
+    snapshot = service.snapshot(task_id)
+    assert snapshot["task"]["status"] == "failed"
+    assert snapshot["results"][0]["tool"] == "list_files"
+    assert snapshot["results"][0]["success"] is False
+    assert "Scanner unavailable" in snapshot["error"]
+    assert snapshot["pending_operations"] == []
+    with pytest.raises(TaskConflict, match="Report is not available"):
+        service.report(task_id)
 
 
 def test_llm_plan_scans_real_workspace_without_writes(tmp_path: Path):
