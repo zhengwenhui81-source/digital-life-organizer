@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fileforge.task_intelligence._documents import validate_documents
+from fileforge.task_intelligence._documents import prepare_documents
 from fileforge.task_intelligence._encoding import source_path
 from fileforge.task_intelligence._materials import parse_material_evidence
 
@@ -15,7 +15,7 @@ def extract_requirements(documents: list[dict[str, Any]]) -> dict[str, Any]:
     Contradictions are reported separately by detect_conflicts. The caller owns
     task/workspace scoping. This tool only consumes the supplied Document text.
     """
-    error = validate_documents(documents)
+    documents, error = prepare_documents(documents)
     if error:
         return {
             "success": False,

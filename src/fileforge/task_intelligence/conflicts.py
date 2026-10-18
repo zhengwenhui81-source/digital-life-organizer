@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from fileforge.task_intelligence._context import _unconditional_sentences
-from fileforge.task_intelligence._documents import validate_documents
+from fileforge.task_intelligence._documents import prepare_documents
 from fileforge.task_intelligence._encoding import (
     deadline_field,
     material_field,
@@ -59,7 +59,7 @@ def detect_conflicts(documents: list[dict[str, Any]]) -> dict[str, Any]:
     Caller supplies notices for one task and enforces workspace authorization.
     Unsupported text is ignored rather than interpreted speculatively.
     """
-    error = validate_documents(documents)
+    documents, error = prepare_documents(documents)
     if error:
         return {
             "success": False,

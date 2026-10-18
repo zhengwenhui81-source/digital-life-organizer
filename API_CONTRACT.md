@@ -82,12 +82,28 @@ and tool-by-tool adaptation are separate, pending work.**
 
 These rules apply to `compare_versions`, `match_requirements` and every public
 tool consuming `Document[]`, including the existing `detect_conflicts` and
-`extract_requirements` inputs. No new Document model or ID mechanism is introduced.
+`extract_requirements` inputs and future `classify_files` Document collections.
+No new Document model or ID mechanism is introduced.
 
+- Validate JSON legality of the complete original input, including metadata and
+  every extra field, before snapshot comparison or deduplication. Allow only
+  null, booleans, strings, finite numbers, arrays and string-keyed objects.
+  Reject NaN/Infinity, non-string object keys, non-JSON types and circular
+  references without coercion (no `default=str` or tuple-to-array conversion).
+  Shared nested objects are allowed when they do not form a cycle.
+- Snapshot equality is type-strict recursively: integer `1` differs from floating
+  `1.0`, and booleans differ from numbers (`true` vs `1`, `false` vs `0`).
+  A missing field differs from a field explicitly set to null. These rules apply
+  to the whole Document, including metadata and extra fields.
+- Invalid JSON input fails the whole call with the standard failed ToolResult,
+  `data=null` and a readable error, before business analysis; no partial result
+  is returned. Reject custom values before invoking their equality methods.
+  Deep inputs must not cause an uncaught RecursionError; no shared public depth
+  quota is introduced here.
 - Identity is determined by the existing `file_id`, not filename, content hash,
   array position or a newly generated identifier.
 - Validate the applicable tool's resource limits on the original input before
-  deduplication. Duplicate entries still count toward quantity, text and input
+  snapshot comparison or deduplication. Duplicate entries still count toward quantity, text and input
   volume limits; deduplication cannot bypass them. Version-specific numeric
   limits below are not automatically imposed on other tools.
 - Documents with the same `file_id` may be stably deduplicated only when **all
@@ -117,7 +133,10 @@ metadata keys, differences in every field, resource validation before dedup,
 and whole-call failure without partial output. This document does not certify
 that existing D implementations already enforce them. It does not freeze the
 remaining `match_requirements` input/output schema, add it to the public tool
-registry, or change conflict/requirement business algorithms.
+registry, or change conflict/requirement business algorithms. Mentioning future
+`match_requirements` or `classify_files` here does not freeze their public entry
+points or output schemas. Confirmation of these rules does not certify that
+C/A/B or other consumers already implement them.
 
 ### Path-based Document identity
 

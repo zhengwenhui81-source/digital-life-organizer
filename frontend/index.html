@@ -469,6 +469,28 @@
             .agent-footer { gap: .6rem; }
             .agent-footer .btn, .agent-footer .filter-select { padding: .6rem .9rem; font-size: .9rem; }
         }
+        .version-group { padding: .8rem 0; border-bottom: 1px solid rgba(255,255,255,.12); }
+        .version-change { margin: .7rem 0; }
+        .version-change summary { cursor: pointer; overflow-wrap: anywhere; }
+        .version-evidence { max-height: 16rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: rgba(0,0,0,.2); padding: .7rem; font-size: .8rem; }
+        .workspace-nav button[aria-pressed="true"] { background: rgba(43,125,233,.2); color: white; }
+        #matchingStatus { margin: 1rem 0; padding: .8rem; border-left: 3px solid var(--warning); }
+        /* Organization UI preview is isolated from the material workflow. */
+        #organizationWorkspace { min-width: 0; }
+        #organizationWorkspace .org-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem; margin:1rem 0; }
+        #organizationWorkspace .org-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1rem; }
+        #organizationWorkspace .org-panel { min-width:0; overflow-x:auto; padding:1rem; border:1px solid #2b405b; border-radius:10px; margin:1rem 0; }
+        #organizationWorkspace .org-panel h3, #organizationWorkspace h4 { margin-bottom:.75rem; }
+        #organizationWorkspace .org-path, #organizationWorkspace summary, #organizationWorkspace li { overflow-wrap:anywhere; word-break:break-word; white-space:pre-wrap; }
+        #organizationWorkspace .org-path { font-size:.85rem; margin:.35rem 0; }
+        #organizationWorkspace .org-demo-badge { color:#8fc5ff; font-weight:600; margin:1rem 0; }
+        #organizationWorkspace .org-summary { color:var(--silver); }
+        #organizationWorkspace .org-tree-node summary { cursor:pointer; padding:.5rem; border-radius:5px; background:rgba(43,125,233,.08); }
+        #organizationWorkspace .org-tree-node summary:focus-visible { outline:2px solid var(--blue); }
+        #organizationWorkspace .org-tree-node ul { list-style:none; padding-left:1rem; border-left:1px solid #2b405b; margin:.4rem 0 .4rem .3rem; }
+        #organizationWorkspace .org-tree-node li { padding:.2rem 0; }
+        #organizationWorkspace .org-toolbar select { max-width:100%; }
+        @media(max-width:900px) { #organizationWorkspace .org-grid { grid-template-columns:minmax(0,1fr); } }
     </style>
 </head>
 <body>
@@ -491,6 +513,36 @@
             <button id="filesViewTab" class="btn" role="tab" aria-selected="false" aria-controls="filesWorkspace" onclick="switchWorkspaceView('files')">Files</button>
         </nav>
         <section id="agentWorkspace" aria-labelledby="agentViewTab">
+            <nav class="workspace-nav" aria-label="Agent workflows">
+                <button id="materialWorkflowTab" class="btn" aria-pressed="true" onclick="switchAgentWorkflow('materials')">任务驱动材料准备</button>
+                <button id="organizationWorkflowTab" class="btn btn-secondary" aria-pressed="false" onclick="switchAgentWorkflow('organization')">轻量智能分类整理</button>
+            </nav>
+            <section id="organizationWorkspace" class="agent-card" hidden>
+                <h2>轻量智能分类整理 · UI 预览</h2>
+                <p class="result-warning">当前仅展示整理方案，尚未执行文件操作。</p>
+                <p class="agent-note">此页面使用虚构的本地 UI 演示数据，不读取 Workspace，不代表真实分类能力。分类与执行接口尚未接入。</p>
+                <div class="org-toolbar">
+                    <label for="organizationScenario">本地演示场景</label>
+                    <select id="organizationScenario" class="filter-select">
+                        <option value="mixed">多分类 / 待确认 / 空文件夹</option>
+                        <option value="empty">0 个文件</option>
+                        <option value="single">1 个文件</option>
+                        <option value="unknown">全部待人工确认</option>
+                        <option value="collision">同名目标冲突</option>
+                        <option value="incomplete">预览数据不完整</option>
+                    </select>
+                    <button id="organizationLoad" class="btn btn-primary" onclick="showOrganizationPreview()">加载演示预览</button>
+                    <button id="organizationReset" class="btn btn-secondary" onclick="showOrganizationPreview(true)">清空预览</button>
+                </div>
+                <div class="org-toolbar" aria-label="尚未接入的真实操作">
+                    <button class="btn btn-secondary" disabled>扫描并分类 · 尚未接入</button>
+                    <button class="btn btn-secondary" disabled>确认方案并执行 · 尚未接入</button>
+                </div>
+                <p class="agent-note">真实操作将在后端生成方案并经用户审批后执行；本页尚未接入真实分类、审批和执行。</p>
+                <div id="organizationPreview" aria-live="polite"><p class="agent-note">尚未开始。选择本地 UI 场景，再点击“加载演示预览”。不会扫描 Workspace。</p></div>
+                <button class="btn btn-secondary" onclick="switchAgentWorkflow('materials')">返回材料准备</button>
+            </section>
+            <div id="materialWorkspace">
             <div class="agent-card">
                 <h2>1. Task Input</h2>
                 <p class="agent-note">Goal → Plan → Analysis → Approval → Result</p>
@@ -527,12 +579,15 @@
                     <div class="agent-panel"><h3>Required Materials</h3><div id="agentMaterials" class="agent-placeholder">Analysis results will appear here.</div></div>
                 </div>
             </div>
+            <div id="matchingStatus" class="agent-note" role="status">材料匹配接口尚未冻结；候选材料与缺失情况未确认。最终演示请使用 Real Mode。</div>
+            <details class="agent-card"><summary>其他工具执行记录</summary><div id="agentOtherResults">尚无其他工具结果。</div></details>
             <div class="agent-card approval-card"><h2>4. Pending Actions · User Approval</h2>
                 <p class="agent-note">Review the source and destination before approving any file operations.</p>
                 <div id="agentActions" class="agent-placeholder">No file operations are waiting for approval.</div>
                 <div class="agent-footer"><button id="rejectAgent" class="btn btn-secondary" disabled onclick="decideAgent(false)">Reject</button><button id="approveAgent" class="btn btn-primary" disabled onclick="decideAgent(true)">Approve &amp; Execute</button></div>
             </div>
             <div id="agentFinalCard" class="agent-card result-card"><h2>5. Final Result</h2><div id="agentFinal" class="agent-placeholder">Final report will appear after the task completes.</div><button id="copyPackagePath" class="btn btn-primary" hidden onclick="copyPackagePath()">Copy Path</button></div>
+            </div>
         </section>
         <section id="filesWorkspace" hidden aria-labelledby="filesViewTab">
 
@@ -648,6 +703,9 @@
 
     <script src="/static/agent-mock.js"></script>
     <script src="/static/agent-api.js"></script>
+    <script src="/static/agent-results.js"></script>
+    <script src="/static/organization-preview.js"></script>
+    <script src="/static/organization-demo.js"></script>
     <script>
         // State
         const agentState = {task: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null};
@@ -662,6 +720,16 @@
             byId('agentViewTab').setAttribute('aria-selected', String(view === 'agent'));
             byId('filesViewTab').setAttribute('aria-selected', String(view === 'files'));
         }
+        function showOrganizationPreview(reset = false) {
+            byId('organizationPreview').innerHTML = OrganizationPreview.render(reset ? null : OrganizationDemo.get(byId('organizationScenario').value));
+        }
+        function switchAgentWorkflow(workflow) {
+            if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
+            byId('materialWorkspace').hidden = workflow !== 'materials';
+            byId('organizationWorkspace').hidden = workflow !== 'organization';
+            byId('materialWorkflowTab').setAttribute('aria-pressed', String(workflow === 'materials'));
+            byId('organizationWorkflowTab').setAttribute('aria-pressed', String(workflow === 'organization'));
+        }
         function stopAgentPolling() { clearTimeout(agentState.timer); agentState.timer = null; }
         function scheduleAgentPolling() {
             stopAgentPolling();
@@ -674,6 +742,7 @@
         // Rendering
         function updateAgentControls() {
             const locked = agentState.busy || agentState.pollInFlight || agentState.decisionBusy;
+            byId('materialWorkflowTab').disabled = byId('organizationWorkflowTab').disabled = locked;
             byId('runAgent').disabled = locked || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
             ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario'].forEach(id => byId(id).disabled = locked);
             byId('runAgent').textContent = agentState.busy ? 'Running...' : 'Run Agent';
@@ -700,6 +769,7 @@
         function resetAgentPresentation() {
             clearTimeout(agentState.copyTimer);
             agentState.report = null;
+            byId('agentOtherResults').textContent = '尚无其他工具结果。';
             byId('agentPlan').innerHTML = '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
             ['agentVersions','agentConflicts','agentMaterials'].forEach(id => {
                 byId(id).textContent = 'Analysis results will appear here.';
@@ -727,8 +797,14 @@
             const symbols = {pending:'○',running:'●',completed:'✓',failed:'✕',awaiting_approval:'⚠',skipped:'－'};
             byId('agentPlan').innerHTML = agentArray(snapshot.plan?.steps).map(step => '<div class="agent-step" data-status="' + agentEscape(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + agentEscape(step.description) + '<small>' + agentEscape(step.tool) + ' · ' + agentEscape(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + agentEscape(step.risk) + '</span></div>').join('') || '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
             const results = agentArray(snapshot.results);
-            const result = tool => results.filter(r => r.tool === tool).at(-1);
+            const result = tool => AgentResults.latest(results, tool);
             const versions = result('compare_versions'), conflicts = result('detect_conflicts'), materials = result('extract_requirements');
+            if (!mock) {
+                byId('agentVersions').innerHTML = AgentResults.versions(versions);
+                byId('agentConflicts').innerHTML = AgentResults.conflicts(conflicts);
+                byId('agentMaterials').innerHTML = AgentResults.requirements(materials);
+                [['agentVersions',versions],['agentConflicts',conflicts],['agentMaterials',materials]].forEach(([id,r]) => byId(id).classList.toggle('agent-placeholder', !r));
+            } else {
             ['agentVersions','agentConflicts','agentMaterials'].forEach(id => byId(id).textContent = 'Analysis results will appear here.');
             if (versions) {
                 byId('agentVersions').classList.remove('agent-placeholder');
@@ -741,6 +817,8 @@
             if (materials) byId('agentMaterials').classList.remove('agent-placeholder');
             if (conflicts) byId('agentConflicts').innerHTML = conflicts.success && Array.isArray(conflicts.data?.conflicts) ? agentArray(conflicts.data.conflicts).map(c => '<p><span class="badge badge-warning">' + agentEscape(c.field) + '</span></p>' + agentArray(c.values).map(v => '<div class="agent-item">' + agentEscape(v.source) + '<br><strong>' + agentEscape(v.value) + '</strong></div>').join('') + '<p>Recommendation: ' + agentEscape(c.recommendation) + '</p>').join('') || '未检测到冲突。' : agentDetails(conflicts.error || conflicts.data);
             if (materials) byId('agentMaterials').innerHTML = materials.success && Array.isArray(materials.data?.required_documents) ? agentArray(materials.data.required_documents).map(name => '<div class="agent-item">' + (mock ? (agentArray(snapshot.missing_items).includes(name) ? '⚠ ' + agentEscape(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + agentEscape(name)) : '• ' + agentEscape(name)) + '</div>').join('') + (mock ? '' : '<p class="agent-note">匹配与缺失结果结构尚未提供。</p>') : agentDetails(materials.error || materials.data);
+            }
+            byId('agentOtherResults').innerHTML = AgentResults.otherResults(results) || '尚无其他工具结果。';
             if (mock) {
                 byId('agentActions').innerHTML = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('') || 'No file operations are waiting for approval.';
             } else {
@@ -752,7 +830,7 @@
             updateAgentControls();
         }
         function renderAgentReport(report) {
-            if (!report || report.task_id !== agentState.task.task_id || report.status !== 'completed') throw new Error('Invalid FinalReport response');
+            if (!report || agentState.task?.status !== 'completed' || report.task_id !== agentState.task.task_id || report.status !== 'completed') throw new Error('Invalid FinalReport response');
             agentState.report = report;
             const mock = agentState.mode === 'mock';
             byId('agentFinalCard').dataset.completed = 'true';
@@ -763,15 +841,24 @@
                 (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">No package path provided.</p>') +
                 warnings.map(([label,items]) => '<p class="result-warning">⚠ ' + items.length + ' ' + label + ' — review the analysis before submitting materials.</p>').join('') +
                 '<div class="agent-summary">' + counts.filter(([,items]) => Array.isArray(items) && items.length).map(([label,items]) => '<div>' + label + '<strong>' + items.length + '</strong></div>').join('') + '</div>';
+            if (!mock) {
+                byId('agentFinal').innerHTML += '<p class="agent-note">材料匹配尚未接入。缺项数组为空不代表已检查材料齐全；任务完成不等于所有分析能力均已执行。</p>';
+                const conflictResult = AgentResults.latest(agentState.snapshot?.results, 'detect_conflicts');
+                if (!conflictResult || conflictResult.success !== true) byId('agentFinal').innerHTML += '<p class="result-warning">冲突检查未执行或失败，不能将空报告解释为没有冲突。</p>';
+            }
             byId('copyPackagePath').hidden = typeof report.package_path !== 'string' || !report.package_path;
         }
         // Event handlers: one sequential timeout loop, never setInterval.
         async function applyAgentSnapshot(snapshot) {
             renderAgent(snapshot);
             const status = snapshot.task.status;
+            if (snapshot.error && status !== 'failed') agentError(snapshot.error, 'Task needs attention');
             agentState.busy = agentActiveStatuses.includes(status) || status === 'awaiting_approval';
             if (status === 'completed') {
                 stopAgentPolling();
+                agentState.report = null;
+                byId('copyPackagePath').hidden = true;
+                byId('agentFinalCard').dataset.completed = 'false';
                 try { renderAgentReport(await AgentAPI.getReport(snapshot.task.task_id)); }
                 catch (error) {
                     byId('agentFinal').textContent = error.status === 409 ? '最终报告尚未生成，请刷新任务状态。' : '最终报告加载失败，请刷新任务状态。';
@@ -779,6 +866,9 @@
                 }
             } else if (status === 'failed') {
                 stopAgentPolling();
+                agentState.report = null;
+                byId('copyPackagePath').hidden = true;
+                byId('agentFinalCard').dataset.completed = 'false';
                 byId('agentFinal').classList.remove('agent-placeholder');
                 byId('agentFinal').textContent = agentState.userRejected ? 'Task stopped — 用户拒绝了待执行的文件操作。' : 'Task failed';
                 agentError(snapshot.error || (agentState.userRejected ? '用户拒绝了待执行的文件操作。' : 'Task failed'), agentState.userRejected ? 'Task stopped' : 'Task failed');
