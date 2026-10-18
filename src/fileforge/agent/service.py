@@ -63,6 +63,7 @@ class TaskService:
                 "preview_id": None,
                 "error": None,
                 "report": None,
+                "approved_operations_verified": False,
             }
         return deepcopy(task)
 
@@ -265,9 +266,70 @@ class TaskService:
 
         return resolve
 
-    def _finish(self, entry: dict[str, Any]) -> None:
+    @staticmethod
+    def _verify_approved(operations: list[dict[str, Any]]) -> dict[str, Any]:
+        """Check the frozen approved paths after successful tool execution."""
+        checks = []
+        for step in operations:
+            tool, args = step["tool"], step["arguments"]
+            if tool == "create_folder":
+                target = Path(args["path"])
+                passed = target.is_dir() and not target.is_symlink()
+            elif tool in {"copy_file", "move_file"}:
+                source, target = Path(args["source"]), Path(args["destination"])
+                passed = target.is_file() and not target.is_symlink()
+                if tool == "copy_file":
+                    if not source.is_file() or not passed:
+                        passed = False
+                    else:
+
+                        def digest(path: Path) -> bytes:
+                            hash_value = hashlib.sha256()
+                            with path.open("rb") as stream:
+                                for chunk in iter(
+                                    lambda: stream.read(1024 * 1024), b""
+                                ):
+                                    hash_value.update(chunk)
+                            return hash_value.digest()
+
+                        try:
+                            passed = digest(source) == digest(target)
+                        except OSError:
+                            passed = False
+                else:
+                    passed = passed and not source.exists()
+            else:
+                raise ValueError(f"Cannot verify approved operation: {tool}")
+            checks.append({"path": str(target), "kind": tool, "passed": passed})
+        passed = all(check["passed"] for check in checks)
+        return {
+            "success": passed,
+            "tool": "verify_result",
+            "data": {"checks": checks, "passed": True} if passed else None,
+            "message": (
+                "Approved file operations verified" if passed else "Verification failed"
+            ),
+            "error": (
+                None
+                if passed
+                else "Approved file operation result differs from the frozen preview"
+            ),
+        }
+
+    def _finish(
+        self,
+        entry: dict[str, Any],
+        approved_operations: list[dict[str, Any]] | None = None,
+    ) -> None:
         with self._lock:
             state = entry["execution"]
+            if state["status"] == "completed" and approved_operations:
+                verification = self._verify_approved(approved_operations)
+                state["results"].append(verification)
+                if not verification["success"]:
+                    state["status"] = "failed"
+                else:
+                    entry["approved_operations_verified"] = True
             status = state["status"]
             entry["task"]["status"] = status
             entry["preview_id"] = None
@@ -335,7 +397,11 @@ class TaskService:
             "missing_items": [],
             "operations": operations,
             "package_path": "",
-            "summary": "Completed the available plan steps",
+            "summary": (
+                "Completed and verified approved file operations"
+                if entry["approved_operations_verified"]
+                else "Completed the available plan steps"
+            ),
         }
 
     def decide(self, task_id: str, preview_id: str, *, approve: bool) -> dict[str, Any]:
@@ -358,13 +424,14 @@ class TaskService:
                 return self.snapshot(task_id)
         try:
             self._validate_preview(entry)
+            approved_operations = deepcopy(state["pending_operations"])
             execute(
                 state,
                 self._router,
                 approve_all=True,
                 resolver=self._scoped_resolver(Path(entry["task"]["workspace"])),
             )
-            self._finish(entry)
+            self._finish(entry, approved_operations)
         except Exception as exc:
             with self._lock:
                 state["status"] = "failed"
