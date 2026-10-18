@@ -682,3 +682,112 @@ def test_failed_conflict_analysis_stops_before_package_and_report(
     assert not destination.exists()
     with pytest.raises(TaskConflict, match="Report is not available"):
         service.report(task["task_id"])
+
+
+def test_default_task_tools_use_only_latest_notice_collection(tmp_path: Path) -> None:
+    (tmp_path / "candidate.txt").write_text("必须提交身份证", encoding="utf-8")
+    (tmp_path / "policy_a.txt").write_text(
+        "报名截止：2026-10-18\n必须提交学生证", encoding="utf-8"
+    )
+    (tmp_path / "policy_b.txt").write_text("报名截止：2026-10-20", encoding="utf-8")
+
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        steps = []
+        for query in ("candidate", "policy"):
+            steps.extend(
+                [
+                    {
+                        "tool": "search_files",
+                        "description": f"Collect {query} documents",
+                        "arguments": {"workspace": workspace, "query": query},
+                    },
+                    {
+                        "tool": "read_document",
+                        "description": f"Read {query} documents",
+                        "arguments": {},
+                    },
+                ]
+            )
+        steps.extend(
+            [
+                {
+                    "tool": "detect_conflicts",
+                    "description": "Check notice conflicts",
+                    "arguments": {},
+                },
+                {
+                    "tool": "extract_requirements",
+                    "description": "Extract notice requirements",
+                    "arguments": {},
+                },
+            ]
+        )
+        return validate_plan({"steps": steps}, task_id, goal)
+
+    service = TaskService(planner=plan)
+    task = service.create("Analyze notice rules", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "completed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "search_files",
+        "read_document",
+        "search_files",
+        "read_document",
+        "read_document",
+        "detect_conflicts",
+        "extract_requirements",
+    ]
+    assert snapshot["results"][-1]["data"] == {"required_documents": ["学生证"]}
+    conflicts = snapshot["results"][-2]["data"]["conflicts"]
+    assert len(conflicts) == 1
+    assert conflicts[0]["field"] == "deadline:报名"
+    assert service.report(task["task_id"])["conflicts"] == conflicts
+
+
+def test_failed_notice_read_never_becomes_empty_analysis(tmp_path: Path) -> None:
+    (tmp_path / "policy_a.txt").write_text("必须提交学生证", encoding="utf-8")
+    (tmp_path / "policy_b.txt").write_text("  ", encoding="utf-8")
+
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": "search_files",
+                        "description": "Collect notices",
+                        "arguments": {"workspace": workspace, "query": "policy"},
+                    },
+                    {
+                        "tool": "read_document",
+                        "description": "Read notices",
+                        "arguments": {},
+                    },
+                    {
+                        "tool": "extract_requirements",
+                        "description": "Extract requirements",
+                        "arguments": {},
+                    },
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    service = TaskService(planner=plan)
+    task = service.create("Analyze notices", str(tmp_path))
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "failed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "search_files",
+        "read_document",
+        "read_document",
+    ]
+    assert snapshot["results"][-1]["success"] is False
+    assert snapshot["error"] == snapshot["results"][-1]["error"]
+    with pytest.raises(TaskConflict, match="Report is not available"):
+        service.report(task["task_id"])

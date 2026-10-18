@@ -199,7 +199,12 @@ class TaskService:
             ):
                 raise ValueError("A document read failed; analysis cannot continue")
             if (
-                step["tool"] == "compare_versions"
+                step["tool"]
+                in {
+                    "compare_versions",
+                    "detect_conflicts",
+                    "extract_requirements",
+                }
                 and arguments.get("documents", []) == []
             ):
                 read_documents = [
@@ -223,7 +228,7 @@ class TaskService:
                     )
                 ):
                     raise ValueError(
-                        "compare_versions documents are unresolved; read candidates "
+                        f"{step['tool']} documents are unresolved; read candidates "
                         "or establish an empty candidate collection first"
                     )
                 arguments = {**arguments, "documents": read_documents}

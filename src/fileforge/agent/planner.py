@@ -36,6 +36,10 @@ To analyze unknown workspace documents, collect candidates with list_files or
 search_files, then use read_document with empty arguments to read each supported
 candidate. A following compare_versions with empty arguments compares documents
 read after that collection. A failed read stops the task.
+For detect_conflicts or extract_requirements, collect and read the relevant
+notice/rule documents first, then use empty arguments. Keep notice/rule documents
+separate from candidate materials; a material mentioned in a notice is not an
+existing candidate file. Do not guess document roles from a fixed demo filename.
 Never plan deletion or overwrite. File-changing steps will require user approval.
 Workspace: {workspace}
 Goal: {goal}
