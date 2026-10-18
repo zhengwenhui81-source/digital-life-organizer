@@ -265,12 +265,15 @@ class TaskService:
         state = entry["execution"]
         found = []
         version_groups = []
+        conflicts = []
         operations = []
         for result in state["results"]:
             if result["tool"] == "list_files" and result["success"]:
                 found.extend(result["data"].get("files", []))
             if result["tool"] == "compare_versions" and result["success"]:
                 version_groups.extend(result["data"].get("groups", []))
+            if result["tool"] == "detect_conflicts" and result["success"]:
+                conflicts.extend(result["data"].get("conflicts", []))
             if result["tool"] in {"create_folder", "copy_file", "move_file"}:
                 operations.append(result)
         return {
@@ -278,7 +281,7 @@ class TaskService:
             "status": "completed",
             "found_files": found,
             "version_groups": version_groups,
-            "conflicts": [],
+            "conflicts": conflicts,
             "missing_items": [],
             "operations": operations,
             "package_path": "",

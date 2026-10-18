@@ -35,6 +35,39 @@ def _planner(path: Path, *, compare: bool = False):
     return plan
 
 
+def _conflict_planner(path: Path, destination: Path | None = None):
+    def plan(task_id: str, goal: str, workspace: str) -> dict:
+        steps = [
+            {
+                "tool": "read_document",
+                "description": "Read notice",
+                "arguments": {"path": str(path)},
+            },
+            {
+                "tool": "detect_conflicts",
+                "description": "Detect conflicting notices",
+                "arguments": {},
+            },
+        ]
+        if destination is not None:
+            steps.append(
+                {
+                    "tool": "create_folder",
+                    "description": "Create package after approval",
+                    "arguments": {"path": str(destination)},
+                }
+            )
+        return validate_plan({"steps": steps}, task_id, goal)
+
+    return plan
+
+
+def _notice_resolver(step: dict, results: list[dict]) -> dict:
+    if step["tool"] == "detect_conflicts":
+        return {"documents": [results[0]["data"]["document"]]}
+    return step["arguments"]
+
+
 def test_default_router_reads_document_into_snapshot(tmp_path: Path) -> None:
     source = tmp_path / "notes.txt"
     source.write_text("Useful notes", encoding="utf-8")
@@ -370,6 +403,82 @@ def test_contradictory_read_snapshots_fail_before_file_operations(
     assert snapshot["error"] == failure["error"]
     assert snapshot["pending_operations"] == []
     assert snapshot["preview_id"] is None
+    assert not destination.exists()
+    with pytest.raises(TaskConflict, match="Report is not available"):
+        service.report(task["task_id"])
+
+
+def test_successful_conflicts_reach_snapshot_and_final_report(tmp_path: Path) -> None:
+    source = tmp_path / "notice.txt"
+    source.write_text("报名截止日期：2026年10月18日", encoding="utf-8")
+    conflicts = [
+        {
+            "field": "deadline",
+            "values": [{"value": "2026-10-18", "source": str(source)}],
+            "recommendation": "请人工确认",
+        }
+    ]
+
+    def detect_conflicts(documents: list[dict]) -> dict:
+        assert [document["path"] for document in documents] == [str(source.resolve())]
+        return {
+            "success": True,
+            "tool": "detect_conflicts",
+            "data": {"conflicts": conflicts},
+            "message": "Conflict detection completed",
+            "error": None,
+        }
+
+    service = TaskService(
+        planner=_conflict_planner(source),
+        router=ToolRouter({"detect_conflicts": detect_conflicts}),
+        resolver=_notice_resolver,
+    )
+    task = service.create("Check notice", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "completed"
+    assert snapshot["results"][-1]["data"]["conflicts"] == conflicts
+    assert service.report(task["task_id"])["conflicts"] == conflicts
+
+
+def test_failed_conflict_analysis_stops_before_package_and_report(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "notice.txt"
+    source.write_text("报名截止日期：2026年10月18日", encoding="utf-8")
+    destination = tmp_path / "package"
+
+    def detect_conflicts(documents: list[dict]) -> dict:
+        return {
+            "success": False,
+            "tool": "detect_conflicts",
+            "data": None,
+            "message": "Conflict detection failed",
+            "error": "Contradictory Document snapshot for file_id file_001",
+        }
+
+    service = TaskService(
+        planner=_conflict_planner(source, destination),
+        router=ToolRouter({"detect_conflicts": detect_conflicts}),
+        resolver=_notice_resolver,
+    )
+    task = service.create("Prepare package", str(tmp_path))
+
+    service.run(task["task_id"])
+
+    snapshot = service.snapshot(task["task_id"])
+    assert snapshot["task"]["status"] == "failed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "read_document",
+        "detect_conflicts",
+    ]
+    assert snapshot["results"][-1]["data"] is None
+    assert snapshot["error"] == snapshot["results"][-1]["error"]
+    assert snapshot["preview_id"] is None
+    assert snapshot["pending_operations"] == []
     assert not destination.exists()
     with pytest.raises(TaskConflict, match="Report is not available"):
         service.report(task["task_id"])
