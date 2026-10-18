@@ -367,6 +367,10 @@ owner relayed A's Snapshot retention, failure-stop/report-409 and successful
 missing mapping/no-stale-success-fallback confirmation, and B/C's item-by-item
 Phase 1 filename/output feedback. The proposed rules and provenance now appear in
 [API_CONTRACT.md](API_CONTRACT.md#match_requirements--phase-1-contract-draft).
+A subsequently confirmed the dotfile/stem boundaries, rightmost-only suffix
+removal, independent per-requirement candidate relations without allocation,
+scheduler-only read limits and “本次未找到文件名候选” display meaning. A confirmed
+whitespace-only requirement rejection, but not whitespace-only filename rejection.
 The whole draft still needs A's final review, including the explicitly new
 whitespace-only filename rejection proposal. No matching tool is implemented,
 exported or registered by this documentation change; the completion checkboxes

@@ -732,9 +732,14 @@ The fixed public tool list above is unchanged until final confirmation.
 - B/C's latest item-by-item feedback, relayed by the project owner, supplies the
   Phase 1 filename/output rules below. It supersedes the older prototype proposal:
   remove at most the rightmost version suffix, even from a repeated suffix.
+- A's subsequent item-by-item confirmation covers dotfile/stem boundaries,
+  rightmost-only suffix removal, retaining exact and suffix candidates, independent
+  per-requirement association, scheduler-only read limits and the missing display
+  meaning below. A also confirmed rejection of whitespace-only requirements.
 - **New proposal requiring explicit confirmation:** reject a filename containing
   only whitespace. This is an additional clarification, not attributed to the
-  original B/C confirmation. The examples are explanatory, not execution evidence.
+  original B/C confirmation, and A has not explicitly confirmed this filename
+  rule. The examples are explanatory, not execution evidence.
 - A must finally review the whole input/output/filename draft, the additional
   filename clarification and its Agent/report integration. Publishing this draft
   does not freeze it or certify implementation in A/B/C/D.
@@ -779,6 +784,9 @@ match_requirements(
    the entire filename is the stem and the extension is `""`.
    `.gitignore` and `.env` have no extension; `.config.json` has stem `.config`
    and extension `.json`; `材料.tar.gz` has stem `材料.tar`, extension `.gz`.
+   Reject a split whose stem consists only of dots: `..foo` would split to stem
+   `.` and extension `.foo`, so it is invalid. `.env` remains stem `.env` with
+   extension `""`; `.config.json` remains stem `.config`, extension `.json`.
 3. `Document.extension` must equal the derived extension ignoring **ASCII letter
    case only**; an extensionless name requires `""`. Mismatch fails the whole call,
    rather than silently repairing or ignoring the candidate. Do not restrict
@@ -788,7 +796,7 @@ match_requirements(
 5. Besides exact matching, remove at most the rightmost terminal suffix of the
    form `_vN`, `_vN.N` or `_vN.N.N`: lowercase ASCII `v`, ASCII digits `0-9`,
    leading zeros permitted, strict end-of-string, and a nonempty remaining stem.
-   Do not remove other suffixes or repeatedly strip. `申请表_v1_v2` can match
+   Do not remove other suffixes or repeatedly strip. `申请表_v1_v2.pdf` can match
    `申请表_v1`, but cannot be stripped twice to match `申请表`.
 6. Exact match first means only the decision order for **one candidate**. An exact
    hit must not suppress other candidates matching through a version suffix.
@@ -809,14 +817,18 @@ Every deduplicated requirement enters exactly one of matched or missing. Both
 arrays follow requirement order. Each matched.documents is nonempty and retains
 all matching candidates in original candidate order after shared deduplication.
 Zero candidates is expressed by missing; one/many by matched.documents length.
-One Document may be associated with more than one requirement under these rules;
-this does not mean any quantity or combined-proof requirement is fulfilled.
+Build each requirement's candidate relation independently; never allocate and
+remove candidates across requirements. For requirements `申请表_v1` and
+`申请表_v1_v2`, the same `申请表_v1_v2.pdf` appears in both candidate lists
+(suffix match and exact match respectively). This does not mean one file fulfills
+two submission requirements, any quantity requirement or a combined-proof rule.
 
 All Phase 1 matches are **not content-reviewed**, as a uniform capability limit;
 no `verified`, `unresolved`, `category` or `aliases` field is introduced. Filename
 association is not approval of contents, signatures, validity period, quantity or
 truthfulness. `missing` means only no filename-rule match in this candidate set,
-not absence from the Workspace or machine.
+not absence from the Workspace or machine. Its display meaning is
+**“本次未找到文件名候选”**, not content review or authenticity approval.
 
 Empty requirements succeed with three empty arrays, not a claim of completeness.
 Nonempty requirements with empty candidates succeed with every deduplicated
@@ -843,6 +855,8 @@ requirement in missing. `matched=[]` alone does not express execution state.
 No matching-specific resource quotas have been agreed. Do not inherit Version
 limits or promise arbitrary-scale processing. Future limits must be validated on
 original input before comparison/deduplication, not after duplicates are removed.
+A's candidate-reading limits are orchestration limits only; they are not this
+tool's resource quotas or capacity guarantees.
 
 Phase 2 alias matching, common-name normalization and semantic proof association
 remain required, unfinished work. Phase 1 is not generalized semantic matching.
