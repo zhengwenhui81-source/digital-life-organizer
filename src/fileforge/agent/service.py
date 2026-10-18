@@ -21,6 +21,9 @@ from fileforge.agent.executor import (
 )
 from fileforge.agent.planner import plan_task
 
+_READABLE_EXTENSIONS = frozenset({".txt", ".pdf", ".docx", ".xlsx"})
+_MAX_CANDIDATE_READS = 10
+
 
 class TaskConflict(Exception):
     """The task is not in the state required for this request."""
@@ -138,7 +141,7 @@ class TaskService:
     def _scoped_resolver(self, root: Path) -> Resolver:
         def resolve(
             step: dict[str, Any], results: list[dict[str, Any]]
-        ) -> dict[str, Any]:
+        ) -> dict[str, Any] | list[dict[str, Any]]:
             arguments = (
                 self._resolver(step, results)
                 if self._resolver is not None
@@ -146,36 +149,78 @@ class TaskService:
             )
             if not isinstance(arguments, dict):
                 raise ValueError("Resolver must return tool arguments")
+            collection_index = next(
+                (
+                    index
+                    for index in range(len(results) - 1, -1, -1)
+                    if results[index].get("tool") in {"list_files", "search_files"}
+                ),
+                None,
+            )
+            candidates = None
+            if collection_index is not None:
+                collection = results[collection_index]
+                if not collection.get("success"):
+                    raise ValueError("Candidate collection failed")
+                key = "files" if collection["tool"] == "list_files" else "matches"
+                data = collection.get("data")
+                if not isinstance(data, dict) or not isinstance(data.get(key), list):
+                    raise ValueError("Candidate collection returned invalid file data")
+                candidates = data[key]
+            if step["tool"] == "read_document" and not arguments:
+                if candidates is None:
+                    raise ValueError(
+                        "read_document path is unresolved; collect candidates first"
+                    )
+                paths = []
+                for candidate in candidates:
+                    if (
+                        not isinstance(candidate, dict)
+                        or not isinstance(candidate.get("path"), str)
+                        or not candidate["path"].strip()
+                    ):
+                        raise ValueError(
+                            "Candidate collection contains an invalid path"
+                        )
+                    path = candidate["path"]
+                    if Path(path).suffix.casefold() in _READABLE_EXTENSIONS:
+                        paths.append(path)
+                if len(paths) > _MAX_CANDIDATE_READS:
+                    raise ValueError(
+                        f"Document batch exceeds {_MAX_CANDIDATE_READS} candidates"
+                    )
+                calls = [{"path": path} for path in paths]
+                for call in calls:
+                    self._check_plan_paths({"steps": [{"arguments": call}]}, root)
+                return calls
+            if any(
+                result.get("tool") == "read_document" and not result.get("success")
+                for result in results
+            ):
+                raise ValueError("A document read failed; analysis cannot continue")
             if (
                 step["tool"] == "compare_versions"
                 and arguments.get("documents", []) == []
             ):
                 read_documents = [
                     result["data"]["document"]
-                    for result in results
+                    for result in results[
+                        collection_index + 1 if collection_index is not None else 0 :
+                    ]
                     if result.get("tool") == "read_document"
                     and result.get("success")
                     and isinstance(result.get("data"), dict)
                     and isinstance(result["data"].get("document"), dict)
                 ]
-                collection = next(
-                    (
-                        result
-                        for result in reversed(results)
-                        if result.get("success")
-                        and result.get("tool") in {"list_files", "search_files"}
-                    ),
-                    None,
-                )
-                collection_key = (
-                    "files"
-                    if collection and collection["tool"] == "list_files"
-                    else "matches"
-                )
                 if not read_documents and not (
-                    collection
-                    and isinstance(collection.get("data"), dict)
-                    and collection["data"].get(collection_key) == []
+                    candidates is not None
+                    and all(
+                        isinstance(candidate, dict)
+                        and isinstance(candidate.get("path"), str)
+                        and Path(candidate["path"]).suffix.casefold()
+                        not in _READABLE_EXTENSIONS
+                        for candidate in candidates
+                    )
                 ):
                     raise ValueError(
                         "compare_versions documents are unresolved; read candidates "

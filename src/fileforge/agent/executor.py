@@ -18,7 +18,10 @@ from fileforge.tools import (
 )
 
 Tool = Callable[..., dict[str, Any]]
-Resolver = Callable[[dict[str, Any], list[dict[str, Any]]], dict[str, Any]]
+Resolver = Callable[
+    [dict[str, Any], list[dict[str, Any]]],
+    dict[str, Any] | list[dict[str, Any]],
+]
 
 
 def _read_document(**arguments: Any) -> dict[str, Any]:
@@ -158,17 +161,28 @@ def execute(
             if step["step_id"] in approved_preview
             else resolver(step, state["results"]) if resolver else step["arguments"]
         )
-        if not isinstance(arguments, dict):
+        if isinstance(arguments, list):
+            if (
+                name != "read_document"
+                or step["risk"] != "low"
+                or not all(isinstance(item, dict) for item in arguments)
+            ):
+                raise ValueError("Only read_document can resolve to a document batch")
+            calls = arguments
+        elif isinstance(arguments, dict):
+            calls = [arguments]
+        else:
             raise ValueError("Resolver must return tool arguments")
         step["status"] = "running"
-        result = router.call(
-            name, arguments, approved=step["step_id"] in approved_preview
-        )
-        state["results"].append(result)
-        if not result["success"]:
-            step["status"] = "failed"
-            state["status"] = "failed"
-            return state
+        for call in calls:
+            result = router.call(
+                name, call, approved=step["step_id"] in approved_preview
+            )
+            state["results"].append(result)
+            if not result["success"]:
+                step["status"] = "failed"
+                state["status"] = "failed"
+                return state
         step["status"] = "completed"
     state["status"] = "completed"
     return state

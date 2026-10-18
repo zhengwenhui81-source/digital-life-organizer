@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-
 # The public names and risk levels are fixed by API_CONTRACT.md. This is an
 # internal validation map, not a second public contract.
 TOOL_RISKS = {
@@ -33,6 +32,10 @@ Use only these tool names: {tools}.
 Read and analysis steps should precede file changes. Include only steps that
 serve the goal. Do not invent filenames, file contents, or results. When an
 argument depends on a previous result, use an empty object or list placeholder.
+To analyze unknown workspace documents, collect candidates with list_files or
+search_files, then use read_document with empty arguments to read each supported
+candidate. A following compare_versions with empty arguments compares documents
+read after that collection. A failed read stops the task.
 Never plan deletion or overwrite. File-changing steps will require user approval.
 Workspace: {workspace}
 Goal: {goal}
@@ -158,9 +161,7 @@ def plan_task(
     )
     if not model.strip() or not base_url.strip():
         raise ValueError("Planner model and base URL must be nonempty")
-    prompt = _PROMPT.format(
-        tools=", ".join(TOOL_RISKS), workspace=root, goal=user_goal
-    )
+    prompt = _PROMPT.format(tools=", ".join(TOOL_RISKS), workspace=root, goal=user_goal)
     raw = (
         generate(prompt)
         if generate is not None
