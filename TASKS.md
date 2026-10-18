@@ -305,9 +305,22 @@ Current staged delivery decision:
 Phase 1 must not be described as satisfying the full generalized matching requirement. Phase 2 remains part of the planned product scope.
 
 ### Phase D4 — Package Builder
+
+Architecture confirmed; concrete Package schema proposed for A/B review in
+[API_CONTRACT.md](API_CONTRACT.md#plan_package--build_package--minimal-package-proposal).
+Use the team-required plan_id/selected_files/missing/unresolved/operations/report
+structure with a separate content digest, not parallel files/issues arrays.
+Separate read-only planning from approved actual execution; freeze full report
+bytes before approval and keep runtime outcomes in Snapshot/ToolResult. The
+proposed accept_incomplete increment, restricted report write and child-result
+correlation are not implemented. PR #27 is unmerged reference, not baseline
+capability. No Package completion/acceptance is claimed here; Phase 2 matching
+remains required. The fragment-cleanup policy is still a specific A/D decision.
+
 - [ ] Implement package selection/generation logic under `src/fileforge/package/**`
 - [ ] Use only resolved / selected files; do not silently convert multiple candidates or `newest_candidate=null` into a final choice
-- [ ] Decide with A/B whether an incomplete package may be generated when `missing` remains, and how that status appears in report/UI
+- [x] Architecture: allow incomplete packages only with explicit acceptance of the specific frozen missing/undecided risks in the same approval.
+- [ ] Finalize A/B schema, accept_incomplete request/409 behavior and report/UI implementation; architecture agreement is not integration acceptance.
 - [ ] Default to copy, not move
 - [ ] Never silently overwrite user files
 - [ ] Generate task-neutral `PACKAGE_REPORT.md`
