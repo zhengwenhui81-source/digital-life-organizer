@@ -38,8 +38,20 @@ def _compare_versions(**arguments: Any) -> dict[str, Any]:
     return compare_versions(**arguments)
 
 
+def _detect_conflicts(**arguments: Any) -> dict[str, Any]:
+    from fileforge.task_intelligence import detect_conflicts
+
+    return detect_conflicts(**arguments)
+
+
+def _extract_requirements(**arguments: Any) -> dict[str, Any]:
+    from fileforge.task_intelligence import extract_requirements
+
+    return extract_requirements(**arguments)
+
+
 class ToolRouter:
-    """Route only public tools; document tools may register when available."""
+    """Route public tools through their exported entry points."""
 
     def __init__(self, extra_tools: dict[str, Tool] | None = None) -> None:
         self._tools: dict[str, Tool] = {
@@ -47,6 +59,8 @@ class ToolRouter:
             "search_files": search_files,
             "read_document": _read_document,
             "compare_versions": _compare_versions,
+            "detect_conflicts": _detect_conflicts,
+            "extract_requirements": _extract_requirements,
             "find_duplicates": find_duplicates,
             "create_folder": create_folder,
             "copy_file": copy_file,
