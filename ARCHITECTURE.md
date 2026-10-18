@@ -157,8 +157,10 @@ outside scope. See [extraction scope](API_CONTRACT.md#read_document-extraction-s
 for complete limitations. No second parser framework or identity service is added.
 
 The [Version contract](API_CONTRACT.md#compare_versions) is now confirmed but
-implemented/exported in C with Linux local verification; Windows Version and
-Agent integration acceptance remain pending. It analyzes supplied Documents
+implemented/exported in C with Linux local verification and fixed-commit Windows
+unit/lifecycle and four-format C-tool pipeline evidence (see
+[validation scope](docs/version-windows-validation.md)); Agent integration
+acceptance remains pending. It analyzes supplied Documents
 from unknown Workspaces conservatively; no relationships is a normal success.
 Comparison output never selects an approved final file or triggers operations.
 Controlled version fixtures serve tests/regression/acceptance, not an assumption

@@ -583,3 +583,23 @@ def test_legal_string_key_order_preserves_full_snapshot_and_permutations():
 
 def test_non_json_tuple_cannot_silently_become_list():
     failure(compare_versions([document(metadata={"values": (1, 2)})]), "JSON")
+
+
+def test_success_worker_exits_and_closes_all_pipes(monkeypatch):
+    processes = []
+    original = subprocess.Popen
+
+    def tracked(*args, **kwargs):
+        process = original(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(api.subprocess, "Popen", tracked)
+    result = compare_versions(pair())
+    assert result["success"], result
+    assert result["data"]["groups"][0]["newest_candidate"]["file_id"] == "b"
+    assert len(processes) == 1
+    process = processes[0]
+    assert process.returncode == 0
+    assert process.poll() == 0
+    assert process.stdin.closed and process.stdout.closed and process.stderr.closed

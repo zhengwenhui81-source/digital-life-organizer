@@ -150,7 +150,8 @@ Optional later:
 - [x] Add version-analysis tests
 - [x] Handle no-version / no-reliable-version cases successfully without forced grouping or recommendation
 - [x] Confirm strict 100-character / 0.85 grouping, with the identical-text exception; low-similarity filename versions stay separate
-- [ ] Complete real Windows Version / process-termination acceptance
+- [x] Verify fixed-commit Windows Version unit / process-termination evidence (94 passed, 2 skipped)
+- [x] Verify fixed-commit Windows four-format C public-tool pipeline (16 passed, no failures/skips)
 - [ ] Complete cross-platform and end-to-end C2 acceptance; local implementation is not whole-phase completion
 
 ### Phase C3 — Version Contract
@@ -161,15 +162,15 @@ Optional later:
 - [x] Confirm 1 MiB compact JSON UTF-8 bound for complete `{"documents": [...]}` input; see formal contract
 - [x] Correct responsibility wording: current A API has no task-cancel endpoint
 - [x] Implement/export C public `compare_versions` with standard ToolResult
-- [ ] Validate Version worker/resource/termination behavior on real Windows
+- [x] Verify fixed-commit Version worker/resource/termination unit tests on real Windows (see evidence record)
 - [ ] Complete A registration and end-to-end integration with consumers
 - [ ] Complete whole C3 integration/acceptance; contract confirmation and local export alone do not close the phase
 
 Contract and local implementation milestones (not whole-phase acceptance): [Version v1](API_CONTRACT.md#compare_versions) and
 [shared Document collection rules](API_CONTRACT.md#shared-document-collection-rules)
 are confirmed. C implementation/export and Linux unit/resource/subprocess tests
-are locally verified; Windows Version and Agent integration acceptance remain
-uncompleted. Checked C2 items describe local scope, not complete cross-platform
+are locally verified; fixed-commit Windows Version and C-tool pipeline evidence
+is reconciled below. Agent integration acceptance remains uncompleted. Checked C2 items describe local scope, not complete cross-platform
 acceptance. Unknown Workspaces may have no versions; use task-neutral positive/negative fixtures
 only for tests and acceptance, with no fixed classroom v1/v2 dataset requirement.
 
@@ -187,9 +188,9 @@ case lacks `httpx` in this environment. These are freshly compared results, not
 an inherited historical count. The full repository checks are not all passing.
 Black/Ruff for C's changed Python files pass. Full-repository Black reports the
 same 12 existing files, and Ruff the same 7 diagnostics, as the clean dev snapshot.
-This round adds no dependencies. Real Windows Version validation has not run;
-the earlier Windows Parser evidence does not cover this new tool. D's shared-rule
-adaptation is still owned and pending on D's side.
+That initial Linux round added no dependencies and did not perform Windows
+Version validation; the earlier Windows Parser evidence does not cover this tool.
+D's shared-rule adaptation is still owned and pending on D's side.
 
 Review-fix evidence at `0a2e9f473fc2957331a871d4d184e44c3677cde4`:
 Linux / Python 3.12.14 Version tests **95 passed**; related regression
@@ -201,8 +202,47 @@ Linux / Python 3.12.14 Version tests **95 passed**; related regression
 environment. These newer results supplement, not replace, the historical initial
 implementation record above. Fix-file Black/Ruff and diff checks passed.
 Strict end-of-string suffix and lossless JSON input fixes are preserved.
-PR #13 still requires independent review of the updated HEAD; no merge/approval
-or Windows Version acceptance is claimed by this task-document integration.
+PR #13 subsequently received independent review and was merged into dev at
+`490e5f11d2f545d2e0679b5592d9c398126326e3`. The earlier review-pending wording
+is superseded; the PR merge alone does not establish Windows or end-to-end acceptance.
+
+Windows Version evidence reconciled (2026-10-18): the supplied archive verifies
+**93 passed, 2 skipped** at `490e5f11d2f545d2e0679b5592d9c398126326e3`, plus
+**1 passed, 0 skipped** for normal-exit/closed-pipes validation: **94 passed,
+2 skipped combined**. Windows 11 / Python 3.12.10 64-bit; both pytest exit codes
+are zero. The two skips are unsupported real newline filenames. Exact nodes,
+source/hash checks and the missing pre/post Git status limitation are recorded
+in [Windows Version validation record](docs/version-windows-validation.md).
+- [x] Add normal worker-success exit/pipes regression from the prepared supplement
+- [x] Reconcile supplied Windows commit/environment/logs/JUnit/supplement source and skip reasons
+- [x] Verify fixed-commit real four-format read_document -> compare_versions Windows pipeline (16 passed)
+
+Unit/lifecycle evidence alone does not close the joint chain; the separate
+16-case Windows supplement below covers that scoped C-tool gap. Agent/UI and
+end-to-end acceptance remain pending. No withdrawn screenshot is used.
+
+Local test-only integration on latest dev: Linux / Python 3.12.14 **96 Version
+passed**, combined Version/parser/extractor **165 passed, 4 skipped**
+(Windows-only). Added test Black/Ruff and document/diff checks passed.
+No full-suite or end-to-end rerun is claimed; no classification work is implemented.
+
+Joint-chain audit: separate Parser and Version success is not joint-chain proof.
+The supplied retry archive now verifies all **16 passed, 0 failed, 0 skipped**
+real TXT/PDF/DOCX/XLSX cases in `tests/test_document_version_pipeline.py` at
+`490e5f11d2f545d2e0679b5592d9c398126326e3`, on Windows 11 / Python 3.12.10 64-bit.
+Each format covers grouping/recommendation, non-grouping, identical-content and
+insufficient-version abstention, repeat-read IDs and source bytes/mtime unchanged.
+This is a separate run from Version **93 passed, 2 skipped** and lifecycle
+**1 passed**. Source AST matches the prepared repository test; before/after
+commits and Git status agree. The owner reports an initial collection failure
+from pasted PowerShell text, resolved by correcting the test file, without
+business changes; the first failed log is not included for independent verification.
+Current C implementation and original helper tests are unchanged from the evidence
+commit. Linux closeout regression: **181 passed, 4 skipped** (Windows path semantics);
+test Black/Ruff and diff checks passed. No full-suite rerun is claimed here.
+See the validation record for the exact matrix, minimal A joint-check steps and
+parsing-content/metadata scope for D/A. Classification contract/implementation,
+A/B Real Mode and end-to-end acceptance remain pending owner work.
 
 Developer C no longer owns conflict detection, requirement extraction, missing-item matching, or package generation; those are assigned to Developer D.
 
@@ -412,7 +452,8 @@ semantics and subprocess budgets. This section references obtained confirmations
 it does not redesign or override the contract. Local C implementation and Linux
 results are recorded in C2/C3 above.
 
-- [ ] Verify real Windows Version / subprocess termination.
+- [x] Verify fixed-commit real Windows Version unit / subprocess termination evidence.
+- [x] Verify fixed-commit Windows four-format read_document -> compare_versions C-tool pipeline (16 passed).
 - [ ] Complete A tool integration, failure propagation and result mapping acceptance.
 - [ ] Complete D shared-rule adaptation and tests.
 - [ ] Complete Real Mode end-to-end acceptance on unknown Workspaces.
@@ -559,7 +600,7 @@ This is an approved **product direction and task allocation**, NOT approval of a
 ### C — Document Parsing & Version Intelligence: new work
 
 - [ ] Document which currently supported document contents and metadata can safely inform `classify_files`; distinguish filename/extension evidence from extracted-content evidence. Do not add OCR or extra readers as prerequisites to this lightweight MVP.
-- [ ] Assist with public `Document[]` provenance/limits and tests for unsupported, empty-text, image/scanned, and other unreadable items; keep Version responsibilities and pending Windows acceptance unchanged.
+- [ ] Assist with public `Document[]` provenance/limits and tests for unsupported, empty-text, image/scanned, and other unreadable items; keep Version responsibilities and remaining integration/acceptance boundaries unchanged.
 
 ### D — Task Intelligence: new work
 
