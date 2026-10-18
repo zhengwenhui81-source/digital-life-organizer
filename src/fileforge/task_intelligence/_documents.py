@@ -1,5 +1,6 @@
 """Shared validation for contract-shaped task-intelligence input."""
 
+from math import isfinite
 from typing import Any
 
 _STRING_FIELDS = ("file_id", "path", "filename", "extension", "text", "modified_time")
@@ -24,19 +25,66 @@ def validate_documents(documents: object) -> str | None:
     return None
 
 
+def _json_children(value, path):
+    if type(value) is dict:
+        for key, item in value.items():
+            yield item, f"{path}.{key}"
+    else:
+        for index, item in enumerate(value):
+            yield item, f"{path}[{index}]"
+
+
+def _json_error(documents: object) -> str | None:
+    """Walk exact JSON types iteratively; track ancestors, not all visited nodes."""
+    active = set()
+    stack = [(iter(((documents, "documents"),)), None)]
+    while stack:
+        children, identity = stack[-1]
+        try:
+            value, path = next(children)
+        except StopIteration:
+            stack.pop()
+            if identity is not None:
+                active.remove(identity)
+            continue
+        kind = type(value)
+        if value is None or kind in (bool, str, int):
+            continue
+        if kind is float:
+            if not isfinite(value):
+                return f"{path}: non-finite number is not valid JSON"
+            continue
+        if kind not in (dict, list):
+            return f"{path}: non-JSON value type {kind.__name__}"
+        identity = id(value)
+        if identity in active:
+            return f"{path}: circular reference is not valid JSON"
+        if kind is dict:
+            if any(type(key) is not str for key in value):
+                return f"{path}: JSON object keys must be strings"
+        active.add(identity)
+        stack.append((iter(_json_children(value, path)), identity))
+    return None
+
+
 def _same_snapshot(left: Any, right: Any) -> bool:
-    """Compare every supplied field, preserving types and array order."""
-    if type(left) is not type(right):
-        return False
-    if isinstance(left, dict):
-        return left.keys() == right.keys() and all(
-            _same_snapshot(value, right[key]) for key, value in left.items()
-        )
-    if isinstance(left, list):
-        return len(left) == len(right) and all(
-            _same_snapshot(a, b) for a, b in zip(left, right, strict=True)
-        )
-    return left == right
+    """Compare validated JSON without recursion or custom equality dispatch."""
+    pending = [(left, right)]
+    while pending:
+        left, right = pending.pop()
+        if type(left) is not type(right):
+            return False
+        if type(left) is dict:
+            if left.keys() != right.keys():
+                return False
+            pending.extend((value, right[key]) for key, value in left.items())
+        elif type(left) is list:
+            if len(left) != len(right):
+                return False
+            pending.extend(zip(left, right, strict=True))
+        elif left != right:
+            return False
+    return True
 
 
 def prepare_documents(documents: object) -> tuple[list[dict[str, Any]], str | None]:
@@ -47,21 +95,20 @@ def prepare_documents(documents: object) -> tuple[list[dict[str, Any]], str | No
     compare_versions limits do not apply. References and nested data stay intact.
     No parser receives any Documents until this entire preparation succeeds.
     """
-    error = validate_documents(documents)
+    error = _json_error(documents)
+    if not error:
+        error = validate_documents(documents)
     if error:
         return [], error
     unique = {}
-    try:
-        for index, document in enumerate(documents):
-            identity = document["file_id"]
-            if identity in unique:
-                if not _same_snapshot(unique[identity], document):
-                    return [], (
-                        f"Contradictory Document snapshot for file_id {identity} "
-                        f"at documents[{index}]: supplied fields differ"
-                    )
-            else:
-                unique[identity] = document
-    except (RecursionError, TypeError, ValueError) as exc:
-        return [], f"Invalid Document snapshot comparison: {type(exc).__name__}"
+    for index, document in enumerate(documents):
+        identity = document["file_id"]
+        if identity in unique:
+            if not _same_snapshot(unique[identity], document):
+                return [], (
+                    f"Contradictory Document snapshot for file_id {identity} "
+                    f"at documents[{index}]: supplied fields differ"
+                )
+        else:
+            unique[identity] = document
     return list(unique.values()), None
