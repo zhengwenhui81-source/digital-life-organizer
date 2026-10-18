@@ -26,9 +26,77 @@ TOOL_RISKS = {
     "build_package": "medium",
 }
 
+# Internal call signatures for tools currently routed by the Agent. Empty
+# document arguments are resolved from successful reads before invocation.
+_TOOL_ARGUMENTS = {
+    "list_files": ({"workspace": str}, {"recursive": bool}),
+    "search_files": ({"workspace": str, "query": str}, {"extensions": list}),
+    "read_document": ({"path": str}, {}),
+    "find_duplicates": ({"workspace": str}, {}),
+    "compare_versions": ({"documents": list}, {}),
+    "detect_conflicts": ({"documents": list}, {}),
+    "extract_requirements": ({"documents": list}, {}),
+    "verify_result": ({"task_id": str, "expected": dict, "workspace": str}, {}),
+    "create_folder": ({"path": str}, {}),
+    "copy_file": ({"source": str, "destination": str}, {}),
+    "move_file": ({"source": str, "destination": str}, {}),
+}
+
+
+def validate_tool_arguments(
+    tool: str, arguments: dict[str, Any], *, planning: bool = False
+) -> None:
+    """Reject invented call fields before a Python tool receives them."""
+    if tool not in _TOOL_ARGUMENTS:
+        return  # Unregistered tools are rejected by ToolRouter.
+    required, optional = _TOOL_ARGUMENTS[tool]
+    unknown = set(arguments) - set(required) - set(optional)
+    if unknown:
+        raise ValueError(f"{tool} has unknown argument: {sorted(unknown)[0]}")
+    if (
+        planning
+        and not arguments
+        and tool
+        in {
+            "read_document",
+            "compare_versions",
+            "detect_conflicts",
+            "extract_requirements",
+            "create_folder",
+            "copy_file",
+            "move_file",
+        }
+    ):
+        return
+    missing = set(required) - set(arguments)
+    if missing:
+        raise ValueError(f"{tool} is missing argument: {sorted(missing)[0]}")
+    for key, value in arguments.items():
+        expected = (required | optional)[key]
+        if key == "extensions" and value is None:
+            continue
+        if type(value) is not expected:
+            raise ValueError(f"{tool}.{key} must be {expected.__name__}")
+        if key == "extensions" and not all(type(item) is str for item in value):
+            raise ValueError("search_files.extensions must contain strings")
+        if key == "documents" and not all(type(item) is dict for item in value):
+            raise ValueError(f"{tool}.documents must contain objects")
+
+
 _PROMPT = """Plan a local file task. Respond with JSON only, as an object with a
 "steps" array. Each step must contain "tool", "description", and "arguments".
 Use only these tool names: {tools}.
+Tool arguments: list_files(workspace: string, recursive?: boolean);
+search_files(workspace: string, query: string, extensions?: string[]);
+read_document(path: string) or empty object after collection;
+compare_versions(documents: object[]), detect_conflicts(documents: object[]),
+extract_requirements(documents: object[]) or empty object after reads;
+find_duplicates(workspace: string); verify_result(task_id: string,
+expected: object, workspace: string); create_folder(path: string);
+copy_file(source: string, destination: string);
+move_file(source: string, destination: string).
+Use workspace, never path, for list_files and search_files. Use exactly the
+listed argument names; do not invent extra fields.
 Read and analysis steps should precede file changes. Include only steps that
 serve the goal. Do not invent filenames, file contents, or results. When an
 argument depends on a previous result, use an empty object or list placeholder.
@@ -66,6 +134,7 @@ def validate_plan(payload: dict[str, Any], task_id: str, goal: str) -> dict[str,
             raise ValueError(f"Step {index} needs a description")
         if not isinstance(arguments, dict):
             raise ValueError(f"Step {index} arguments must be an object")
+        validate_tool_arguments(tool, arguments, planning=True)
         steps.append(
             {
                 "step_id": f"step_{index:03d}",
@@ -176,7 +245,9 @@ def plan_task(
     )
     if not model.strip() or not base_url.strip():
         raise ValueError("Planner model and base URL must be nonempty")
-    prompt = _PROMPT.format(tools=", ".join(TOOL_RISKS), workspace=root, goal=user_goal)
+    prompt = _PROMPT.format(
+        tools=", ".join(_TOOL_ARGUMENTS), workspace=root, goal=user_goal
+    )
     raw = (
         generate(prompt)
         if generate is not None
