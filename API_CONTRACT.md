@@ -132,8 +132,10 @@ its public interface is finalized. Tests must cover equal duplicates, reordered
 metadata keys, differences in every field, resource validation before dedup,
 and whole-call failure without partial output. This document does not certify
 that existing D implementations already enforce them. It does not freeze the
-remaining `match_requirements` input/output schema, add it to the public tool
-registry, or change conflict/requirement business algorithms. Mentioning future
+separately specified `match_requirements` input/output schema, register a runtime
+tool, or change conflict/requirement business algorithms. Its team-confirmed
+[Phase 1 contract](#match_requirements--phase-1-contract) has separate final HEAD
+review/merge and implementation requirements. Mentioning future
 `match_requirements` or `classify_files` here does not freeze their public entry
 points or output schemas. Confirmation of these rules does not certify that
 C/A/B or other consumers already implement them.
@@ -345,6 +347,8 @@ MVP public tools are fixed as follows.
 - `compare_versions`
 - `detect_conflicts`
 - `extract_requirements`
+- `match_requirements` — Phase 1 team-confirmed; final HEAD review/merge pending,
+  not implemented/exported/registered
 - `verify_result`
 
 ### File-changing tools
@@ -714,39 +718,36 @@ Output `data`:
 }
 ```
 
-The matching schema is proposed in the [Phase 1 contract draft](#match_requirements--phase-1-contract-draft)
-below; it remains subject to final confirmation before strict consumers rely on it.
+The matching schema is team-confirmed in the [Phase 1 contract](#match_requirements--phase-1-contract)
+below; final document HEAD independent review and merge are still required
+before treating it as frozen and implementing strict consumers.
 
-### match_requirements — Phase 1 contract draft
+### match_requirements — Phase 1 contract
 
-**契约变更草案，待本 PR 最终确认。** This section specifies proposed public
-behavior; it does not claim the tool is implemented, exported or registered.
-The fixed public tool list above is unchanged until final confirmation.
+**团队已确认，待最终 HEAD 独立复审及合入。** Formal freezing is completed
+through final document HEAD review and merge, not by team confirmation alone.
+This documentation does not implement, export, register or verify the tool.
+The public tool list records its contract status, not runtime availability.
 
 #### Confirmation provenance
 
-- A has confirmed complete ToolResult retention in TaskSnapshot.results,
-  failure termination/no subsequent file operations, report 409 before completion,
-  successful missing-to-FinalReport.missing_items mapping and no fallback to an
-  older successful result after a newer failure (relayed by the project owner).
-- B/C's latest item-by-item feedback, relayed by the project owner, supplies the
-  Phase 1 filename/output rules below. It supersedes the older prototype proposal:
-  remove at most the rightmost version suffix, even from a repeated suffix.
-- A's subsequent item-by-item confirmation covers dotfile/stem boundaries,
-  rightmost-only suffix removal, retaining exact and suffix candidates, independent
-  per-requirement association, scheduler-only read limits and the missing display
-  meaning below. A also confirmed rejection of whitespace-only requirements.
-- **New proposal requiring explicit confirmation:** reject a filename containing
-  only whitespace. This is an additional clarification, not attributed to the
-  original B/C confirmation, and A has not explicitly confirmed this filename
-  rule. The examples are explanatory, not execution evidence.
-- A must finally review the whole input/output/filename draft, the additional
-  filename clarification and its Agent/report integration. Publishing this draft
-  does not freeze it or certify implementation in A/B/C/D.
+- A/B/C/D confirmation applies to PR #19 HEAD
+  `b28d407a319380c173ec9ca0e11a8b3a0d3ec49c`. B/C/D confirmed the rules earlier;
+  A's final acceptance of the entire Phase 1 draft was relayed by the project owner.
+- A accepted the complete input/output and filename rules, Agent failure
+  propagation, TaskSnapshot.results retention and FinalReport.missing_items
+  semantics, including no fallback to an older success after a newer failure.
+- The previously additional whitespace-only filename rejection is now explicitly
+  accepted by A, as is whitespace-only requirement rejection.
+- No matching-specific quota in v1, no inherited Version limits and no
+  arbitrary-scale guarantee are confirmed boundaries, not open blockers.
+- Phase 2 remains required and unfinished. Final HEAD independent review/merge,
+  tool implementation/export/registration and integration acceptance remain
+  separate steps; none is certified complete by this confirmation record.
 
 #### Entry point and input
 
-Proposed public entry point (read-only, proposed risk `low`):
+Team-confirmed public entry point (read-only, risk `low`):
 
 ```python
 match_requirements(
@@ -777,8 +778,7 @@ match_requirements(
 #### Filename matching rules
 
 1. `filename` is a single name with neither `/` nor `\`. Reject empty names,
-   all-dot names and names ending with a dot. Reject whitespace-only names under
-   the explicitly marked new proposal above.
+   whitespace-only names, all-dot names and names ending with a dot.
 2. Split at the last dot only when both its prefix and suffix are nonempty.
    The stem is the prefix and the extension includes the dot. With no such split,
    the entire filename is the stem and the extension is `""`.
@@ -852,7 +852,7 @@ requirement in missing. `matched=[]` alone does not express execution state.
 
 #### Limits and deferred scope
 
-No matching-specific resource quotas have been agreed. Do not inherit Version
+The confirmed v1 boundary has no matching-specific resource quotas. Do not inherit Version
 limits or promise arbitrary-scale processing. Future limits must be validated on
 original input before comparison/deduplication, not after duplicates are removed.
 A's candidate-reading limits are orchestration limits only; they are not this
@@ -864,7 +864,7 @@ Package and classify_files contracts are outside this change.
 
 #### Complete JSON examples
 
-These illustrate the draft, not implemented tool output. IDs are illustrative.
+These illustrate the team-confirmed contract, not implemented tool output. IDs are illustrative.
 
 Request:
 
