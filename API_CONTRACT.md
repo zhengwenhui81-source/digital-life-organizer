@@ -132,8 +132,10 @@ its public interface is finalized. Tests must cover equal duplicates, reordered
 metadata keys, differences in every field, resource validation before dedup,
 and whole-call failure without partial output. This document does not certify
 that existing D implementations already enforce them. It does not freeze the
-remaining `match_requirements` input/output schema, add it to the public tool
-registry, or change conflict/requirement business algorithms. Mentioning future
+separately specified `match_requirements` input/output schema, register a runtime
+tool, or change conflict/requirement business algorithms. Its team-confirmed
+[Phase 1 contract](#match_requirements--phase-1-contract) has separate final HEAD
+review/merge and implementation requirements. Mentioning future
 `match_requirements` or `classify_files` here does not freeze their public entry
 points or output schemas. Confirmation of these rules does not certify that
 C/A/B or other consumers already implement them.
@@ -345,6 +347,8 @@ MVP public tools are fixed as follows.
 - `compare_versions`
 - `detect_conflicts`
 - `extract_requirements`
+- `match_requirements` — Phase 1 team-confirmed; final HEAD review/merge pending,
+  not implemented/exported/registered
 - `verify_result`
 
 ### File-changing tools
@@ -714,9 +718,258 @@ Output `data`:
 }
 ```
 
-The exact shared representation for matched/missing requirement items remains to
-be finalized with Developer D and the consuming A/B developers before the
-frontend relies on a stricter schema.
+The matching schema is team-confirmed in the [Phase 1 contract](#match_requirements--phase-1-contract)
+below; final document HEAD independent review and merge are still required
+before treating it as frozen and implementing strict consumers.
+
+### match_requirements — Phase 1 contract
+
+**团队已确认，待最终 HEAD 独立复审及合入。** Formal freezing is completed
+through final document HEAD review and merge, not by team confirmation alone.
+This documentation does not implement, export, register or verify the tool.
+The public tool list records its contract status, not runtime availability.
+
+#### Confirmation provenance
+
+- A/B/C/D confirmation applies to PR #19 HEAD
+  `b28d407a319380c173ec9ca0e11a8b3a0d3ec49c`. B/C/D confirmed the rules earlier;
+  A's final acceptance of the entire Phase 1 draft was relayed by the project owner.
+- A accepted the complete input/output and filename rules, Agent failure
+  propagation, TaskSnapshot.results retention and FinalReport.missing_items
+  semantics, including no fallback to an older success after a newer failure.
+- The previously additional whitespace-only filename rejection is now explicitly
+  accepted by A, as is whitespace-only requirement rejection.
+- No matching-specific quota in v1, no inherited Version limits and no
+  arbitrary-scale guarantee are confirmed boundaries, not open blockers.
+- Phase 2 remains required and unfinished. Final HEAD independent review/merge,
+  tool implementation/export/registration and integration acceptance remain
+  separate steps; none is certified complete by this confirmation record.
+
+#### Entry point and input
+
+Team-confirmed public entry point (read-only, risk `low`):
+
+```python
+match_requirements(
+    required_documents: list[str],
+    candidate_documents: list[Document],
+) -> ToolResult
+```
+
+- `required_documents` contains exact built-in strings, neither empty nor entirely
+  whitespace. Stably deduplicate by the original string, preserving its first
+  occurrence. Do not trim or rewrite output requirements.
+- `candidate_documents` contains complete Documents. Apply the confirmed
+  [shared collection rules](#shared-document-collection-rules), including strict
+  JSON legality, strict recursive types, all supplied fields, missing/null
+  distinction, contradictory-snapshot whole-call failure and stable deduplication.
+- Validate the complete original input and each tool-specific resource rule
+  before comparing snapshots or deduplicating. Even when requirements are empty,
+  fully validate supplied candidates; never hide invalid input behind an empty
+  success. No partial result is returned on failure.
+- Different IDs remain distinct, including identical names/text. Do not add a
+  one-to-one path/file_id constraint or regenerate identity. Returned references
+  copy the original `file_id`, `path` and `filename` values verbatim.
+- A supplies successfully read Documents from the task's authorized Workspace and
+  excludes notices from candidates. D's structural validation cannot authenticate
+  the source. Unresolved arguments or failed reads are not empty candidate sets.
+- No disk reads/writes, scanning, C private helper imports or version selection.
+
+#### Filename matching rules
+
+1. `filename` is a single name with neither `/` nor `\`. Reject empty names,
+   whitespace-only names, all-dot names and names ending with a dot.
+2. Split at the last dot only when both its prefix and suffix are nonempty.
+   The stem is the prefix and the extension includes the dot. With no such split,
+   the entire filename is the stem and the extension is `""`.
+   `.gitignore` and `.env` have no extension; `.config.json` has stem `.config`
+   and extension `.json`; `材料.tar.gz` has stem `材料.tar`, extension `.gz`.
+   Reject a split whose stem consists only of dots: `..foo` would split to stem
+   `.` and extension `.foo`, so it is invalid. `.env` remains stem `.env` with
+   extension `""`; `.config.json` remains stem `.config`, extension `.json`.
+3. `Document.extension` must equal the derived extension ignoring **ASCII letter
+   case only**; an extensionless name requires `""`. Mismatch fails the whole call,
+   rather than silently repairing or ignoring the candidate. Do not restrict
+   extensions to C's current supported parser formats.
+4. Compare the stem and requirement exactly: case-sensitive, no whitespace
+   trimming/collapsing and no Unicode normalization or full-width folding.
+5. Besides exact matching, remove at most the rightmost terminal suffix of the
+   form `_vN`, `_vN.N` or `_vN.N.N`: lowercase ASCII `v`, ASCII digits `0-9`,
+   leading zeros permitted, strict end-of-string, and a nonempty remaining stem.
+   Do not remove other suffixes or repeatedly strip. `申请表_v1_v2.pdf` can match
+   `申请表_v1`, but cannot be stripped twice to match `申请表`.
+6. Exact match first means only the decision order for **one candidate**. An exact
+   hit must not suppress other candidates matching through a version suffix.
+   `申请表.txt` and `申请表_v01.2.pdf` both remain candidates for `申请表`.
+   No arbitrary substring match: `学生证办理说明` does not match `学生证`.
+7. These rules establish filename relationships only. Do not infer a newest file,
+   redo C Version reasoning or silently turn `newest_candidate=null` into a choice.
+
+#### Success data and ordering invariants
+
+The success data has exactly these fields:
+
+- `required_documents: string[]`: stably deduplicated requirements.
+- `matched: [{requirement, documents: [{file_id, path, filename}]}]`.
+- `missing: string[]`.
+
+Every deduplicated requirement enters exactly one of matched or missing. Both
+arrays follow requirement order. Each matched.documents is nonempty and retains
+all matching candidates in original candidate order after shared deduplication.
+Zero candidates is expressed by missing; one/many by matched.documents length.
+Build each requirement's candidate relation independently; never allocate and
+remove candidates across requirements. For requirements `申请表_v1` and
+`申请表_v1_v2`, the same `申请表_v1_v2.pdf` appears in both candidate lists
+(suffix match and exact match respectively). This does not mean one file fulfills
+two submission requirements, any quantity requirement or a combined-proof rule.
+
+All Phase 1 matches are **not content-reviewed**, as a uniform capability limit;
+no `verified`, `unresolved`, `category` or `aliases` field is introduced. Filename
+association is not approval of contents, signatures, validity period, quantity or
+truthfulness. `missing` means only no filename-rule match in this candidate set,
+not absence from the Workspace or machine. Its display meaning is
+**“本次未找到文件名候选”**, not content review or authenticity approval.
+
+Empty requirements succeed with three empty arrays, not a claim of completeness.
+Nonempty requirements with empty candidates succeed with every deduplicated
+requirement in missing. `matched=[]` alone does not express execution state.
+
+#### Failure and A/B integration
+
+- Standard failure: `success=false`, `tool="match_requirements"`, `data=null`,
+  nonempty readable message/error. Invalid inputs and identity contradictions are
+  failures, not missing items; business matching must not run and no partial
+  matched/missing output is returned.
+- A retains the complete ToolResult in TaskSnapshot.results. Failure sets the task
+  to failed, preserves the error and stops subsequent file operations; a report
+  for an uncompleted task returns 409.
+- On successful matching only, map data.missing to FinalReport.missing_items.
+  A later failure must not fall back to an older successful matching result.
+- Not-run is expressed by execution state/result absence, never fabricated success
+  with empty arrays. Failed/not-run must not be described as no missing items.
+  Successful empty requirements mean no identified requirements, not all materials
+  ready. B must preserve this distinction without treating candidates as approved.
+
+#### Limits and deferred scope
+
+The confirmed v1 boundary has no matching-specific resource quotas. Do not inherit Version
+limits or promise arbitrary-scale processing. Future limits must be validated on
+original input before comparison/deduplication, not after duplicates are removed.
+A's candidate-reading limits are orchestration limits only; they are not this
+tool's resource quotas or capacity guarantees.
+
+Phase 2 alias matching, common-name normalization and semantic proof association
+remain required, unfinished work. Phase 1 is not generalized semantic matching.
+Package and classify_files contracts are outside this change.
+
+#### Complete JSON examples
+
+These illustrate the team-confirmed contract, not implemented tool output. IDs are illustrative.
+
+Request:
+
+```json
+{
+  "required_documents": ["申请表", "实践证明", "申请表"],
+  "candidate_documents": [
+    {
+      "file_id": "file_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path": "/work/申请表.txt",
+      "filename": "申请表.txt",
+      "extension": ".txt",
+      "text": "example",
+      "size": 7,
+      "modified_time": "2026-10-18T08:00:00+00:00",
+      "metadata": {}
+    },
+    {
+      "file_id": "file_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "path": "/work/申请表_v01.2.PDF",
+      "filename": "申请表_v01.2.PDF",
+      "extension": ".pdf",
+      "text": "example",
+      "size": 7,
+      "modified_time": "2026-10-18T09:00:00+00:00",
+      "metadata": {}
+    }
+  ]
+}
+```
+
+Success (retains both exact and suffix candidates):
+
+```json
+{
+  "success": true,
+  "tool": "match_requirements",
+  "data": {
+    "required_documents": ["申请表", "实践证明"],
+    "matched": [
+      {
+        "requirement": "申请表",
+        "documents": [
+          {"file_id": "file_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "path": "/work/申请表.txt", "filename": "申请表.txt"},
+          {"file_id": "file_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "path": "/work/申请表_v01.2.PDF", "filename": "申请表_v01.2.PDF"}
+        ]
+      }
+    ],
+    "missing": ["实践证明"]
+  },
+  "message": "Requirement candidate matching completed",
+  "error": null
+}
+```
+
+Empty requirements request and success:
+
+```json
+{"required_documents": [], "candidate_documents": []}
+```
+
+```json
+{
+  "success": true,
+  "tool": "match_requirements",
+  "data": {"required_documents": [], "matched": [], "missing": []},
+  "message": "Requirement candidate matching completed",
+  "error": null
+}
+```
+
+Empty candidates request and success:
+
+```json
+{"required_documents": ["申请表", "实践证明", "申请表"], "candidate_documents": []}
+```
+
+```json
+{
+  "success": true,
+  "tool": "match_requirements",
+  "data": {"required_documents": ["申请表", "实践证明"], "matched": [], "missing": ["申请表", "实践证明"]},
+  "message": "Requirement candidate matching completed",
+  "error": null
+}
+```
+
+Invalid request and failure (exact error wording is illustrative):
+
+```json
+{"required_documents": [null], "candidate_documents": []}
+```
+
+```json
+{
+  "success": false,
+  "tool": "match_requirements",
+  "data": null,
+  "message": "Requirement candidate matching failed",
+  "error": "required_documents[0] must be a nonempty string"
+}
+```
+
+A contradictory same-ID snapshot uses the same failure envelope with a readable
+error identifying its file_id and candidate input position, never partial data.
 
 ### create_folder
 Input:

@@ -400,10 +400,25 @@ Branch: `feature/frontend`
 - [x] B accepts Phase 1 filename-based candidate matching MVP + mandatory Phase 2 follow-up.
 - [x] C accepts the staged delivery.
 - [x] D accepts the staged delivery.
-- [ ] A confirms staged delivery / downstream failure propagation as needed for Agent integration.
-- [ ] After all confirmations, update `API_CONTRACT.md` **before** D implements the public matching tool.
+- [x] A confirms the complete Phase 1 contract at PR #19 HEAD `b28d407a319380c173ec9ca0e11a8b3a0d3ec49c`, including staged delivery and downstream failure propagation.
+- [ ] Independently review the final document HEAD and merge the team-confirmed `API_CONTRACT.md` contract before D implements the public matching tool.
 
 Phase 2 remains required: alias matching, common-name normalization, and semantic proof association are **not implemented by Phase 1** and must not be marked as complete.
+
+Matching contract confirmation (not implementation acceptance): the project owner
+relayed A's final acceptance of the entire PR #19 draft at
+`b28d407a319380c173ec9ca0e11a8b3a0d3ec49c`, following B/C/D confirmation.
+This includes the input/output and filename rules, Agent failure propagation,
+TaskSnapshot.results retention, successful FinalReport.missing_items mapping and
+no fallback to an older success after a newer failure. A explicitly accepted
+whitespace-only filename rejection; it is no longer an open proposal.
+The absence of matching-specific quotas in v1 is a confirmed boundary, not an
+open blocker: do not inherit Version limits or promise arbitrary-scale support.
+See the [Phase 1 contract](API_CONTRACT.md#match_requirements--phase-1-contract)
+for authoritative rules. Formal freezing still requires final document HEAD
+independent review and merge. Implementation, export, registration and integration
+acceptance remain unfinished; no corresponding completion box is checked here.
+Phase 2 remains required and unfinished.
 
 ### 5.3 Shared `Document[]` identity / duplicate / contradictory snapshot rule
 Confirmed shared rule for `compare_versions`, `match_requirements`, existing
