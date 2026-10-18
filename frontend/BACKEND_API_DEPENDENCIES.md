@@ -25,8 +25,12 @@ refresh with a stale-preview message and does not repeat approval or rejection.
 Other approval errors disable the old preview until the user refreshes status,
 because the backend may have accepted the operation before the connection failed.
 
-Real rendering tolerates absent optional data and shows unfrozen nested version
-data as escaped details. It does not interpret Mock candidate IDs, infer missing
+Real rendering now consumes the confirmed compare_versions v1 groups, candidate
+references, recommendation_reason, comparison order and line-change evidence.
+It distinguishes not-run, successful empty, failure and unavailable response
+structure. Null recommendations are successful abstention, never an error or a
+frontend choice. All supplied candidates and full source paths remain visible.
+It does not interpret Mock candidate IDs, infer missing
 materials, or invent file-operation paths. Mock-specific adaptation stays in the
 frontend mode branches; `agent-mock.js` remains unchanged. The optional third
 createTask argument selects the Mock scenario and is never sent to the real API.
@@ -100,14 +104,61 @@ For the MVP, the backend may store task state in process memory. Server restart 
 
 ## Remaining backend contract dependencies
 
-The following nested structures are intentionally not frozen yet and must not be guessed by the frontend:
+The Version v1 structure is now confirmed in API_CONTRACT.md and rendered by
+agent-results.js. Its recommendation never means an approved final selection.
+The following remaining structures must not be guessed by the frontend:
 
-- exact `compare_versions.data.groups[].newest_candidate` representation
-- exact `compare_versions.data.groups[].changes[]` representation
 - exact shared structure for matched and missing requirement items beyond `extract_requirements.data.required_documents`
 - exact `build_package` ToolResult data for actual output path and verification targets
 
-Developer A and Developer C should finalize these shared structures in `API_CONTRACT.md` before strict Real Mode rendering depends on them.
+Developer D and consuming A/B developers must finalize matching/package structures
+in API_CONTRACT.md before strict Real Mode rendering depends on them. No public
+matching or classification transport is introduced here. Generic tool execution
+records can show failures/success without interpreting unfrozen result data.
+
+## Matching and final-report semantics
+
+Requirement extraction alone does not confirm candidate matching. Successful empty
+requirements mean no explicit requirements were extracted; they do not establish
+completeness. Current Real Mode always identifies matching as not integrated and
+does not interpret an empty FinalReport.missing_items as "all materials present".
+Task completion alone does not prove every analysis tool executed. A failed or
+absent conflict result is explicitly marked unknown even when the report array
+is empty. A failed task clears any stale successful report and copy action.
+
+After matching is frozen, the UI must distinguish not-run, running, failed,
+successful no requirements, successful all unmatched, partially matched and all
+matched states. A successful match with N candidate documents must preserve all N;
+zero candidates can be labeled missing only after a successful agreed matching
+result. A candidate is not an approval and B must never rank/select versions.
+No new unresolved field or temporary matching schema is implemented.
+
+## Frontend checks
+
+Run the dependency-free Node checks from the repository root:
+
+```sh
+node --test frontend/tests/agent-results.test.cjs frontend/tests/agent-workspace.test.cjs
+```
+
+With the project Python dependencies installed, also run:
+
+```sh
+python -B frontend/tests/real-results-smoke.py
+```
+
+This uses real HTTP handlers, TaskService and public C/D results in temporary
+unknown course workspaces (0/1/2 documents) and passes them to the frontend
+renderer. A fixed test planner isolates model availability; D tools are called
+directly for this check, not silently registered into the Agent. This test is
+not proof of the unfinished LLM/Matching/Package classroom workflow.
+
+The tests cover result states, version abstention and recommendations, escaped
+evidence, arbitrary source paths, multiple candidates, real polling/approval and
+report errors, Mock regressions, and the request-free organization placeholder.
+Task-driven material preparation remains available alongside the explicitly
+unfinished organization entry. Classroom acceptance must use Real Mode with a
+runtime-selected unknown workspace, not a fixture or a successful Mock render.
 
 ## TEMPORARY MOCK SHAPE
 
