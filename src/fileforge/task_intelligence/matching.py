@@ -21,6 +21,33 @@ def _failure(error: str) -> dict[str, Any]:
     }
 
 
+def _filename_parts(filename: str) -> tuple[str, str]:
+    prefix, dot, suffix = filename.rpartition(".")
+    return (prefix, dot + suffix) if prefix and suffix else (filename, "")
+
+
+def _validate_candidates(documents: list[dict[str, Any]]) -> str | None:
+    """Check matching-specific fields using original input positions."""
+    for index, document in enumerate(documents):
+        filename = document["filename"]
+        if (
+            not filename.strip()
+            or "/" in filename
+            or "\\" in filename
+            or not filename.strip(".")
+            or filename.endswith(".")
+        ):
+            return f"candidate_documents[{index}].filename is invalid"
+        stem, extension = _filename_parts(filename)
+        if not stem.strip("."):
+            return f"candidate_documents[{index}].filename has all-dot stem"
+        if document["extension"].translate(_ASCII_LOWER) != extension.translate(
+            _ASCII_LOWER
+        ):
+            return f"candidate_documents[{index}].extension does not match filename"
+    return None
+
+
 def match_requirements(
     required_documents: list[str], candidate_documents: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -36,34 +63,15 @@ def match_requirements(
     for index, name in enumerate(required_documents):
         if type(name) is not str or not name.strip():
             return _failure(f"required_documents[{index}] must be a nonempty string")
-    documents, error = prepare_documents(candidate_documents)
+    documents, error = prepare_documents(
+        candidate_documents, validate_raw=_validate_candidates
+    )
     if error:
         return _failure(f"candidate_documents: {error}")
     candidates = []
-    for index, document in enumerate(documents):
-        filename = document["filename"]
-        if (
-            not filename.strip()
-            or "/" in filename
-            or "\\" in filename
-            or not filename.strip(".")
-            or filename.endswith(".")
-        ):
-            return _failure(f"candidate_documents[{index}].filename is invalid")
-        prefix, dot, suffix = filename.rpartition(".")
-        stem, extension = (
-            (prefix, dot + suffix) if prefix and suffix else (filename, "")
-        )
-        if not stem.strip("."):
-            return _failure(f"candidate_documents[{index}].filename has all-dot stem")
-        if document["extension"].translate(_ASCII_LOWER) != extension.translate(
-            _ASCII_LOWER
-        ):
-            return _failure(
-                f"candidate_documents[{index}].extension does not match filename"
-            )
-        base = _VERSION_SUFFIX.sub("", stem)
-        candidates.append((stem, base, document))
+    for document in documents:
+        stem, _ = _filename_parts(document["filename"])
+        candidates.append((stem, _VERSION_SUFFIX.sub("", stem), document))
     names = list(dict.fromkeys(required_documents))
     matched, missing = [], []
     for name in names:

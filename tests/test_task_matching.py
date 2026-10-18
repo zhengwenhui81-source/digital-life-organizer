@@ -189,10 +189,17 @@ def test_same_id_complete_snapshot_contradiction(field):
         return
     if field == "size":
         second[field] += 1
+    elif field == "filename":
+        second[field] = "另一个表.txt"
+    elif field == "extension":
+        second[field] = ".TXT"
     elif field in ("metadata", "extra"):
         second[field] = {"different": None}
     else:
         second[field] += "different"
+    # Both snapshots are individually valid, including matching-specific fields.
+    assert match_requirements(["表"], [first])["success"] is True
+    assert match_requirements(["表"], [second])["success"] is True
     result = match_requirements(["表"], [first, second])
     assert_failure(result)
     assert first["file_id"] in result["error"]
@@ -292,3 +299,78 @@ def test_metaclass_and_requirement_subclass_rejected_without_comparison():
     doc["metadata"] = {"custom": value}
     assert_failure(match_requirements([], [doc]))
     assert calls == []
+
+
+@pytest.mark.parametrize("requirements", [[], ["表"]])
+@pytest.mark.parametrize(
+    "contradictory", [False, True], ids=["duplicate", "contradiction"]
+)
+def test_raw_matching_error_precedes_snapshot_comparison(requirements, contradictory):
+    from fileforge.task_intelligence import _documents
+
+    first = candidate("表.txt", ".txt", "a")
+    second = deepcopy(first)
+    if contradictory:
+        second["text"] = "不同快照"
+    invalid = candidate("其他.pdf", ".docx", "c")
+    docs = [first, second, invalid]
+    before = deepcopy(docs)
+    with patch.object(
+        _documents, "_same_snapshot", wraps=_documents._same_snapshot
+    ) as compare:
+        result = match_requirements(requirements, docs)
+    assert_failure(result)
+    assert "candidate_documents[2].extension" in result["error"]
+    compare.assert_not_called()
+    assert docs == before
+
+
+def test_all_raw_candidates_validated_before_comparison_and_stable_dedup():
+    from fileforge.task_intelligence import _documents, matching
+
+    first = candidate("表_v2.txt", ".txt", "a")
+    last = candidate("表.txt", ".txt", "b")
+    docs = [first, deepcopy(first), last]
+    before = deepcopy(docs)
+    events = []
+    original_validate = matching._validate_candidates
+    original_compare = _documents._same_snapshot
+
+    def validate(raw):
+        assert raw is docs
+        assert len(raw) == 3
+        error = original_validate(raw)
+        assert error is None
+        events.append("validated-all-raw")
+        return error
+
+    def compare(left, right):
+        assert events == ["validated-all-raw"]
+        events.append("compare")
+        return original_compare(left, right)
+
+    with patch.object(matching, "_validate_candidates", side_effect=validate):
+        with patch.object(_documents, "_same_snapshot", side_effect=compare):
+            result = match_requirements(["表"], docs)
+    assert events == ["validated-all-raw", "compare"]
+    assert result == expected(
+        ["表"], [{"requirement": "表", "documents": [ref(first), ref(last)]}], []
+    )
+    assert docs == before
+
+
+@pytest.mark.parametrize("invalid_kind", ["json", "structure"])
+def test_raw_shared_checks_precede_matching_specific_validation(invalid_kind):
+    from fileforge.task_intelligence import _documents, matching
+
+    doc = candidate("表.pdf", ".docx")
+    if invalid_kind == "json":
+        doc["metadata"] = {"invalid": float("inf")}
+    else:
+        doc["size"] = -1
+    with patch.object(matching, "_validate_candidates") as specific:
+        with patch.object(_documents, "_same_snapshot") as compare:
+            result = match_requirements(["表"], [doc])
+    assert_failure(result)
+    specific.assert_not_called()
+    compare.assert_not_called()
