@@ -714,9 +714,248 @@ Output `data`:
 }
 ```
 
-The exact shared representation for matched/missing requirement items remains to
-be finalized with Developer D and the consuming A/B developers before the
-frontend relies on a stricter schema.
+The matching schema is proposed in the [Phase 1 contract draft](#match_requirements--phase-1-contract-draft)
+below; it remains subject to final confirmation before strict consumers rely on it.
+
+### match_requirements — Phase 1 contract draft
+
+**契约变更草案，待本 PR 最终确认。** This section specifies proposed public
+behavior; it does not claim the tool is implemented, exported or registered.
+The fixed public tool list above is unchanged until final confirmation.
+
+#### Confirmation provenance
+
+- A has confirmed complete ToolResult retention in TaskSnapshot.results,
+  failure termination/no subsequent file operations, report 409 before completion,
+  successful missing-to-FinalReport.missing_items mapping and no fallback to an
+  older successful result after a newer failure (relayed by the project owner).
+- B/C's latest item-by-item feedback, relayed by the project owner, supplies the
+  Phase 1 filename/output rules below. It supersedes the older prototype proposal:
+  remove at most the rightmost version suffix, even from a repeated suffix.
+- **New proposal requiring explicit confirmation:** reject a filename containing
+  only whitespace. This is an additional clarification, not attributed to the
+  original B/C confirmation. The examples are explanatory, not execution evidence.
+- A must finally review the whole input/output/filename draft, the additional
+  filename clarification and its Agent/report integration. Publishing this draft
+  does not freeze it or certify implementation in A/B/C/D.
+
+#### Entry point and input
+
+Proposed public entry point (read-only, proposed risk `low`):
+
+```python
+match_requirements(
+    required_documents: list[str],
+    candidate_documents: list[Document],
+) -> ToolResult
+```
+
+- `required_documents` contains exact built-in strings, neither empty nor entirely
+  whitespace. Stably deduplicate by the original string, preserving its first
+  occurrence. Do not trim or rewrite output requirements.
+- `candidate_documents` contains complete Documents. Apply the confirmed
+  [shared collection rules](#shared-document-collection-rules), including strict
+  JSON legality, strict recursive types, all supplied fields, missing/null
+  distinction, contradictory-snapshot whole-call failure and stable deduplication.
+- Validate the complete original input and each tool-specific resource rule
+  before comparing snapshots or deduplicating. Even when requirements are empty,
+  fully validate supplied candidates; never hide invalid input behind an empty
+  success. No partial result is returned on failure.
+- Different IDs remain distinct, including identical names/text. Do not add a
+  one-to-one path/file_id constraint or regenerate identity. Returned references
+  copy the original `file_id`, `path` and `filename` values verbatim.
+- A supplies successfully read Documents from the task's authorized Workspace and
+  excludes notices from candidates. D's structural validation cannot authenticate
+  the source. Unresolved arguments or failed reads are not empty candidate sets.
+- No disk reads/writes, scanning, C private helper imports or version selection.
+
+#### Filename matching rules
+
+1. `filename` is a single name with neither `/` nor `\`. Reject empty names,
+   all-dot names and names ending with a dot. Reject whitespace-only names under
+   the explicitly marked new proposal above.
+2. Split at the last dot only when both its prefix and suffix are nonempty.
+   The stem is the prefix and the extension includes the dot. With no such split,
+   the entire filename is the stem and the extension is `""`.
+   `.gitignore` and `.env` have no extension; `.config.json` has stem `.config`
+   and extension `.json`; `材料.tar.gz` has stem `材料.tar`, extension `.gz`.
+3. `Document.extension` must equal the derived extension ignoring **ASCII letter
+   case only**; an extensionless name requires `""`. Mismatch fails the whole call,
+   rather than silently repairing or ignoring the candidate. Do not restrict
+   extensions to C's current supported parser formats.
+4. Compare the stem and requirement exactly: case-sensitive, no whitespace
+   trimming/collapsing and no Unicode normalization or full-width folding.
+5. Besides exact matching, remove at most the rightmost terminal suffix of the
+   form `_vN`, `_vN.N` or `_vN.N.N`: lowercase ASCII `v`, ASCII digits `0-9`,
+   leading zeros permitted, strict end-of-string, and a nonempty remaining stem.
+   Do not remove other suffixes or repeatedly strip. `申请表_v1_v2` can match
+   `申请表_v1`, but cannot be stripped twice to match `申请表`.
+6. Exact match first means only the decision order for **one candidate**. An exact
+   hit must not suppress other candidates matching through a version suffix.
+   `申请表.txt` and `申请表_v01.2.pdf` both remain candidates for `申请表`.
+   No arbitrary substring match: `学生证办理说明` does not match `学生证`.
+7. These rules establish filename relationships only. Do not infer a newest file,
+   redo C Version reasoning or silently turn `newest_candidate=null` into a choice.
+
+#### Success data and ordering invariants
+
+The success data has exactly these fields:
+
+- `required_documents: string[]`: stably deduplicated requirements.
+- `matched: [{requirement, documents: [{file_id, path, filename}]}]`.
+- `missing: string[]`.
+
+Every deduplicated requirement enters exactly one of matched or missing. Both
+arrays follow requirement order. Each matched.documents is nonempty and retains
+all matching candidates in original candidate order after shared deduplication.
+Zero candidates is expressed by missing; one/many by matched.documents length.
+One Document may be associated with more than one requirement under these rules;
+this does not mean any quantity or combined-proof requirement is fulfilled.
+
+All Phase 1 matches are **not content-reviewed**, as a uniform capability limit;
+no `verified`, `unresolved`, `category` or `aliases` field is introduced. Filename
+association is not approval of contents, signatures, validity period, quantity or
+truthfulness. `missing` means only no filename-rule match in this candidate set,
+not absence from the Workspace or machine.
+
+Empty requirements succeed with three empty arrays, not a claim of completeness.
+Nonempty requirements with empty candidates succeed with every deduplicated
+requirement in missing. `matched=[]` alone does not express execution state.
+
+#### Failure and A/B integration
+
+- Standard failure: `success=false`, `tool="match_requirements"`, `data=null`,
+  nonempty readable message/error. Invalid inputs and identity contradictions are
+  failures, not missing items; business matching must not run and no partial
+  matched/missing output is returned.
+- A retains the complete ToolResult in TaskSnapshot.results. Failure sets the task
+  to failed, preserves the error and stops subsequent file operations; a report
+  for an uncompleted task returns 409.
+- On successful matching only, map data.missing to FinalReport.missing_items.
+  A later failure must not fall back to an older successful matching result.
+- Not-run is expressed by execution state/result absence, never fabricated success
+  with empty arrays. Failed/not-run must not be described as no missing items.
+  Successful empty requirements mean no identified requirements, not all materials
+  ready. B must preserve this distinction without treating candidates as approved.
+
+#### Limits and deferred scope
+
+No matching-specific resource quotas have been agreed. Do not inherit Version
+limits or promise arbitrary-scale processing. Future limits must be validated on
+original input before comparison/deduplication, not after duplicates are removed.
+
+Phase 2 alias matching, common-name normalization and semantic proof association
+remain required, unfinished work. Phase 1 is not generalized semantic matching.
+Package and classify_files contracts are outside this change.
+
+#### Complete JSON examples
+
+These illustrate the draft, not implemented tool output. IDs are illustrative.
+
+Request:
+
+```json
+{
+  "required_documents": ["申请表", "实践证明", "申请表"],
+  "candidate_documents": [
+    {
+      "file_id": "file_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path": "/work/申请表.txt",
+      "filename": "申请表.txt",
+      "extension": ".txt",
+      "text": "example",
+      "size": 7,
+      "modified_time": "2026-10-18T08:00:00+00:00",
+      "metadata": {}
+    },
+    {
+      "file_id": "file_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "path": "/work/申请表_v01.2.PDF",
+      "filename": "申请表_v01.2.PDF",
+      "extension": ".pdf",
+      "text": "example",
+      "size": 7,
+      "modified_time": "2026-10-18T09:00:00+00:00",
+      "metadata": {}
+    }
+  ]
+}
+```
+
+Success (retains both exact and suffix candidates):
+
+```json
+{
+  "success": true,
+  "tool": "match_requirements",
+  "data": {
+    "required_documents": ["申请表", "实践证明"],
+    "matched": [
+      {
+        "requirement": "申请表",
+        "documents": [
+          {"file_id": "file_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "path": "/work/申请表.txt", "filename": "申请表.txt"},
+          {"file_id": "file_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "path": "/work/申请表_v01.2.PDF", "filename": "申请表_v01.2.PDF"}
+        ]
+      }
+    ],
+    "missing": ["实践证明"]
+  },
+  "message": "Requirement candidate matching completed",
+  "error": null
+}
+```
+
+Empty requirements request and success:
+
+```json
+{"required_documents": [], "candidate_documents": []}
+```
+
+```json
+{
+  "success": true,
+  "tool": "match_requirements",
+  "data": {"required_documents": [], "matched": [], "missing": []},
+  "message": "Requirement candidate matching completed",
+  "error": null
+}
+```
+
+Empty candidates request and success:
+
+```json
+{"required_documents": ["申请表", "实践证明", "申请表"], "candidate_documents": []}
+```
+
+```json
+{
+  "success": true,
+  "tool": "match_requirements",
+  "data": {"required_documents": ["申请表", "实践证明"], "matched": [], "missing": ["申请表", "实践证明"]},
+  "message": "Requirement candidate matching completed",
+  "error": null
+}
+```
+
+Invalid request and failure (exact error wording is illustrative):
+
+```json
+{"required_documents": [null], "candidate_documents": []}
+```
+
+```json
+{
+  "success": false,
+  "tool": "match_requirements",
+  "data": null,
+  "message": "Requirement candidate matching failed",
+  "error": "required_documents[0] must be a nonempty string"
+}
+```
+
+A contradictory same-ID snapshot uses the same failure envelope with a readable
+error identifying its file_id and candidate input position, never partial data.
 
 ### create_folder
 Input:

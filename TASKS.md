@@ -362,6 +362,16 @@ Branch: `feature/frontend`
 
 Phase 2 remains required: alias matching, common-name normalization, and semantic proof association are **not implemented by Phase 1** and must not be marked as complete.
 
+Matching contract discussion update (not implementation acceptance): the project
+owner relayed A's Snapshot retention, failure-stop/report-409 and successful
+missing mapping/no-stale-success-fallback confirmation, and B/C's item-by-item
+Phase 1 filename/output feedback. The proposed rules and provenance now appear in
+[API_CONTRACT.md](API_CONTRACT.md#match_requirements--phase-1-contract-draft).
+The whole draft still needs A's final review, including the explicitly new
+whitespace-only filename rejection proposal. No matching tool is implemented,
+exported or registered by this documentation change; the completion checkboxes
+above remain unchecked pending final confirmation and later implementation.
+
 ### 5.3 Shared `Document[]` identity / duplicate / contradictory snapshot rule
 Confirmed shared rule for `compare_versions`, `match_requirements`, existing
 `detect_conflicts` / `extract_requirements`, and future public Document[] consumers.
