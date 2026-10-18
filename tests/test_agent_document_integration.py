@@ -197,7 +197,7 @@ def test_runtime_read_failure_stops_before_analysis_or_file_change(
         service.report(task["task_id"])
 
 
-def test_runtime_empty_collection_is_distinct_from_failed_read(tmp_path: Path) -> None:
+def test_runtime_empty_collection_does_not_complete_unrun_read(tmp_path: Path) -> None:
     service = TaskService(
         planner=_dynamic_plan("list_files", "read_document", "compare_versions")
     )
@@ -206,12 +206,13 @@ def test_runtime_empty_collection_is_distinct_from_failed_read(tmp_path: Path) -
     service.run(task["task_id"])
 
     snapshot = service.snapshot(task["task_id"])
-    assert snapshot["task"]["status"] == "completed"
-    assert [result["tool"] for result in snapshot["results"]] == [
-        "list_files",
-        "compare_versions",
-    ]
-    assert snapshot["results"][-1]["data"] == {"groups": []}
+    assert snapshot["task"]["status"] == "failed"
+    assert [result["tool"] for result in snapshot["results"]] == ["list_files"]
+    assert snapshot["plan"]["steps"][1]["status"] == "failed"
+    assert snapshot["plan"]["steps"][2]["status"] == "pending"
+    assert "No matching document found" in snapshot["error"]
+    with pytest.raises(TaskConflict, match="Report is not available"):
+        service.report(task["task_id"])
 
 
 def test_runtime_comparison_uses_only_latest_search_candidates(tmp_path: Path) -> None:
