@@ -13,8 +13,9 @@ function harness(mode='real') {
     };
     const c={window:{},console,AbortController,document:{getElementById:el,querySelectorAll:()=>[],createElement:()=>el('toast')},navigator:{clipboard:{writeText:async()=>{}}},setTimeout:(fn,ms)=>{timers.set(++timerId,{fn,ms});return timerId;},clearTimeout:id=>timers.delete(id),setInterval(){throw Error('Unexpected interval');},clearInterval(){},fetch:async(url,options)=>{if(!url.startsWith('/api/agent/'))return {ok:false};calls.push({url,options});return c.respond(url,options);}};
     vm.createContext(c);
-    for(const file of ['agent-api.js','agent-mock.js','agent-results.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
+    for(const file of ['agent-api.js','agent-mock.js','agent-results.js','organization-preview.js','organization-demo.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
     c.AgentAPI=c.window.AgentAPI;c.AgentMock=c.window.AgentMock;c.AgentResults=c.window.AgentResults;
+    c.OrganizationPreview=c.window.OrganizationPreview;c.OrganizationDemo=c.window.OrganizationDemo;
     vm.runInContext(fs.readFileSync(path.join(base,'index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],c);
     vm.runInContext('window.state=agentState',c);
     el('agentMode').value=mode;el('agentScenario').value='happy';el('agentWorkspacePath').value='E:/unknown-workspace';el('agentGoal').value='准备课程材料';
@@ -72,7 +73,14 @@ test('Mock happy, reject and failure flows stay separate and functional',async()
         assert.equal(h.calls.length,0);
     }
 });
-test('classification placeholder sends no requests and leaves material workflow available',()=>{
+test('every organization preview sends no requests and material Mock happy path still completes',async()=>{
     const h=harness();h.c.switchAgentWorkflow('organization');assert.equal(h.el('organizationWorkspace').hidden,false);assert.equal(h.el('materialWorkspace').hidden,true);
+    for(const scenario of ['mixed','single','empty','unknown','collision','incomplete']){
+        h.el('organizationScenario').value=scenario;h.c.showOrganizationPreview();assert.ok(h.el('organizationPreview').innerHTML.length>0);
+    }
+    h.c.showOrganizationPreview(true);assert.match(h.el('organizationPreview').innerHTML,/尚未开始/);
     h.c.switchAgentWorkflow('materials');assert.equal(h.el('materialWorkspace').hidden,false);assert.equal(h.calls.length,0);
+    h.el('agentMode').value='mock';await h.c.runAgent();for(let i=0;i<5;i++)await h.c.pollAgent();
+    assert.equal(h.state.task.status,'awaiting_approval');await h.c.decideAgent(true);for(let i=0;i<3;i++)await h.c.pollAgent();
+    assert.equal(h.state.task.status,'completed');assert.equal(h.calls.length,0);
 });
