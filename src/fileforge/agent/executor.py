@@ -21,6 +21,20 @@ Tool = Callable[..., dict[str, Any]]
 Resolver = Callable[[dict[str, Any], list[dict[str, Any]]], dict[str, Any]]
 
 
+def _read_document(**arguments: Any) -> dict[str, Any]:
+    # Load the parser only when this tool runs; other Agent tools stay usable
+    # in environments where optional document formats are unavailable.
+    from fileforge.document import read_document
+
+    return read_document(**arguments)
+
+
+def _compare_versions(**arguments: Any) -> dict[str, Any]:
+    from fileforge.document import compare_versions
+
+    return compare_versions(**arguments)
+
+
 class ToolRouter:
     """Route only public tools; document tools may register when available."""
 
@@ -28,6 +42,8 @@ class ToolRouter:
         self._tools: dict[str, Tool] = {
             "list_files": list_files,
             "search_files": search_files,
+            "read_document": _read_document,
+            "compare_versions": _compare_versions,
             "find_duplicates": find_duplicates,
             "create_folder": create_folder,
             "copy_file": copy_file,
@@ -55,8 +71,8 @@ class ToolRouter:
                 kwargs["approved"] = True
         try:
             result = self._tools[name](**kwargs)
-        except (OSError, TypeError, ValueError) as exc:
-            return _failure(name, str(exc))
+        except Exception as exc:
+            return _failure(name, str(exc) or type(exc).__name__)
         if (
             not isinstance(result, dict)
             or result.get("tool") != name
@@ -101,9 +117,11 @@ def execute(
         return state
     if state["status"] == "awaiting_approval" and not approve_all:
         return state
-    approved_preview = {
-        item["step_id"]: item for item in state["pending_operations"]
-    } if approve_all else {}
+    approved_preview = (
+        {item["step_id"]: item for item in state["pending_operations"]}
+        if approve_all
+        else {}
+    )
     state["status"] = "executing"
     state["pending_operations"] = []
     steps = state["plan"]["steps"]
@@ -122,7 +140,8 @@ def execute(
                     break
                 arguments = (
                     resolver(candidate, state["results"])
-                    if resolver else candidate["arguments"]
+                    if resolver
+                    else candidate["arguments"]
                 )
                 if not isinstance(arguments, dict):
                     raise ValueError("Resolver must return tool arguments")
