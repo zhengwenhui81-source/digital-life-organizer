@@ -111,7 +111,7 @@ MVP priority:
 - [x] TXT full-text `read_document(path)` with standard `Document` / `ToolResult`
 - [x] TXT path-based IDs, encoding/error handling, and source-preservation tests
 - [x] PDF text-layer reading across pages (no OCR)
-- [x] DOCX body-paragraph reading (not tables or all Office content)
+- [x] DOCX body paragraphs and table grids in original order, with merged origins/references and nested cell boundaries (not all Office content; see [DOCX increment](docs/docx-table-extraction.md))
 - [x] XLSX cell-value reading across named worksheets (cached formulas only)
 - [x] Inspect and reuse the existing PDF/DOCX/XLSX extractors
 - [x] Normalize supported extraction results to the existing `Document`
@@ -130,8 +130,9 @@ See [Windows parser validation record](docs/parser-windows-validation.md) for
 coverage, evidence provenance and version applicability. This closes the declared
 Windows multi-format check, not blanket C1 or Agent integration acceptance.
 Supported content remains limited by
-[extraction scope](API_CONTRACT.md#read_document-extraction-scope): no OCR, DOCX
-tables or formula calculation. All formats retain the existing
+[extraction scope](API_CONTRACT.md#read_document-extraction-scope): no OCR, Office
+headers/footers/images or formula calculation. DOCX table extraction is a new
+Linux-tested increment; old Windows evidence does not validate it. All formats retain the existing
 [path ID rule](API_CONTRACT.md#path-based-document-identity).
 
 Windows TXT evidence was reported by the team lead in the 2026-10-15 collaboration
