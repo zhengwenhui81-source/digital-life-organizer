@@ -16,12 +16,27 @@ XLSM is unsupported. See the authoritative
 [extraction scope](API_CONTRACT.md#read_document-extraction-scope) for limitations
 and error behavior. The reader does not modify source files.
 
-The team lead reported Windows verification of the TXT stage; this multi-format
-stage has only been verified on Linux. Windows multi-format checks remain
-outstanding, and C1 is not declared fully complete.
+User-supplied Windows 11 / Python 3.12.10 64-bit evidence verifies the declared
+multi-format parser at `a6ee13a53100f0b2522f4e9ad07e0e0296bd59d4`:
+59 parser/extractor tests passed (3 skipped), plus 11 supplemental tests passed.
+Windows symbolic-link behavior remains unverified. See the
+[validation record](docs/parser-windows-validation.md) for skips and applicability;
+this does not establish complete C1 or end-to-end Agent acceptance.
 
 Document IDs follow the confirmed
 [path-based identity rules](API_CONTRACT.md#path-based-document-identity): IDs are
 stable for the same normalized path, but change after moves or renames and are
 not portable across environments. See [TASKS.md](TASKS.md#phase-c1--document-parser)
 for remaining parser work and [AGENTS.md](AGENTS.md) for collaboration rules.
+
+## Version contract status
+
+The [compare_versions v1 contract](API_CONTRACT.md#compare_versions) and
+[shared Document collection rules](API_CONTRACT.md#shared-document-collection-rules)
+are confirmed. `fileforge.document.compare_versions(documents)` is now implemented
+and locally tested on Linux; Windows Version verification and Agent integration
+are still pending. Existing D tools still need their owned
+collection-rule adaptation and tests. Runtime inputs come from unknown
+Workspaces; finding no version relationships is a normal successful result.
+Controlled version fixtures are for tests/regression/acceptance, not a guaranteed
+classroom dataset. See [TASKS.md](TASKS.md#phase-c3--version-contract) for pending work.

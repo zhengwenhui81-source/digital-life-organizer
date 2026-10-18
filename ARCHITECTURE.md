@@ -156,6 +156,15 @@ values with sheet names; OCR, DOCX tables and spreadsheet calculation remain
 outside scope. See [extraction scope](API_CONTRACT.md#read_document-extraction-scope)
 for complete limitations. No second parser framework or identity service is added.
 
+The [Version contract](API_CONTRACT.md#compare_versions) is now confirmed but
+implemented/exported in C with Linux local verification; Windows Version and
+Agent integration acceptance remain pending. It analyzes supplied Documents
+from unknown Workspaces conservatively; no relationships is a normal success.
+Comparison output never selects an approved final file or triggers operations.
+Controlled version fixtures serve tests/regression/acceptance, not an assumption
+about runtime inputs. No cancellation API, permanent worker service or whole-HTTP
+hard deadline is introduced.
+
 ### Developer D — Task Intelligence / Package Builder
 
 Responsible for understanding **what parsed/versioned files mean for the user's current task and how approved results become a final package**.
@@ -207,6 +216,13 @@ B: Frontend
 ```
 
 Integration should preserve this direction. Avoid direct frontend dependencies on internal C/D modules. A should call public tools rather than import private analysis implementations. C and D should not reach into each other's private modules unless a shared boundary is explicitly agreed.
+
+All public Document[] consumers use the confirmed
+[collection identity rules](API_CONTRACT.md#shared-document-collection-rules).
+C/D implement their own owned public-boundary adaptation against that contract;
+no private cross-module dependency or frontend identity algorithm is required.
+D must adapt existing detect_conflicts/extract_requirements and future public
+matching; that work and its tests are not certified by contract publication.
 
 ## 6. Risk Model
 
