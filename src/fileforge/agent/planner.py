@@ -204,8 +204,21 @@ def _generate_local(prompt: str, *, model: str, base_url: str) -> str:
                     request["response_format"] = {"type": "json_object"}
                 response = client.chat.completions.create(**request)
         except openai.APIError as exc:
-            status = getattr(exc, "status_code", None)
-            detail = f"HTTP {status}" if status else "connection failed"
+            timeout_error = getattr(openai, "APITimeoutError", None)
+            connection_error = getattr(openai, "APIConnectionError", None)
+            status_error = getattr(openai, "APIStatusError", None)
+            if isinstance(timeout_error, type) and isinstance(exc, timeout_error):
+                detail = "request timed out"
+            elif isinstance(connection_error, type) and isinstance(
+                exc, connection_error
+            ):
+                detail = "connection failed"
+            elif isinstance(status_error, type) and isinstance(exc, status_error):
+                status = getattr(exc, "status_code", None)
+                detail = f"HTTP {status}" if type(status) is int else "API status error"
+            else:
+                status = getattr(exc, "status_code", None)
+                detail = f"HTTP {status}" if type(status) is int else "API error"
             raise RuntimeError(
                 f"Planner model request failed ({detail}). Check the configured "
                 "model, endpoint, and supported request parameters."
