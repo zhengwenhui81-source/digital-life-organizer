@@ -149,3 +149,119 @@ test('reordered objects do not relax frozen array order or identity and index ch
         const m=view.inspect(d),html=view.render(d);assert.ok(m.errors.length);assert.match(html,/未确认通过/);assert.equal(m.formalApprovalEnabled,false);
     }
 });
+
+function rejectsVerifiedDisplay(data,warning){
+    const before=structuredClone(data),m=view.inspect(data),html=view.render(data);
+    assert.match(m.errors.join(),warning);assert.match(html,warning);
+    assert.match(html,/文件验证：未确认通过/);assert.doesNotMatch(html,/文件验证：通过/);
+    assert.equal(m.formalApprovalEnabled,false);assert.deepEqual(data,before);
+    return m;
+}
+
+test('failed, absent, null, wrong-type and nonterminal report statuses never show verification success',()=>{
+    for(const status of ['failed','executing','completed ',null,undefined,42,{},[]]){
+        const d=fixtures.get('success');d.report.status=status;
+        rejectsVerifiedDisplay(d,/Package 报告状态无效/);
+    }
+    const d=fixtures.get('success');delete d.report.status;rejectsVerifiedDisplay(d,/Package 报告状态无效/);
+    for(const value of [false,0,'',42,'bad',[]]){const invalid=fixtures.get('success');invalid.report=value;rejectsVerifiedDisplay(invalid,/FinalReport 数据不完整\/无效/);}
+});
+
+test('verification targets require the exact ordered selected-file coverage and true flags',()=>{
+    for(const value of [undefined,null,[],42,{}, {selected_file_indices:[],report:true,exact_directory_entries:true},
+        {selected_file_indices:['0'],report:true,exact_directory_entries:true},
+        {selected_file_indices:[0,0],report:true,exact_directory_entries:true},
+        {selected_file_indices:[0],report:1,exact_directory_entries:true},
+        {selected_file_indices:[0],report:true,exact_directory_entries:null}]){
+        const d=fixtures.get('success');d.planResult.data.plan.verification_targets=value;
+        rejectsVerifiedDisplay(d,/verification_targets 缺失或无效/);
+    }
+    const d=fixtures.get('partial');d.planResult.data.plan.verification_targets.selected_file_indices.reverse();
+    rejectsVerifiedDisplay(d,/verification_targets 缺失或无效/);
+});
+
+test('full task context must match before any execution record is attributed',()=>{
+    for(const field of ['task_id','user_goal','workspace'])for(const value of [undefined,null,'different',42]){
+        const d=fixtures.get('success');d.snapshot.task[field]=value;
+        assert.equal(rejectsVerifiedDisplay(d,/任务上下文不一致/).writes.length,0);
+    }
+});
+
+test('task statuses and current terminal execution must agree even without a report',()=>{
+    for(const status of [undefined,null,'unknown',42,'executing','failed']){
+        const d=fixtures.get('success');d.report=null;d.snapshot.task.status=status;
+        rejectsVerifiedDisplay(d,/任务状态/);
+    }
+    const d=fixtures.get('partial');d.snapshot.task.status='completed';
+    rejectsVerifiedDisplay(d,/任务状态与当前 Package 执行结果不一致/);
+    const pending=fixtures.get('partial');pending.snapshot.package_execution.final_result_index=null;
+    pending.snapshot.task.status='executing';pending.snapshot.error=null;
+    assert.doesNotMatch(view.render(pending),/文件验证：通过/);
+});
+
+test('cleanup observations require one complete record per attempted copy',()=>{
+    const changes=[
+        d=>delete d.snapshot.package_execution.cleanup_results,
+        ...[null,{},42,[],[null],[{}]].map(value=>d=>d.snapshot.package_execution.cleanup_results=value),
+        d=>delete d.snapshot.package_execution.cleanup_results[0].reason,
+        d=>d.snapshot.package_execution.cleanup_results[0].reason=null,
+        d=>d.snapshot.package_execution.cleanup_results[0].status='rolled_back',
+        d=>d.snapshot.package_execution.cleanup_results[0].residual_state='deleted',
+        d=>d.snapshot.package_execution.cleanup_results[0].step_id='package_001',
+        d=>d.snapshot.package_execution.cleanup_results.push({...d.snapshot.package_execution.cleanup_results[0]}),
+        d=>d.snapshot.package_execution.cleanup_results[0].extra='unexpected'
+    ];
+    for(const change of changes){const d=fixtures.get('success');change(d);rejectsVerifiedDisplay(d,/cleanup_results/);}
+    rejectsVerifiedDisplay(fixtures.get('invalid_cleanup'),/cleanup_results 与已尝试复制关联不完整/);
+});
+
+test('cleanup state contradictions stay visible and cannot imply rollback or successful verification',()=>{
+    for(const [status,residual_state] of [['succeeded','unknown'],['failed','absent'],['not_attempted','owned_fragment']]){
+        const d=fixtures.get('partial');Object.assign(d.snapshot.package_execution.cleanup_results[1],{status,residual_state});
+        rejectsVerifiedDisplay(d,/cleanup_results 与复制结果或残留状态矛盾/);
+    }
+    const d=fixtures.get('success');d.snapshot.package_execution.cleanup_results[0].status='succeeded';
+    rejectsVerifiedDisplay(d,/cleanup_results 与复制结果或残留状态矛盾/);
+});
+
+test('consistent failure fixtures retain both copy observations and correct current indices',()=>{
+    for(const name of ['partial','stale_success','cleanup_failed','unknown_residual']){
+        const d=fixtures.get(name),e=d.snapshot.package_execution,m=view.inspect(d);
+        const copies=e.operation_results.filter(link=>d.snapshot.results[link.result_index].tool==='copy_file');
+        assert.equal(copies.length,2);assert.deepEqual(e.cleanup_results.map(c=>c.step_id),copies.map(c=>c.step_id));
+        assert.deepEqual(m.errors,['当前任务失败；旧成功结果不能代表当前成功']);
+        assert.equal(m.build,d.snapshot.results[e.final_result_index]);assert.equal(m.build.success,false);
+        assert.equal(d.report,null);assert.match(view.render(d),/首次复制文件保留/);
+    }
+    assert.match(fixtures.get('cleanup_failed').snapshot.package_execution.cleanup_results[1].reason,/removal attempt failed/);
+    assert.match(fixtures.get('unknown_residual').snapshot.package_execution.cleanup_results[1].reason,/no removal attempted/);
+});
+
+test('unsafe nanoseconds remain unknown even when JSON parsing collapses different integers',()=>{
+    const left=JSON.parse('{"mtime_ns":1792310400000000000}'),right=JSON.parse('{"mtime_ns":1792310400000000001}');
+    assert.equal(left.mtime_ns,right.mtime_ns);assert.equal(Number.isSafeInteger(left.mtime_ns),false);
+    const d=fixtures.get('success');d.planResult.data.plan.selected_files[0].snapshot.mtime_ns=left.mtime_ns;
+    rejectsVerifiedDisplay(d,/纳秒时间戳超出 JavaScript 安全整数范围/);
+    rejectsVerifiedDisplay(fixtures.get('unsafe_timestamp'),/精度无法确认/);
+    const analysis=fixtures.get('success'),slot=analysis.planResult.data.plan.analysis.match_requirements;
+    slot.result.data.extra=left;analysis.snapshot.results[slot.result_index].data.extra=right;
+    rejectsVerifiedDisplay(analysis,/分析来源不一致/);
+    for(const value of [null,undefined,'1792310400000000000',1.5,NaN,Infinity]){
+        const invalid=fixtures.get('success');invalid.planResult.data.plan.selected_files[0].snapshot.mtime_ns=value;
+        rejectsVerifiedDisplay(invalid,/文件快照时间或摘要格式不正确/);
+    }
+    assert.deepEqual(view.inspect(fixtures.get('success')).errors,[]);
+});
+
+test('terminal and verification indices require current ordered numeric execution links',()=>{
+    for(const value of [null,undefined,-1,999,'9',true]){
+        const d=fixtures.get('success');d.snapshot.package_execution.final_result_index=value;
+        rejectsVerifiedDisplay(d,/执行结果|最终结果索引/);
+    }
+    const d=fixtures.get('success');d.snapshot.results[9].data.verification_result_index='8';
+    rejectsVerifiedDisplay(d,/最终执行结果来源不一致/);
+    const early=fixtures.get('success');early.snapshot.package_execution.operation_results[0].result_index=9;
+    rejectsVerifiedDisplay(early,/最终执行结果来源不一致/);
+    const afterFailure=fixtures.get('success');afterFailure.snapshot.results[6]={tool:'copy_file',success:false,data:null,message:'failed',error:'synthetic copy failure'};
+    rejectsVerifiedDisplay(afterFailure,/失败后仍有后续操作记录/);
+});
