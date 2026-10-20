@@ -111,7 +111,7 @@ A integration tests must separately verify preview blocking; this suite neither
 invokes A nor treats a read-only success as a satisfied A precondition.
 Extracted TXT/PDF/DOCX/XLSX text must not be substituted for a binary-file digest.
 
-## Confirmed v1 handoff — A implementation still required
+## Confirmed v1 handoff — helpers available, TaskService integration pending
 
 [The merged handoff](../../../API_CONTRACT.md#confirmed-v1-analysis-to-source-revalidation-handoff-not-implemented)
 now defines current-consistency revalidation. It does not require a new Document
@@ -137,9 +137,14 @@ field or an extra plan_package argument:
 V1 accepts the stated race limit: matching reread Documents and pre/post hashes
 checks observable current consistency, not the exact historical bytes originally
 parsed, and cannot exclude adversarial change-and-restore. Stronger historical
-read-time evidence still needs a separate C/A contract. The current C reader and
-A gate do not implement the new Package handoff merely because PR #36 merged
-its documentation. No capability, transport field or historical-byte guarantee
-is introduced here. D-only freshness tests deliberately bypass A's required
+read-time evidence still needs a separate C/A contract. PR #38 now supplies A's
+`fileforge.agent.package_evidence.revalidate_documents` and
+`bind_selected_snapshots` helpers for these read-only checks. The helpers retain
+checked source/result associations and cross-check D's selected snapshots;
+they do not implement TaskService evidence collection, executable preview,
+approval or Package execution. D production code does not import these helpers
+or declare their checks passed. Independent cross-module acceptance belongs to
+C under the AGENTS.md delegation. No new transport field or historical-byte
+guarantee is introduced here. D-only freshness tests deliberately bypass A's required
 prerevalidation; A integration tests must verify that such stale input never
 reaches an executable preview in the real task flow.
