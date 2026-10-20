@@ -9,6 +9,20 @@
     const section=(title,body)=>'<section><h2>'+esc(title)+'</h2>'+body+'</section>';
     const labels={selection_pending:'选材待确认',version_undecided:'版本未决',conflict:'来源冲突',analysis_not_run:'分析未执行'};
     const slots=['extract_requirements','match_requirements','detect_conflicts','compare_versions'];
+    // Compare data without serialization: own fields and types are significant;
+    // object insertion order is not. Reject accessors, exotic objects and cycles.
+    function equalData(a,b,activeA=new WeakSet(),activeB=new WeakSet()){
+        if(a===null||b===null||typeof a!=='object'||typeof b!=='object')return typeof a===typeof b&&typeof a!=='function'&&Object.is(a,b);
+        if(arr(a)!==arr(b)||activeA.has(a)||activeB.has(b))return false;
+        if(!arr(a)&&[a,b].some(v=>![Object.prototype,null].includes(Object.getPrototypeOf(v))))return false;
+        const keys=Reflect.ownKeys(a),other=Reflect.ownKeys(b);
+        if(keys.length!==other.length||keys.some(k=>typeof k!=='string'||!Object.hasOwn(b,k)))return false;
+        activeA.add(a);activeB.add(b);
+        try{return keys.every(k=>{
+            const left=Object.getOwnPropertyDescriptor(a,k),right=Object.getOwnPropertyDescriptor(b,k);
+            return Object.hasOwn(left,'value')&&Object.hasOwn(right,'value')&&equalData(left.value,right.value,activeA,activeB);
+        });}finally{activeA.delete(a);activeB.delete(b);}
+    }
     const list=v=>arr(v)?v:[];
     const resultRecord=v=>obj(v)&&str(v.tool)&&typeof v.success==='boolean'&&Object.hasOwn(v,'data')&&typeof v.message==='string'&&Object.hasOwn(v,'error')&&(v.success?obj(v.data)&&v.error===null:v.data===null&&str(v.error));
     function inspect(input={}){
@@ -33,14 +47,14 @@
                 const slot=p.analysis?.[tool];
                 if(slot===null){if(!list(p.unresolved).some(u=>u?.kind==='analysis_not_run'&&u.source_tool===tool&&u.source_result_index===null))warn(tool+' 未执行且缺少未决记录');}
                 else if(!obj(slot)||slot.result?.tool!==tool||slot.result?.success!==true||!Number.isInteger(slot.result_index)||slot.result_index<0)warn(tool+' 分析来源缺失或失败');
-                else if(s&&(!arr(s.results)||json(s.results[slot.result_index])!==json(slot.result)||s.results.slice(slot.result_index+1).some(x=>x?.tool===tool)))warn(tool+' 分析来源不一致或已过期');
+                else if(s&&(!arr(s.results)||!equalData(s.results[slot.result_index],slot.result)||s.results.slice(slot.result_index+1).some(x=>x?.tool===tool)))warn(tool+' 分析来源不一致或已过期');
             }
             for(const u of list(p.unresolved)){
                 const slot=p.analysis?.[u?.source_tool];
                 const index=u?.source_result_index;
                 const notRun=obj(u)&&u.kind==='analysis_not_run'&&slots.includes(u.source_tool)&&slot===null&&index===null;
                 const expectedTool={selection_pending:'match_requirements',version_undecided:'compare_versions',conflict:'detect_conflicts'}[u?.kind];
-                const linked=obj(u)&&u.source_tool===expectedTool&&Number.isInteger(index)&&index>=0&&obj(slot)&&slot.result_index===index&&resultRecord(slot.result)&&slot.result.success===true&&slot.result.tool===u.source_tool&&(!s||(arr(s.results)&&resultRecord(results[index])&&json(results[index])===json(slot.result)&&!results.slice(index+1).some(v=>v?.tool===u.source_tool)));
+                const linked=obj(u)&&u.source_tool===expectedTool&&Number.isInteger(index)&&index>=0&&obj(slot)&&slot.result_index===index&&resultRecord(slot.result)&&slot.result.success===true&&slot.result.tool===u.source_tool&&(!s||(arr(s.results)&&resultRecord(results[index])&&equalData(results[index],slot.result)&&!results.slice(index+1).some(v=>v?.tool===u.source_tool)));
                 if(!notRun&&!linked)warn('未决事项来源关联无效：保留原始记录，不作为已确认分析结论');
             }
             if(s&&(!taskValid||s.task?.task_id!==p.task?.task_id))warn('任务标识不一致');
@@ -84,10 +98,10 @@
         if(report&&isPackage){
             const u=report.package_unresolved;
             if(!obj(u)||!arr(u.items))warn('Package 报告缺少 package_unresolved');
-            else if(!p||u.plan_id!==p.plan_id||u.plan_sha256!==r?.data?.plan_sha256||json(u.items)!==json(p.unresolved)||json(report.missing_items)!==json(p.missing))warn('报告与冻结风险来源不一致');
+            else if(!p||u.plan_id!==p.plan_id||u.plan_sha256!==r?.data?.plan_sha256||!equalData(u.items,p.unresolved)||!equalData(report.missing_items,p.missing))warn('报告与冻结风险来源不一致');
             if(s?.task?.status!=='completed'||build?.success!==true||verification?.success!==true||verification.data?.passed!==true)warn('未取得当前执行的成功与验证证据，不能确认 Package 成功');
-            if(report.package_path!==build?.data?.package_path||json(report.operations)!==json(writes.filter(w=>w.result.success===true).map(w=>w.result)))warn('报告路径或实际成功操作不一致');
-            if(json(report.conflicts)!==json(p?.analysis?.detect_conflicts?.result?.data?.conflicts))warn('报告冲突证据不一致');
+            if(report.package_path!==build?.data?.package_path||!equalData(report.operations,writes.filter(w=>w.result.success===true).map(w=>w.result)))warn('报告路径或实际成功操作不一致');
+            if(!equalData(report.conflicts,p?.analysis?.detect_conflicts?.result?.data?.conflicts))warn('报告冲突证据不一致');
         }
         if(s?.task?.status==='failed')warn('当前任务失败；旧成功结果不能代表当前成功');
         return {plan:p,errors,writes,verification,build,isPackage,hasRisks:!arr(p?.missing)||!arr(p?.unresolved)||!!(p.missing.length||p.unresolved.length),formalApprovalEnabled:false};

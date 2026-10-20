@@ -112,3 +112,40 @@ test('unknown risk arrays remain risks and production Real Mode never loads Fixt
     for(const key of ['missing','unresolved']){const d=fixtures.get();d.planResult.data.plan[key]=null;assert.equal(view.inspect(d).hasRisks,true);assert.match(view.render(d),/数据不完整/);}
     for(const name of ['index.html','agent-api.js','agent-results.js'])assert.doesNotMatch(fs.readFileSync(path.join(__dirname,'..',name),'utf8'),/PackageFixtures|PackageDemo|package-fixtures\.js|package-demo\.js/);
 });
+const reverseKeys=value=>Array.isArray(value)?value.map(reverseKeys):value!==null&&typeof value==='object'?Object.fromEntries(Object.keys(value).reverse().map(k=>[k,reverseKeys(value[k])])):value;
+test('reordered object keys preserve analysis, unresolved, operations and conflict equality without mutation',()=>{
+    const d=fixtures.get('success');
+    d.snapshot.results=d.snapshot.results.map(reverseKeys);d.report=reverseKeys(d.report);
+    const before=structuredClone(d),m=view.inspect(d),html=view.render(d);
+    assert.deepEqual(m.errors,[]);assert.match(html,/通过（仅文件检查）/);assert.equal(m.formalApprovalEnabled,false);assert.deepEqual(d,before);
+});
+test('structural comparison distinguishes missing, null, undefined, types, values and array order',()=>{
+    const cases=[
+        [{value:null},{}],[{value:undefined},{}],[{value:null},{value:undefined}],
+        [{value:1},{value:'1'}],[{value:false},{value:0}],[{value:1},{value:2}],
+        [{value:[1,2]},{value:[2,1]}],[{value:[]},{value:{}}]
+    ];
+    for(const [left,right] of cases){
+        const d=fixtures.get('risks'),slot=d.planResult.data.plan.analysis.match_requirements;
+        slot.result.data.extra=left;d.snapshot.results[slot.result_index].data.extra=right;
+        const before=structuredClone(d),html=view.render(d),m=view.inspect(d);
+        assert.match(m.errors.join(),/分析来源不一致/);assert.match(html,/未决事项来源关联无效/);assert.equal(m.formalApprovalEnabled,false);assert.deepEqual(d,before);
+    }
+});
+test('reordered objects do not relax frozen array order or identity and index checks',()=>{
+    const changes=[
+        d=>d.report.package_unresolved.items.reverse(),
+        d=>d.report.operations.reverse(),
+        d=>delete d.report.package_unresolved.items[0].text,
+        d=>d.report.package_unresolved.items[0].text=null,
+        d=>d.snapshot.task.task_id='another_task',
+        d=>d.snapshot.package_execution.plan_id='another_plan',
+        d=>d.snapshot.package_execution.plan_sha256='sha256:'+'0'.repeat(64),
+        d=>d.planResult.data.plan.analysis.match_requirements.result_index='1',
+        d=>d.planResult.data.plan.unresolved[0].source_tool='compare_versions'
+    ];
+    for(const change of changes){
+        const d=fixtures.get('success');d.report=reverseKeys(d.report);change(d);
+        const m=view.inspect(d),html=view.render(d);assert.ok(m.errors.length);assert.match(html,/未确认通过/);assert.equal(m.formalApprovalEnabled,false);
+    }
+});
