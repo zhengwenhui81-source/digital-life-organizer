@@ -78,6 +78,36 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
             assert.doesNotMatch(item.text,/文件验证：通过|Package 执行与文件验证成功/);
             assert.equal(item.disabled,true);assert.equal(item.unchanged,true);assert.equal(item.overflow,false);
         }
+        const reportCases=await evaluate(`(()=>{
+            return ['new_verify_failure','foreign_found','foreign_versions','unrun_conflicts','missing_conflict_risk'].map(kind=>{
+                const d=PackageFixtures.get('success'),p=d.planResult.data.plan;
+                if(kind==='new_verify_failure'){
+                    const bad=structuredClone(d.snapshot.results[8]);bad.data.passed=false;bad.data.checks[0].passed=false;
+                    d.snapshot.results.splice(9,0,bad);d.snapshot.package_execution.final_result_index=10;
+                }
+                if(kind==='foreign_found')d.report.found_files=[{path:'OLD_FOREIGN_SOURCE'}];
+                if(kind==='foreign_versions')d.report.version_groups=[{group_id:'FOREIGN_OLD_GROUP'}];
+                if(kind==='unrun_conflicts'||kind==='missing_conflict_risk'){
+                    p.analysis.detect_conflicts=null;
+                    p.unresolved=p.unresolved.filter(u=>u.source_tool!=='detect_conflicts');
+                    if(kind==='unrun_conflicts')p.unresolved.push({kind:'analysis_not_run',source_tool:'detect_conflicts',source_result_index:null,documents:[],text:'Conflict analysis not run'});
+                    d.report.package_unresolved.items=structuredClone(p.unresolved);d.report.conflicts=[];
+                    d.snapshot.results[2]={tool:'read_document',success:true,data:{},message:'no conflict analysis',error:null};
+                    d.snapshot.results[4]=structuredClone(d.planResult);
+                }
+                const before=JSON.stringify(d),m=PackagePreview.inspect(d);content.innerHTML=PackagePreview.render(d);
+                return {kind,verified:m.verification!==null,build:m.build!==null,bound:m.boundOperations.length,
+                    packageSucceeded:m.packageSucceeded,authorization:m.authorizationConfirmed,text:content.innerText,
+                    disabled:formalApprove.disabled,unchanged:before===JSON.stringify(d),overflow:document.documentElement.scrollWidth>innerWidth};
+            });
+        })()`);
+        for(const item of reportCases){
+            assert.equal(item.packageSucceeded,item.kind==='unrun_conflicts');
+            assert.equal(item.authorization,false);assert.equal(item.disabled,true);assert.equal(item.unchanged,true);assert.equal(item.overflow,false);
+            if(item.kind==='new_verify_failure'){assert.equal(item.verified,false);assert.equal(item.build,false);assert.equal(item.bound,3);assert.doesNotMatch(item.text,/文件验证：通过/);}
+            if(item.kind==='unrun_conflicts'){assert.equal(item.bound,4);assert.match(item.text,/Conflict analysis not run/);assert.match(item.text,/打包执行成功，但材料包仍有缺项或未决事项/);}
+            else {assert.match(item.text,/报告未通过当前执行完整性检查/);assert.doesNotMatch(item.text,/Package 执行与文件验证成功/);}
+        }
         assert.equal(await evaluate("getComputedStyle(document.querySelector('pre')).whiteSpace==='pre-wrap'"),true);
         assert.equal(await evaluate("(()=>{scenario.value='risks';scenario.dispatchEvent(new Event('change'));riskIntent.click();return PackageDemo.state.accepted})()"),true);
         assert.equal(await evaluate("(()=>{scenario.value='complete';scenario.dispatchEvent(new Event('change'));return riskIntent.checked||PackageDemo.state.accepted})()"),false);
@@ -85,7 +115,7 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         assert.equal(await evaluate('formalApprove.disabled'),true);
         assert.deepEqual(pageErrors,[]);
         assert.deepEqual(network.filter(r=>/^https?:/.test(r.url)),[]);
-        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations + 2 failed execution chains; no HTTP requests; approval disabled.');
+        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations + 2 failed execution chains + 5 verification/report cases; no HTTP requests; approval disabled.');
     }finally{
         if(ws)ws.close();browser.kill();await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));
         // Only remove the exact profile created by this test, outside user Workspace.

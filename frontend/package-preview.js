@@ -80,7 +80,7 @@
         const same=obj(e)&&obj(p)&&taskMatches&&e.plan_id===p.plan_id&&e.plan_sha256===r?.data?.plan_sha256;
         let writes=[], verification=null, build=null;
         const attemptedCopies=[],boundOperations=[],cleanupRows=[],anomalousResults=[];
-        let failedOperation=false;
+        let failedOperation=false,verificationAssociationInvalid=false;
         const planIndex=results.map(result=>result?.tool).lastIndexOf('plan_package');
         const planMatches=same&&planIndex>=0&&equalData(results[planIndex],r);
         const terminalStale=Number.isSafeInteger(e?.final_result_index)&&e.final_result_index>=0&&results.slice(e.final_result_index+1).some(result=>result?.tool==='build_package');
@@ -113,12 +113,24 @@
                 else writes.push({step_id:link.step_id,result});
                 if(result.success===false||(result.tool==='verify_result'&&result.data?.passed===false))failedOperation=true;
             }
+            // Only the frozen verify step may supply verification. An extra record in
+            // this task after planning is unbound evidence, never a legal retry.
+            const verifyRecords=results.map((result,result_index)=>({result,result_index})).filter(item=>item.result?.tool==='verify_result'&&item.result_index>planIndex);
+            const boundVerify=boundOperations.find(item=>item.result.tool==='verify_result');
+            if(currentExecution&&verifyRecords.some(item=>item.result_index!==boundVerify?.result_index)){
+                verificationAssociationInvalid=true;
+                warn('执行记录不完整/无效：验证记录缺失、重复或关联不完整，不能继续采信旧成功验证');
+                for(const item of verifyRecords)if(!anomalousResults.some(row=>row.result_index===item.result_index))anomalousResults.push({...item,reason:'验证关联异常，不可作为有效执行证据',position:boundVerify?.result_index===item.result_index?boundVerify.position:undefined});
+                if(boundVerify)boundOperations.splice(boundOperations.indexOf(boundVerify),1);
+                verification=null;
+            }
             if(e.final_result_index!==null){
                 build=Number.isInteger(e.final_result_index)&&e.final_result_index>=0?s?.results?.[e.final_result_index]:null;
                 if(!same||!resultRecord(build)||build.tool!=='build_package'||(build.success&&!currentExecution)){warn('执行记录不完整/无效：最终结果索引不一致');build=null;}
-                else if(failedOperation&&build.success===true){
-                    warn('执行记录不完整/无效：失败后异常 build_package，不可作为有效执行证据');
-                    anomalousResults.push({result_index:e.final_result_index,result:build});
+                else if((failedOperation||verificationAssociationInvalid)&&build.success===true){
+                    const reason=failedOperation?'失败后异常 build_package，不可作为有效执行证据':'验证关联异常，build_package 不可作为有效执行证据';
+                    warn('执行记录不完整/无效：'+reason);
+                    anomalousResults.push({result_index:e.final_result_index,result:build,reason});
                     build=null;
                 }
                 else{
@@ -157,6 +169,7 @@
         const isPackage=!!p||e!=null||str(report?.package_path)||Object.hasOwn(report||{},'package_unresolved');
         if(report!=null&&!obj(report))warn('FinalReport 数据不完整/无效：必须为对象或未提供');
         if(report&&s&&report.task_id!==s.task?.task_id)warn('报告任务标识不一致');
+        const reportSources={found_files:null,version_groups:null,conflicts:null};
         if(report&&isPackage){
             if(['found_files','version_groups','conflicts','operations','missing_items'].some(key=>!arr(report[key]))||!str(report.summary))warn('Package FinalReport 必要字段不完整/无效');
             if((list(p?.missing).length||list(p?.unresolved).length)&&!(typeof report.summary==='string'&&report.summary.includes('打包执行成功，但材料包仍有缺项或未决事项')))warn('Package 报告摘要缺少冻结缺项与未决事项提示');
@@ -166,7 +179,28 @@
             else if(!p||u.plan_id!==p.plan_id||u.plan_sha256!==r?.data?.plan_sha256||!equalData(u.items,p.unresolved)||!equalData(report.missing_items,p.missing))warn('报告与冻结风险来源不一致');
             if(s?.task?.status!=='completed'||build?.success!==true||verification?.success!==true||verification.data?.passed!==true)warn('未取得当前执行的成功与验证证据，不能确认 Package 成功');
             if(report.package_path!==build?.data?.package_path||!equalData(report.operations,writes.filter(w=>w.result.success===true).map(w=>w.result)))warn('报告路径或实际成功操作不一致');
-            if(!equalData(report.conflicts,p?.analysis?.detect_conflicts?.result?.data?.conflicts))warn('报告冲突证据不一致');
+            // Resolve sources from this Snapshot, not from report values or filenames.
+            const discovery=results.map((result,index)=>({result,index})).filter(item=>['list_files','search_files'].includes(item.result?.tool));
+            const found=[],byPath=new Map();
+            let discoveryValid=planMatches&&discovery.length>0;
+            for(const {result,index} of discovery){
+                const files=result?.data?.[result.tool==='list_files'?'files':'matches'];
+                if(index>=planIndex||!resultRecord(result)||result.success!==true||!arr(files)||files.some(file=>!obj(file)||!str(file.path))){discoveryValid=false;continue;}
+                for(const file of files){
+                    if(byPath.has(file.path)){if(!equalData(byPath.get(file.path),file))discoveryValid=false;}
+                    else{byPath.set(file.path,file);found.push(file);}
+                }
+            }
+            if(discoveryValid)reportSources.found_files=found;
+            if(!discoveryValid||!equalData(report.found_files,found))warn('报告 found_files 来源缺失、过期或内容不一致');
+            for(const [tool,field] of [['compare_versions','version_groups'],['detect_conflicts','conflicts']]){
+                const slot=p?.analysis?.[tool],key=tool==='compare_versions'?'groups':'conflicts';
+                const notRun=slot===null&&list(p?.unresolved).some(u=>u?.kind==='analysis_not_run'&&u.source_tool===tool&&u.source_result_index===null&&arr(u.documents)&&u.documents.length===0&&str(u.text));
+                const valid=planMatches&&obj(slot)&&Number.isSafeInteger(slot.result_index)&&slot.result_index>=0&&slot.result_index<planIndex&&resultRecord(slot.result)&&slot.result.tool===tool&&slot.result.success===true&&equalData(results[slot.result_index],slot.result)&&!results.slice(slot.result_index+1).some(result=>result?.tool===tool)&&arr(slot.result.data?.[key]);
+                if(valid)reportSources[field]=slot.result.data[key];
+                else if(planMatches&&notRun)reportSources[field]=[]; // No positive finding; risk remains frozen and visible.
+                if(reportSources[field]===null||!equalData(report[field],reportSources[field]))warn(field==='conflicts'?'报告冲突证据不一致':'报告 version_groups 来源缺失、过期或内容不一致');
+            }
         }
         if(s?.task?.status==='failed')warn('当前任务失败；旧成功结果不能代表当前成功');
         if(completedWithFailure)warn('当前任务含失败工具结果，不能以旧成功确认完成');
@@ -179,26 +213,26 @@
             const file=operation?.kind==='copy'?p?.selected_files?.[operation.selected_file_index]:null;
             let label='执行记录不完整/无效，无法确认该步状态';
             if(bound)label=operation?.kind==='verify'?(bound.result.success?'验证结果已返回 · 检查结论见下方':'验证工具执行失败'):(bound.result.success?'工具执行成功':'工具执行失败');
-            else if(anomalous)label='失败后异常记录，不可作为有效执行证据';
+            else if(anomalous)label=anomalous.reason||'失败后异常记录，不可作为有效执行证据';
             else if(e==null)label=['created','planning','awaiting_approval'].includes(s?.task?.status)?'未执行 · 尚无 Package 执行关联':'执行数据未提供，不能推断未执行';
             else if(currentExecution&&arr(e.operation_results)&&position>=e.operation_results.length)label=failedChild&&build?.success===false?'未执行 · 当前失败后停止，未收到该步结果':'尚无完成结果 · 无法确认该步是否已开始';
             if(!obj(operation))label='冻结操作无效，无法确认该步状态';
             return {step_id:operation?.step_id,kind:operation?.kind,source:file?.source?.path,target:file?.target||(operation?.kind==='create_directory'?p?.destination:operation?.kind==='write_report'?p?.report?.path:undefined),label,evidenceValid:!!bound,result_index:bound?.result_index??anomalous?.result_index,result:bound?.result??anomalous?.result};
         });
         const executionLabel=packageSucceeded?'Package 执行与文件验证成功；不代表材料内容合格':s?.task?.status==='failed'?(verification?.success===false||verification?.data?.passed===false?'验证失败，Package 未成功':writes.some(item=>item.result.success)?'部分操作成功，Package 任务失败':'Package 任务失败'):['executing','verifying'].includes(s?.task?.status)?'Package 执行中 · 仅显示已返回结果':build?.success===true?'执行结果已返回，Package 完成仍待完整证据与 FinalReport':'Package 尚未确认执行完成';
-        return {plan:p,errors,writes,verification,build,boundOperations,anomalousResults,isPackage,operationRows,cleanupRows,executionLabel,packageSucceeded,hasRisks:!arr(p?.missing)||!arr(p?.unresolved)||!!(p.missing.length||p.unresolved.length),formalApprovalEnabled:false};
+        return {plan:p,errors,writes,verification,build,boundOperations,anomalousResults,reportSources,isPackage,operationRows,cleanupRows,executionLabel,packageSucceeded,hasRisks:!arr(p?.missing)||!arr(p?.unresolved)||!!(p.missing.length||p.unresolved.length),formalApprovalEnabled:false,authorizationConfirmed:false};
     }
     function render(input={}){
         const m=inspect(input),p=m.plan,s=input?.snapshot,report=input?.report;
         const risk=(missing,unresolved)=>'<h3>missing · 缺少文件名候选</h3>'+pre(missing)+'<h3>未决事项</h3>'+(arr(unresolved)?unresolved.map(u=>'<article><h4>'+esc(u?.kind)+' · '+esc(labels[u?.kind]||'未知风险')+'</h4>'+pre(u)+'</article>').join('')||'<p>未决数组为空，不代表内容审核通过。</p>':pre(unresolved));
-        let html='<p class="warning">文件名候选不代表材料内容已经审核通过；版本推荐不代表用户确认选材。材料真实性、完整性及有效性未由本界面核验。</p>';
+        let html='<p class="warning">文件名候选不代表材料内容已经审核通过；版本推荐不代表用户确认选材。材料真实性、完整性及有效性未由本界面核验。</p><p>本界面不确认服务端审批或 accept_incomplete 风险接受已获授权；本地意向不构成授权。</p>';
         html+=section('数据与来源检查',m.errors.length?'<p class="warning">数据不完整或来源待核对；不能确认方案有效及执行验证成功。</p><ul>'+m.errors.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>':'<p>展示所需来源字段一致；不构成服务端授权。</p>');
         html+=section('1. 冻结方案',pre({goal:p?.task?.user_goal,destination:p?.destination,plan_id:p?.plan_id,plan_sha256:input?.planResult?.data?.plan_sha256})+'<p>计划生成：'+(input?.planResult?.success===true?'工具报告成功（未执行）':'未确认')+'</p><p>服务端任务状态：'+esc(s?.task?.status)+'；等待审批与执行成功是不同状态。</p>');
         html+=section('2. 具体文件映射 · proposed selected_files',arr(p?.selected_files)?p.selected_files.map((f,i)=>'<article><h3>提议文件 '+(i+1)+' · '+esc(f?.source?.filename)+'</h3><p>文件标识</p>'+pre(f?.source?.file_id)+'<p>源路径</p>'+pre(f?.source?.path)+'<p>目标路径</p>'+pre(f?.target)+'<p>选择依据</p>'+pre(f?.reason)+'<p>对应要求</p>'+pre(f?.requirements)+'<p>文件大小（字节） · '+esc(f?.snapshot?.size)+'</p><p>SHA-256（文件字节摘要）</p>'+pre(f?.snapshot?.sha256)+'</article>').join('')||'<p>选材为空；无法确认可执行方案。</p>':'<p>文件映射未提供。</p>');
         html+=section('3. 缺项与风险',risk(p?.missing,p?.unresolved)+'<h3>冻结分析与多候选证据</h3>'+pre(p?.analysis));
         html+=section('4. 操作顺序 · 仅计划',pre(p?.operations));
         html+=section('5. 冻结报告 · 审批前计划记录',pre(p?.report?.path)+pre(p?.report?.sha256)+pre(p?.report?.content));
-        html+=section('执行结果 · 与计划分开',pre({task_status:s?.task?.status,error:s?.error})+'<h3>'+esc(m.executionLabel)+'</h3><p>进度仅统计已关联的工具结果，不推断复制字节进度或逐文件正在执行。以下路径来自冻结映射。</p>'+m.operationRows.map(row=>'<article><h4>'+esc(row.step_id)+' · '+esc(row.kind)+'</h4><p>'+esc(row.label)+'</p>'+(row.evidenceValid&&row.result&&row.kind!=='verify'?'<p>'+(row.result.success?'文件操作执行成功':'文件操作失败')+'</p>':'')+pre({source:row.source,target:row.target,result_index:row.result_index})+(row.result?pre(row.result):'<p>没有此步的有效完成结果，不计为成功。</p>')+'</article>').join('')+'<h3>失败后异常记录，不可作为有效执行证据</h3>'+pre(m.anomalousResults)+'<h3>verification</h3>'+pre(m.verification)+'<p>文件验证：'+(s?.task?.status!=='failed'&&!m.errors.length&&m.verification?.success===true&&m.verification.data?.passed===true?'通过（仅文件检查）':'未确认通过')+'</p><h3>当前 build_package</h3>'+pre(m.build)+'<h3>cleanup_results · 契约已确认，后端尚未实现</h3>'+pre(s?.package_execution?.cleanup_results)+m.cleanupRows.map(row=>'<article><h4>'+esc(row.record?.step_id)+' · '+esc(row.label)+'</h4><p>'+esc(row.residual)+'</p>'+pre({target:m.operationRows.find(operation=>operation.kind==='copy'&&operation.step_id===row.record?.step_id)?.target})+pre(row.record)+'</article>').join('')+'<p>absent 仅描述失败片段；成功复制的文件仍可能保留。未知残留不等于已回滚；本界面不重试或清理。</p>');
+        html+=section('执行结果 · 与计划分开',pre({task_status:s?.task?.status,error:s?.error})+'<h3>'+esc(m.executionLabel)+'</h3><p>进度仅统计已关联的工具结果，不推断复制字节进度或逐文件正在执行。以下路径来自冻结映射。</p>'+m.operationRows.map(row=>'<article><h4>'+esc(row.step_id)+' · '+esc(row.kind)+'</h4><p>'+esc(row.label)+'</p>'+(row.evidenceValid&&row.result&&row.kind!=='verify'?'<p>'+(row.result.success?'文件操作执行成功':'文件操作失败')+'</p>':'')+pre({source:row.source,target:row.target,result_index:row.result_index})+(row.result?pre(row.result):'<p>没有此步的有效完成结果，不计为成功。</p>')+'</article>').join('')+(m.anomalousResults.length?'<h3>异常执行记录，不可作为有效执行证据</h3>'+pre(m.anomalousResults):'')+'<h3>verification</h3>'+pre(m.verification)+'<p>文件验证：'+(s?.task?.status!=='failed'&&!m.errors.length&&m.verification?.success===true&&m.verification.data?.passed===true?'通过（仅文件检查）':'未确认通过')+'</p><h3>当前 build_package</h3>'+pre(m.build)+'<h3>cleanup_results · 契约已确认，后端尚未实现</h3>'+pre(s?.package_execution?.cleanup_results)+m.cleanupRows.map(row=>'<article><h4>'+esc(row.record?.step_id)+' · '+esc(row.label)+'</h4><p>'+esc(row.residual)+'</p>'+pre({target:m.operationRows.find(operation=>operation.kind==='copy'&&operation.step_id===row.record?.step_id)?.target})+pre(row.record)+'</article>').join('')+'<p>absent 仅描述失败片段；成功复制的文件仍可能保留。未知残留不等于已回滚；本界面不重试或清理。</p>');
         html+=section('FinalReport · 原始报告事实',report?'<p>'+(!m.isPackage?'非 Package 报告，不要求 package_unresolved。':m.packageSucceeded?'本次报告与关联执行证据一致；仅确认文件操作与验证。':'报告未通过当前执行完整性检查，不确认 Package 成功。')+'</p>'+pre(report):'<p>未提供 FinalReport；失败任务通过 Snapshot 查看，不回退到旧成功报告。</p>');
         if(m.errors.some(e=>e.includes('执行记录不完整/无效')))html+=section('无效执行记录 · 原始数据保留，不能当作成功操作',pre({operations:p?.operations,package_execution:s?.package_execution,results:s?.results}));
         if(report)html+=section('报告中的缺项与未决事项',risk(report.missing_items,report.package_unresolved?.items));

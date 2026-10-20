@@ -399,3 +399,102 @@ test('valid complete chain still exposes only bound successful operations and co
     assert.ok(m.operationRows.every(row=>row.evidenceValid));
     assert.equal(m.verification.success,true);assert.equal(m.build.success,true);assert.equal(m.packageSucceeded,true);
 });
+
+test('new unbound verification invalidates old verification and FinalReport even when tool success is true',()=>{
+    for(const mode of ['failed_checks','failed_tool','duplicate_success','foreign_scope','after_terminal']){
+        const d=fixtures.get('success'),old=d.snapshot.results[8];
+        const bad=structuredClone(old);
+        if(mode==='failed_checks'||mode==='after_terminal'){bad.data.passed=false;bad.data.checks[0].passed=false;}
+        if(mode==='failed_tool'){Object.assign(bad,{success:false,data:null,error:'new verification failed'});d.snapshot.task.status='failed';}
+        if(mode==='foreign_scope')bad.data.checks[0].path='UNBOUND_OTHER_SCOPE';
+        if(mode==='after_terminal')d.snapshot.results.push(bad);
+        else {d.snapshot.results.splice(9,0,bad);d.snapshot.package_execution.final_result_index=10;}
+        const before=structuredClone(d),m=view.inspect(d),html=view.render(d);
+        assert.equal(m.verification,null,mode);assert.equal(m.build,null,mode);
+        assert.deepEqual(m.boundOperations.map(row=>row.result_index),[5,6,7]);assert.equal(m.writes.length,3);
+        assert.equal(m.operationRows[3].evidenceValid,false);assert.match(m.operationRows[3].label,/验证关联异常/);
+        assert.ok(m.anomalousResults.some(row=>row.result===old));assert.ok(m.anomalousResults.some(row=>row.result===bad));
+        assert.equal(m.packageSucceeded,false);assert.equal(m.formalApprovalEnabled,false);
+        assert.match(html,/验证记录缺失、重复或关联不完整/);assert.match(html,/报告未通过当前执行完整性检查/);
+        assert.doesNotMatch(html,/文件验证：通过|Package 执行与文件验证成功/);assert.deepEqual(d,before);
+    }
+});
+
+test('missing or misindexed verify cannot be replaced by a successful terminal or report',()=>{
+    for(const change of [d=>d.snapshot.package_execution.operation_results.pop(),d=>d.snapshot.package_execution.operation_results[3].result_index=7,d=>d.snapshot.results[8]=null]){
+        const d=fixtures.get('success');change(d);const m=view.inspect(d),html=view.render(d);
+        assert.equal(m.verification,null);assert.ok(m.boundOperations.every(row=>row.result.tool!=='verify_result'));
+        assert.equal(m.packageSucceeded,false);assert.equal(m.operationRows[3].evidenceValid,false);
+        assert.doesNotMatch(html,/文件验证：通过|Package 执行与文件验证成功/);
+    }
+});
+
+test('report discovery and Version contents must match current complete source records',()=>{
+    for(const field of ['found_files','version_groups']){
+        const d=fixtures.get('success');d.report[field]=[{path:'OLD_FOREIGN_SOURCE',group_id:'FOREIGN_OLD_GROUP'}];
+        const before=structuredClone(d),m=view.inspect(d),html=view.render(d);
+        assert.notDeepEqual(m.reportSources[field],d.report[field]);assert.equal(m.packageSucceeded,false);
+        assert.match(html,new RegExp('报告 '+field+' 来源'));assert.match(html,/报告未通过当前执行完整性检查/);
+        assert.match(html,/OLD_FOREIGN_SOURCE/);assert.doesNotMatch(html,/Package 执行与文件验证成功/);assert.deepEqual(d,before);
+    }
+    const d=fixtures.get('success'),file={path:'E:\\虚构输入\\发现.txt',name:'合成发现',size:10};
+    d.snapshot.results[0].data.files=[file];d.report.found_files=[structuredClone(file)];
+    assert.equal(view.inspect(d).packageSucceeded,true);
+    d.report.found_files[0].size='10';
+    assert.equal(view.inspect(d).packageSucceeded,false); // Same path/name is not source equality.
+});
+
+test('missing failed stale or wrongly indexed sources never confirm a Package report',()=>{
+    const changes=[
+        d=>d.snapshot.results[0]={tool:'read_document',success:true,data:{},message:'no discovery',error:null},
+        d=>d.snapshot.results[0].data.files=null,
+        d=>d.snapshot.results.push(structuredClone(d.snapshot.results[0])),
+        d=>{d.planResult.data.plan.analysis.compare_versions.result_index=999;d.snapshot.results[4]=structuredClone(d.planResult);},
+        d=>{d.planResult.data.plan.analysis.compare_versions.result_index='3';d.snapshot.results[4]=structuredClone(d.planResult);},
+        d=>d.snapshot.results[3]={tool:'read_document',success:true,data:{},message:'missing Version',error:null},
+        d=>d.snapshot.results.push(structuredClone(d.snapshot.results[3])),
+        d=>d.snapshot.results[3]={tool:'compare_versions',success:false,data:null,message:'Version failed',error:'source failed'},
+        d=>d.snapshot.task.task_id='FOREIGN_TASK'
+    ];
+    for(const change of changes){
+        const d=fixtures.get('success');change(d);const before=structuredClone(d),m=view.inspect(d),html=view.render(d);
+        assert.equal(m.packageSucceeded,false);assert.ok(m.reportSources.found_files===null||m.reportSources.version_groups===null);
+        assert.match(html,/报告未通过当前执行完整性检查/);assert.doesNotMatch(html,/Package 执行与文件验证成功/);
+        assert.deepEqual(d,before);
+    }
+});
+
+function unrunConflicts(){
+    const d=fixtures.get('success'),p=d.planResult.data.plan;
+    p.analysis.detect_conflicts=null;
+    p.unresolved=p.unresolved.map(u=>u.source_tool==='detect_conflicts'?{kind:'analysis_not_run',source_tool:'detect_conflicts',source_result_index:null,documents:[],text:'Conflict analysis not run'}:u);
+    d.report.package_unresolved.items=structuredClone(p.unresolved);d.report.conflicts=[];
+    d.snapshot.results[2]={tool:'read_document',success:true,data:{},message:'no conflict analysis',error:null};
+    d.snapshot.results[4]=structuredClone(d.planResult);
+    return d;
+}
+
+test('explicit unrun conflict risk permits incomplete execution display without inferring authorization or no conflicts',()=>{
+    const d=unrunConflicts(),before=structuredClone(d),m=view.inspect(d),html=view.render(d);
+    assert.deepEqual(m.errors,[]);assert.equal(m.packageSucceeded,true);assert.equal(m.hasRisks,true);
+    assert.deepEqual(m.reportSources.conflicts,[]);assert.equal(m.boundOperations.length,4);assert.equal(m.writes.length,3);
+    assert.equal(m.authorizationConfirmed,false);assert.equal(m.formalApprovalEnabled,false);
+    for(const text of ['analysis_not_run','Conflict analysis not run','签字页','打包执行成功，但材料包仍有缺项或未决事项','不确认服务端审批'])assert.ok(html.includes(text),text);
+    assert.match(html,/Package 执行与文件验证成功；不代表材料内容合格/);assert.deepEqual(d,before);
+    const pending=unrunConflicts();pending.snapshot.task.status='awaiting_approval';pending.snapshot.package_execution=null;pending.report=null;
+    assert.equal(view.inspect(pending).packageSucceeded,false);assert.equal(view.inspect(pending).authorizationConfirmed,false);
+});
+
+test('missing conflict risk or erased report risks cannot pass as a legitimate incomplete plan',()=>{
+    for(const mode of ['no_risk','missing_slot','erased_report','fake_conflicts']){
+        const d=unrunConflicts(),p=d.planResult.data.plan;
+        if(mode==='no_risk')p.unresolved=p.unresolved.filter(u=>u.source_tool!=='detect_conflicts');
+        if(mode==='missing_slot')delete p.analysis.detect_conflicts;
+        if(mode==='erased_report')d.report.package_unresolved.items=[];
+        if(mode==='fake_conflicts')d.report.conflicts=[{field:'invented'}];
+        d.snapshot.results[4]=structuredClone(d.planResult);
+        const m=view.inspect(d),html=view.render(d);
+        assert.equal(m.packageSucceeded,false);assert.equal(m.authorizationConfirmed,false);assert.equal(m.formalApprovalEnabled,false);
+        assert.match(html,/报告未通过当前执行完整性检查/);assert.doesNotMatch(html,/Package 执行与文件验证成功/);
+    }
+});
