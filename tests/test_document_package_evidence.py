@@ -4,6 +4,7 @@ import hashlib
 import os
 from copy import copy, deepcopy
 from io import BytesIO
+from pathlib import Path
 from zipfile import ZIP_STORED, ZipFile
 
 import pytest
@@ -14,6 +15,7 @@ from fileforge.agent.package_evidence import (
     revalidate_documents,
 )
 from fileforge.document import read_document
+from fileforge.package import plan_package
 
 
 @pytest.fixture
@@ -171,3 +173,100 @@ def test_valid_index_does_not_establish_task_provenance(tmp_path, source_read):
     # preserved, not authenticated as current, in-range, or complete evidence.
     checked = revalidate_documents(str(tmp_path), [(999, original)])
     assert set(checked) == {999}
+
+
+@pytest.fixture
+def c_package_request(tmp_path):
+    workspace = tmp_path / "中文父目录 空格" / "课程材料"
+    workspace.mkdir(parents=True)
+    source = workspace / "课程笔记.txt"
+    source.write_text("课程原始材料", encoding="utf-8")
+    result = read_document(str(source))
+    assert result["success"], result
+    document = result["data"]["document"]
+    return {
+        "task": {
+            "task_id": "c-platform-check",
+            "user_goal": "准备课程资料，只读规划",
+            "workspace": str(workspace),
+        },
+        "selected_files": [
+            {
+                "source": {
+                    key: document[key] for key in ("file_id", "path", "filename")
+                },
+                "requirements": [],
+                "reason": "受控测试提议，不代表批准",
+            }
+        ],
+        "destination": str(workspace / "待审批课程包"),
+        "analysis": dict.fromkeys(
+            [
+                "extract_requirements",
+                "match_requirements",
+                "detect_conflicts",
+                "compare_versions",
+            ]
+        ),
+    }
+
+
+def test_same_length_mutation_during_package_read_restored_mtime_rejects(
+    c_package_request, monkeypatch
+):
+    request = c_package_request
+    source = Path(request["selected_files"][0]["source"]["path"])
+    before = source.stat()
+    raw = source.read_bytes()
+    replacement = raw.replace("原始".encode(), "变化".encode())
+    assert replacement != raw and len(replacement) == len(raw)
+    original_read = os.read
+    mutated = False
+
+    def changing_read(fd, size):
+        nonlocal mutated
+        data = original_read(fd, size)
+        if data and not mutated:
+            # Modify the real file in place. An OS denial is a test failure,
+            # not evidence that the planner detected an actual mutation.
+            source.write_bytes(replacement)
+            os.utime(source, ns=(before.st_atime_ns, before.st_mtime_ns))
+            assert source.read_bytes() == replacement
+            assert source.stat().st_size == before.st_size
+            assert source.stat().st_mtime_ns == before.st_mtime_ns
+            mutated = True
+        return data
+
+    inputs = deepcopy(request)
+    monkeypatch.setattr(os, "read", changing_read)
+    result = plan_package(**request)
+    assert mutated, result
+    assert result["success"] is False and result["data"] is None, result
+    assert result["tool"] == "plan_package"
+    assert result["message"] and "changed" in result["error"].lower(), result
+    assert request == inputs
+    assert not Path(request["destination"]).exists()
+    assert source.read_bytes() == replacement
+
+
+def test_chinese_parent_directory_readonly_package_plan(c_package_request):
+    request = c_package_request
+    source = Path(request["selected_files"][0]["source"]["path"])
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    entries = sorted(p.relative_to(source.parent) for p in source.parent.rglob("*"))
+    inputs = deepcopy(request)
+    result = plan_package(**request)
+    assert result["success"] is True and result["error"] is None, result
+    plan = result["data"]["plan"]
+    selected = plan["selected_files"][0]
+    assert selected["source"] == request["selected_files"][0]["source"]
+    assert selected["snapshot"]["sha256"] == hashlib.sha256(before[0]).hexdigest()
+    assert selected["snapshot"]["size"] == len(before[0])
+    assert selected["snapshot"]["mtime_ns"] == before[1]
+    assert plan["destination"] == request["destination"]
+    assert request == inputs
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+    assert entries == sorted(
+        p.relative_to(source.parent) for p in source.parent.rglob("*")
+    )
+    assert not Path(request["destination"]).exists()

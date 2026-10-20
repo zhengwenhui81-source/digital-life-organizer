@@ -195,3 +195,46 @@ cleanup, report 409 and unresolved-risk retention remain pending integration.
 Filesystem replacement during hashing and further malformed strict-JSON edge
 cases are not claimed covered. Full Package execution, Windows and end-to-end
 acceptance have not passed by virtue of these tests.
+
+## Platform follow-up: two independent planning cases
+
+Tested source baseline: `4f8fb35258ad018068068ebc9fe2fa3146d8c774`, with only
+these local C test additions; dev is `a0267e84a4ace9dd8af470c61bc5ae5a44697681`
+(includes #35/#40/#42). Earlier pending-D-planner statements above describe the
+older checked baseline, not this follow-up: public read-only plan_package is now
+available. Executable Package approval/execution acceptance remains separate.
+
+Linux / Python 3.12.14: the actual combined run collected **29 passing cases**:
+23 C cases (previous 21 plus 2 new cases) and A's 6 unchanged helper cases.
+The separate nine-case C command above was rerun: **9 passed**. Actual commands
+run from repository root using the existing validation interpreter as `python`:
+
+```bash
+PYTHONPATH="$PWD/src" python -m pytest tests/test_document_package_evidence.py tests/test_agent_package_evidence.py -q -ra
+python -m black --check tests/test_document_package_evidence.py
+python -m ruff check tests/test_document_package_evidence.py
+git diff --check
+```
+
+All checks passed. An additional import-location assertion confirmed the loaded
+`fileforge.package.planning` is under this checkout's src, not an older editable
+installation. No D production code or ctime check was changed.
+
+- During actual descriptor reading, a synthetic temporary UTF-8 file is rewritten
+  in place with different equal-length bytes and its exact original mtime restored.
+  The test proves mutation completed, then requires standard failed plan_package
+  (success=false, data=null, readable changed error) and no destination directory.
+  A write denied by the OS cannot satisfy this assertion; it is not counted as
+  successful mutation detection. This is not a Windows replacement test.
+- A Chinese-and-space parent path, Chinese filename and Chinese UTF-8 text produce
+  a successful read-only plan. Source reference, raw digest/size/mtime, original
+  bytes, input request and directory contents remain intact; no output is created.
+  This is neither approval nor Package execution acceptance.
+
+Windows follow-up was not executed. Any future PowerShell runner must explicitly
+set `$env:PYTHONPATH = Join-Path $Repo "src"` for the independent worktree and
+assert actual import locations (at least fileforge.package.planning and
+fileforge.document) are under that worktree's src before testing. On receipt of
+D's immutable fix HEAD, use another independent worktree; do not merge that fix
+into C merely to test it. Platform capability skips must retain their reasons;
+OS-denied replacement is not proof that a real replacement was detected.
