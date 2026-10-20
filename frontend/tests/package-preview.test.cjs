@@ -648,3 +648,54 @@ test('integrated Snapshot gateway withholds paths for failed execution, invalid 
     }
     assert.equal(view.inspect(newer).verification,null);assert.equal(view.inspect(newer).build,null);
 });
+
+function declareAnalysisNotRun(tool,removeExecution){
+    const d=fixtures.get('success'),p=d.planResult.data.plan;
+    const index=p.analysis[tool].result_index,field=tool==='compare_versions'?'version_groups':'conflicts';
+    p.analysis[tool]=null;
+    p.unresolved=p.unresolved.map(u=>u.source_tool===tool?{kind:'analysis_not_run',source_tool:tool,source_result_index:null,documents:[],text:tool+' explicitly not run'}:u);
+    d.report[field]=[];d.report.package_unresolved.items=structuredClone(p.unresolved);
+    if(removeExecution)d.snapshot.results[index]={tool:'read_document',success:true,data:{},message:'synthetic unrelated record; no analysis call',error:null};
+    d.snapshot.results[4]=structuredClone(d.planResult);
+    return {d,index,field};
+}
+
+for(const tool of ['compare_versions','detect_conflicts']){
+    test(tool+' actual successful nonempty analysis cannot be hidden by null/not-run',()=>{
+        const {d,index,field}=declareAnalysisNotRun(tool,false),before=structuredClone(d);
+        const raw=d.snapshot.results[index],key=tool==='compare_versions'?'groups':'conflicts';
+        assert.equal(raw.success,true);assert.ok(raw.data[key].length>0);
+        const m=view.inspect(d),html=view.render(d),gate=view.inspectSnapshot(d.snapshot),safeHtml=view.renderSnapshot(d.snapshot);
+        assert.equal(m.reportSources[field],null);assert.equal(m.packageSucceeded,false);
+        assert.match(m.errors.join(),/分析来源矛盾/);assert.match(html,/分析来源矛盾/);
+        assert.match(html,/报告未通过当前执行完整性检查/);
+        assert.doesNotMatch(html,/Package 执行与文件验证成功|本次报告与关联执行证据一致|文件验证：通过/);
+        assert.equal(gate.state,'invalid');assert.equal(gate.input,null);
+        for(const file of d.planResult.data.plan.selected_files)for(const value of [file.source.filename,file.source.path,file.target])assert.equal(safeHtml.includes(value),false,value);
+        assert.equal(d.snapshot.results[index],raw);assert.equal(d.planResult.data.plan.analysis[tool],null);
+        assert.deepEqual(d,before);assert.equal(m.formalApprovalEnabled,false);assert.equal(m.authorizationConfirmed,false);
+    });
+
+    test(tool+' truly unrun with frozen risk remains a valid incomplete display, never authorization',()=>{
+        const {d,field}=declareAnalysisNotRun(tool,true),before=structuredClone(d),m=view.inspect(d),html=view.render(d);
+        assert.equal(d.snapshot.results.some(result=>result.tool===tool),false);
+        assert.deepEqual(m.errors,[]);assert.deepEqual(m.reportSources[field],[]);
+        assert.equal(m.packageSucceeded,true);assert.equal(m.boundOperations.length,4);
+        assert.equal(m.hasRisks,true);assert.equal(m.authorizationConfirmed,false);assert.equal(m.formalApprovalEnabled,false);
+        assert.match(html,/analysis_not_run/);assert.ok(html.includes(tool+' explicitly not run'));
+        assert.match(html,/打包执行成功，但材料包仍有缺项或未决事项/);assert.match(html,/不确认服务端审批/);
+        assert.equal(view.inspectSnapshot(d.snapshot).state,'provided');assert.deepEqual(d,before);
+    });
+}
+
+test('recorded empty, failed or malformed analysis also cannot be relabeled as unrun',()=>{
+    for(const tool of ['compare_versions','detect_conflicts'])for(const kind of ['empty','failed','malformed']){
+        const {d,index,field}=declareAnalysisNotRun(tool,false),key=tool==='compare_versions'?'groups':'conflicts';
+        if(kind==='empty')d.snapshot.results[index].data[key]=[];
+        if(kind==='failed')Object.assign(d.snapshot.results[index],{success:false,data:null,error:'synthetic analysis failure'});
+        if(kind==='malformed')d.snapshot.results[index]={tool,success:true,data:null,message:'malformed',error:null};
+        const m=view.inspect(d);
+        assert.match(m.errors.join(),/分析来源矛盾/);assert.equal(m.reportSources[field],null);assert.equal(m.packageSucceeded,false);
+        assert.notEqual(view.inspectSnapshot(d.snapshot).state,'provided');
+    }
+});

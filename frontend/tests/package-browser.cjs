@@ -146,6 +146,30 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
             assert.doesNotMatch(item.text,/Package 执行与文件验证成功/);
             assert.equal(item.unchanged,true);assert.equal(item.disabled,true);assert.equal(item.overflow,false);
         }
+        const notRunCases=await evaluate(`(()=>{
+            const findings=[];
+            for(const tool of ['compare_versions','detect_conflicts'])for(const trulyUnrun of [false,true]){
+                const d=PackageFixtures.get('success'),p=d.planResult.data.plan,index=p.analysis[tool].result_index,field=tool==='compare_versions'?'version_groups':'conflicts';
+                p.analysis[tool]=null;
+                p.unresolved=p.unresolved.map(u=>u.source_tool===tool?{kind:'analysis_not_run',source_tool:tool,source_result_index:null,documents:[],text:tool+' explicitly not run'}:u);
+                d.report[field]=[];d.report.package_unresolved.items=structuredClone(p.unresolved);
+                if(trulyUnrun)d.snapshot.results[index]={tool:'read_document',success:true,data:{},message:'no analysis call',error:null};
+                d.snapshot.results[4]=structuredClone(d.planResult);
+                const before=JSON.stringify(d),m=PackagePreview.inspect(d),gate=PackagePreview.inspectSnapshot(d.snapshot);
+                content.innerHTML=PackagePreview.render(d);const text=content.innerText;
+                content.innerHTML=PackagePreview.renderSnapshot(d.snapshot);
+                findings.push({tool,trulyUnrun,succeeded:m.packageSucceeded,source:m.reportSources[field],state:gate.state,text,
+                    leaks:[p.selected_files[0].source.filename,p.selected_files[0].source.path,p.selected_files[0].target].some(value=>content.innerText.includes(value)),
+                    authorization:m.authorizationConfirmed,disabled:formalApprove.disabled,unchanged:before===JSON.stringify(d),overflow:document.documentElement.scrollWidth>innerWidth});
+            }
+            return findings;
+        })()`);
+        for(const item of notRunCases){
+            assert.equal(item.succeeded,item.trulyUnrun);assert.equal(item.state,item.trulyUnrun?'provided':'invalid');
+            if(item.trulyUnrun){assert.deepEqual(item.source,[]);assert.match(item.text,/打包执行成功，但材料包仍有缺项或未决事项/);}
+            else {assert.equal(item.source,null);assert.equal(item.leaks,false);assert.match(item.text,/分析来源矛盾/);assert.doesNotMatch(item.text,/Package 执行与文件验证成功|文件验证：通过/);}
+            assert.equal(item.authorization,false);assert.equal(item.disabled,true);assert.equal(item.unchanged,true);assert.equal(item.overflow,false);
+        }
         // The unavailable gate intentionally has no details/pre; restore a valid
         // Fixture before running the existing detailed-layout assertion.
         await evaluate("scenario.value='complete';scenario.dispatchEvent(new Event('change'))");
@@ -156,7 +180,7 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         assert.equal(await evaluate('formalApprove.disabled'),true);
         assert.deepEqual(pageErrors,[]);
         assert.deepEqual(network.filter(r=>/^https?:/.test(r.url)),[]);
-        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations + 2 failed execution chains + 5 verification/report cases + 4 Snapshot detail gates + 3 integrated Snapshot states; no HTTP requests; approval disabled.');
+        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations + 2 failed execution chains + 5 verification/report cases + 4 Snapshot detail gates + 3 integrated Snapshot states + 4 not-run cases; no HTTP requests; approval disabled.');
     }finally{
         if(ws)ws.close();browser.kill();await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));
         // Only remove the exact profile created by this test, outside user Workspace.

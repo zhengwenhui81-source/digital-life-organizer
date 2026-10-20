@@ -35,6 +35,9 @@
         const {planResult:r,snapshot:s,report}=input||{}, p=r?.data?.plan, errors=[];
         const warn=m=>errors.push(m);
         const operations=list(p?.operations), results=list(s?.results);
+        // A null frozen slot cannot erase an actual (even malformed/failed) call.
+        // Do not select an older result or rewrite the frozen source association.
+        const analysisNotRun=tool=>p?.analysis?.[tool]===null&&!results.some(result=>result?.tool===tool);
         const taskValid=obj(p?.task)&&['task_id','user_goal','workspace'].every(k=>str(p.task[k]));
         const taskMatches=taskValid&&obj(s?.task)&&['task_id','user_goal','workspace'].every(k=>s.task[k]===p.task[k]);
         if(p&&!taskValid)warn('方案数据不完整：任务信息缺失或无效');
@@ -56,14 +59,17 @@
             if(arr(p.unresolved)&&p.unresolved.some(v=>!obj(v)||!Object.hasOwn(labels,v.kind)||!str(v.text)||!arr(v.documents)))warn('未决事项数据不完整');
             for(const tool of slots){
                 const slot=p.analysis?.[tool];
-                if(slot===null){if(!list(p.unresolved).some(u=>u?.kind==='analysis_not_run'&&u.source_tool===tool&&u.source_result_index===null))warn(tool+' 未执行且缺少未决记录');}
+                if(slot===null){
+                    if(!analysisNotRun(tool))warn(tool+' 分析来源矛盾：Snapshot 已有执行记录，冻结方案却声明未运行');
+                    if(!list(p.unresolved).some(u=>u?.kind==='analysis_not_run'&&u.source_tool===tool&&u.source_result_index===null))warn(tool+' 未执行且缺少未决记录');
+                }
                 else if(!obj(slot)||slot.result?.tool!==tool||slot.result?.success!==true||!Number.isInteger(slot.result_index)||slot.result_index<0)warn(tool+' 分析来源缺失或失败');
                 else if(s&&(!arr(s.results)||!equalData(s.results[slot.result_index],slot.result)||s.results.slice(slot.result_index+1).some(x=>x?.tool===tool)))warn(tool+' 分析来源不一致或已过期');
             }
             for(const u of list(p.unresolved)){
                 const slot=p.analysis?.[u?.source_tool];
                 const index=u?.source_result_index;
-                const notRun=obj(u)&&u.kind==='analysis_not_run'&&slots.includes(u.source_tool)&&slot===null&&index===null;
+                const notRun=obj(u)&&u.kind==='analysis_not_run'&&slots.includes(u.source_tool)&&analysisNotRun(u.source_tool)&&index===null;
                 const expectedTool={selection_pending:'match_requirements',version_undecided:'compare_versions',conflict:'detect_conflicts'}[u?.kind];
                 const linked=obj(u)&&u.source_tool===expectedTool&&Number.isInteger(index)&&index>=0&&obj(slot)&&slot.result_index===index&&resultRecord(slot.result)&&slot.result.success===true&&slot.result.tool===u.source_tool&&(!s||(arr(s.results)&&resultRecord(results[index])&&equalData(results[index],slot.result)&&!results.slice(index+1).some(v=>v?.tool===u.source_tool)));
                 if(!notRun&&!linked)warn('未决事项来源关联无效：保留原始记录，不作为已确认分析结论');
@@ -195,7 +201,7 @@
             if(!discoveryValid||!equalData(report.found_files,found))warn('报告 found_files 来源缺失、过期或内容不一致');
             for(const [tool,field] of [['compare_versions','version_groups'],['detect_conflicts','conflicts']]){
                 const slot=p?.analysis?.[tool],key=tool==='compare_versions'?'groups':'conflicts';
-                const notRun=slot===null&&list(p?.unresolved).some(u=>u?.kind==='analysis_not_run'&&u.source_tool===tool&&u.source_result_index===null&&arr(u.documents)&&u.documents.length===0&&str(u.text));
+                const notRun=analysisNotRun(tool)&&list(p?.unresolved).some(u=>u?.kind==='analysis_not_run'&&u.source_tool===tool&&u.source_result_index===null&&arr(u.documents)&&u.documents.length===0&&str(u.text));
                 const valid=planMatches&&obj(slot)&&Number.isSafeInteger(slot.result_index)&&slot.result_index>=0&&slot.result_index<planIndex&&resultRecord(slot.result)&&slot.result.tool===tool&&slot.result.success===true&&equalData(results[slot.result_index],slot.result)&&!results.slice(slot.result_index+1).some(result=>result?.tool===tool)&&arr(slot.result.data?.[key]);
                 if(valid)reportSources[field]=slot.result.data[key];
                 else if(planMatches&&notRun)reportSources[field]=[]; // No positive finding; risk remains frozen and visible.

@@ -155,3 +155,14 @@ Windows 验收准备文件在独立 #46 分支保存，不在本 PR 差异中；
 本轮整合实际运行：`node --test frontend/tests/package-preview.test.cjs frontend/tests/agent-results.test.cjs frontend/tests/agent-workspace.test.cjs frontend/tests/organization-preview.test.cjs` 为 110 passed、0 failed、exit 0。
 `node --test frontend/tests/package-browser.cjs` 为 1 passed、0 failed、exit 0；覆盖 22 Fixture × 两种宽度、8 异常输入、2 失败链、5 验证/报告、4 Snapshot 保护及 3 组合状态，无 HTTP 请求、页面异常或横向溢出。
 package-preview.js、package-fixtures.js 和三个相关测试 CJS 的 `node --check`，以及相对最新 dev 的 diff 空白检查通过。测试均为合成展示/HTTP 响应回归，不是实际后端 Package 或 LLM 验收。
+
+## null/not-run 与真实分析记录一致性修复
+
+在集成 HEAD `9ba13065d7c4dabf0c10cafbf98f679e0a4bc947` 重跑 C 的 Version/Conflicts 两种反例，均能复现错误成功。
+现统一由 analysisNotRun 检查冻结槽为 null 且当前 Snapshot 中没有同名工具记录。
+只要存在该工具调用（包括成功空结果、失败或畸形记录），就不能以 analysis_not_run 擦除执行历史。
+矛盾会诊断“分析来源矛盾”，对应 reportSources 保持 null，Package 成功判定为 false，正式 Snapshot 入口为 invalid，不展示详细映射。
+不从历史记录自动恢复分析槽、修复索引或重新计算摘要；原始输入不变。真正无该工具记录、显式冻结未决风险且报告完整保留风险的合法不完整方案仍可展示执行结果，authorizationConfirmed=false，正式批准禁用。
+本轮不再次 merge、不撤销冲突解决，不修改 A/C/D 或公共契约。新增两个工具各自的矛盾/合法正向单测，以及空/失败/畸形记录反例和四个浏览器 not-run 场景。
+
+本轮实际结果：既有四组 Node 回归 115 passed、0 failed、exit 0；Chrome 1 passed、0 failed、exit 0（保留全部整合场景，另加四个 not-run 场景，无 HTTP/页面异常/溢出）。五个相关 JS/CJS 的语法检查及 diff 空白检查通过。以上是合成输入展示回归，不是实际 Package 执行或材料验收。
