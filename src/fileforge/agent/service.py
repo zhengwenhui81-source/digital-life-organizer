@@ -520,6 +520,7 @@ class TaskService:
     def _report(entry: dict[str, Any]) -> dict[str, Any]:
         state = entry["execution"]
         found = []
+        found_paths = set()
         version_groups = []
         conflicts = []
         operations = []
@@ -528,7 +529,14 @@ class TaskService:
         for result in state["results"]:
             if result["success"] and result["tool"] in {"list_files", "search_files"}:
                 key = "files" if result["tool"] == "list_files" else "matches"
-                found.extend(result["data"].get(key, []))
+                for file in result["data"].get(key, []):
+                    if not isinstance(file, dict) or not isinstance(
+                        file.get("path"), str
+                    ):
+                        raise ValueError("File collection returned invalid record")
+                    if file["path"] not in found_paths:
+                        found_paths.add(file["path"])
+                        found.append(file)
             if result["tool"] == "compare_versions" and result["success"]:
                 version_groups.extend(result["data"].get("groups", []))
             if result["tool"] == "detect_conflicts" and result["success"]:
