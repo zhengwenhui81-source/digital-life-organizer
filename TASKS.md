@@ -711,3 +711,43 @@ Reading table structure does not interpret or calculate scores.
 - [ ] **B:** Continue real Windows browser/DeepSeek cross-module acceptance; coordinate full-service startup verification using the merged `docs/local-agent-development.md`.
 
 **Current factual baseline:** PR #36, #37 and #38 are merged; A's Package evidence helper and B's Package Fixture are not connected to a real executable Package flow. D `plan_package` PR #35 remains Draft as of this allocation. These checkboxes are not completed by existing unit tests or documentation alone. This allocation adds no API shape and does not change the already-confirmed Package contract.
+
+## 11. Workflow 2 — Confirmed Delivery and Rebalanced Ownership (2026-10-21)
+
+**Status:** approved task scope and staffing only; the real organization workflow has **not** passed execution acceptance. This section supersedes earlier Workflow 2 ownership instructions in §10 and leaves Workflow 1 duties intact. The target effort split is C 45%, D 25%, A 15%, B 15% (planning allocation, not measured effort).
+
+**Definition of done:** user selects a real arbitrary Workspace; scan actual supported files; classify using evidence and expose reasons, supported limits, unknown and undecided items; build a safe `Workspace/整理结果/<dynamic category>/<filename>` copy plan; user confirms classifications and authorizes a frozen plan; create real directories and copy only approved files; do not delete/move/overwrite originals; verify destination files by content hash and report actual successes, failures and residue. Always exclude existing and newly generated output subtrees from input scanning. Unsafe names, collisions, reparse points, source changes, unsupported formats and partial failure must be handled conservatively. No demo-only classification or fake success. Aim for >=95% accuracy *on a human-labelled evaluation set* while reporting both classification accuracy and coverage; not a guaranteed current score.
+
+### C — primary implementer (new incremental scope)
+
+- [ ] With A, inventory existing safe create/copy/verify primitives and agree an owned implementation seam; explicitly avoid duplication with Workflow 1. Document any exceptions to `AGENTS.md` ownership **before** code changes.
+- [ ] Design and implement a **read-only, task-neutral organization planner** consuming D's agreed classification decisions and real scanned source identity, emitting category folders, source-to-target copies, reason/uncertainty and collision/safety diagnostics. No copy/move/delete occurs in planning.
+- [ ] Implement or extend **reusable safe filesystem primitives** at an A-approved seam for approved execution only: non-overwrite directory creation/copy; Workspace boundary/path validation; symlink/reparse-point avoidance; no traversal or self-rescan; source freshness recheck; per-copy SHA-256 or full-byte comparison and actual result/error reporting. Reuse existing A primitives wherever possible. Production writes remain callable only through A's approval/execution gate.
+- [ ] Add Windows/Linux temporary-workspace tests for empty/mixed files, Chinese paths, same names, invalid categories, uncertain items, pre-existing `整理结果`, source changes, partial copies, verification errors and source preservation. Independently review D/A/B changes as time allows; C's own production PRs are reviewed by A or B.
+
+### D — classifier owner
+
+- [ ] Propose the minimal `classify_files` data contract (or jointly agreed equivalent) using existing file/Document identities, user goal, category/evidence, uncertainty/abstain, successful empty vs failure and resource limits.
+- [ ] After all members approve the contract, implement general evidence-based classification with dynamic categories and explicit abstention for unsupported/ambiguous content. Filename/extension-only grouping is labeled type grouping, not content-purpose understanding.
+- [ ] Supply deterministic classification tests and labeled accuracy/coverage evaluation inputs; no hard-coded Demo names or task-specific taxonomy.
+
+### A — authoritative integration / approval
+
+- [ ] Confirm C's module seam and reuse existing frozen-plan, `preview_id`, risk acceptance and TaskService file-write protections. A remains the only production mutation dispatcher.
+- [ ] Integrate D decisions and C directory plan into current Agent/ToolRouter/TaskSnapshot without inventing a second approval system; bind task, source, snapshot and frozen operations; allow explicit user corrections and prevent uncertain files from execution without confirmation.
+- [ ] Execute only approved operations; enforce safe failure/cleanup/verification provenance and truthful terminal reports. Do not conflate classification confidence with copy-byte verification.
+
+### B — product / real Windows acceptance
+
+- [ ] Reuse existing organization preview and task UI; show actual classifications, reasons, target tree, original/copy semantics, undecided items, collisions and source safety diagnostics.
+- [ ] Wire actual frozen preview, explicit confirmation, approval/reject, execution progress and verified final report **only after** A/D/C agree the transport and result contract. Keep formal execution disabled until then.
+- [ ] Evaluate on a human-labeled mixed-file set; report accuracy *and coverage* plus originals unchanged, no overwrite, output exclusion and copied-byte equality from the actual Windows filesystem.
+
+### Contract and PR dependency gate
+
+1. D proposes classifier request/result; C proposes read-only folder plan and reusable execution-component seam; A defines authoritative approval + executor linkage; B checks UI sufficiency.
+2. A/B/C/D explicitly confirm field names, ownership, Windows safety, failure meanings and quotas. Only then freeze new public schemas in `API_CONTRACT.md` and register implemented tools. No new endpoint/field is assumed by this task allocation.
+3. C and D may develop isolated, non-public implementation/tests in parallel; shared consumers and A production integration follow the confirmed contract. C's PR needs A/B independent review.
+4. Demonstrate **actual** creation and copying in a safe, authorized Windows Workspace followed by byte verification. Retain a separate unmodified copy of source files; do not use a UI fixture as execution evidence.
+
+**Priority:** continue fixing Workflow 1 Requirements, Windows snapshot and Package execution blockers; do not call Workflow 2 delivered until the separate real-copy end-to-end acceptance passes.
