@@ -13,9 +13,10 @@ function harness(mode='real') {
     };
     const c={window:{},console,AbortController,document:{getElementById:el,querySelectorAll:()=>[],createElement:()=>el('toast')},navigator:{clipboard:{writeText:async()=>{}}},setTimeout:(fn,ms)=>{timers.set(++timerId,{fn,ms});return timerId;},clearTimeout:id=>timers.delete(id),setInterval(){throw Error('Unexpected interval');},clearInterval(){},fetch:async(url,options)=>{if(!url.startsWith('/api/agent/'))return {ok:false};calls.push({url,options});return c.respond(url,options);}};
     vm.createContext(c);
-    for(const file of ['agent-api.js','agent-mock.js','agent-results.js','organization-preview.js','organization-demo.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
+    for(const file of ['agent-api.js','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
     c.AgentAPI=c.window.AgentAPI;c.AgentMock=c.window.AgentMock;c.AgentResults=c.window.AgentResults;
     c.OrganizationPreview=c.window.OrganizationPreview;c.OrganizationDemo=c.window.OrganizationDemo;
+    c.PackagePreview=c.window.PackagePreview;
     vm.runInContext(fs.readFileSync(path.join(base,'index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],c);
     vm.runInContext('window.state=agentState',c);
     el('agentMode').value=mode;el('agentScenario').value='happy';el('agentWorkspacePath').value='E:/unknown-workspace';el('agentGoal').value='准备课程材料';
@@ -202,4 +203,52 @@ test('unintegrated real Package approval and success presentation stay blocked, 
     await h.c.decideAgent(false);assert.equal(h.state.task.status,'failed');assert.equal(h.state.userRejected,true);
     seedTask(h);assert.throws(()=>h.c.renderAgentReport({task_id:'task',status:'completed',package_path:'E:/package'}),/Package 报告集成尚未验收/);
     assert.equal(h.state.report,null);
+});
+
+// Synthetic HTTP responses exercise the production page, not a live backend/LLM acceptance.
+function packageHttpSnapshot(){
+    const s=require('../package-fixtures.js').get('complete').snapshot;
+    s.task.task_id='task';s.results[4].data.plan.task.task_id='task';
+    s.preview_id='server-preview';s.pending_operations=[{step_id:'package_build',tool:'build_package',risk:'medium',status:'pending',arguments:{},description:'server preview'}];
+    return s;
+}
+test('production page renders Snapshot Package data without loading Fixture code or issuing extra requests',async()=>{
+    const h=harness(),s=packageHttpSnapshot();
+    h.c.respond=url=>url==='/api/agent/tasks'?response({...s.task,status:'created'},202):response(s);
+    await h.c.runAgent();await h.c.pollAgent();
+    const html=h.el('agentPackagePreview').innerHTML;
+    for(const label of ['真实 TaskSnapshot 只读展示','server-preview','结题报告.txt','plan_sha256','选择依据','缺项与风险'])assert.ok(html.includes(label),label);
+    assert.equal(h.c.window.PackageFixtures,undefined);assert.equal(h.c.window.PackageDemo,undefined);
+    assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.el('rejectAgent').disabled,false);
+    assert.equal(h.calls.length,2);await h.c.decideAgent(true);assert.equal(h.calls.length,2);
+    assert.deepEqual(JSON.parse(JSON.stringify(h.state.snapshot)),s);
+});
+test('production page distinguishes unavailable planning, malformed manifests and current failures',async()=>{
+    const h=harness();let s=packageHttpSnapshot();
+    h.c.respond=url=>url==='/api/agent/tasks'?response({...s.task,status:'created'},202):response(s);
+    await h.c.runAgent();await h.c.pollAgent();
+    delete s.results[4].data.plan.selected_files;await h.c.pollAgent();
+    assert.match(h.el('agentPackagePreview').innerHTML,/数据不完整/);
+    s=packageHttpSnapshot();s.results=[];await h.c.pollAgent();
+    assert.match(h.el('agentPackagePreview').innerHTML,/真实 Package 规划数据尚未提供/);
+    assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/提议文件 1/);
+    s=packageHttpSnapshot();s.results.push({tool:'plan_package',success:false,data:null,message:'failed',error:'current plan failed'});s.task.status='failed';
+    await h.c.pollAgent();assert.match(h.el('agentPackagePreview').innerHTML,/current plan failed/);
+    assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/具体文件映射/);assert.equal(h.state.report,null);
+});
+test('production Package preview rejects stale evidence and task context pollution',async()=>{
+    for(const field of ['task_id','user_goal','workspace']){
+        const h=harness(),s=packageHttpSnapshot();
+        h.c.respond=url=>url==='/api/agent/tasks'?response({...s.task,status:'created'},202):response(s);
+        await h.c.runAgent();
+        s.results[4].data.plan.task[field]='FOREIGN';await h.c.pollAgent();
+        assert.match(h.el('agentPackagePreview').innerHTML,/归属不一致/);assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/结题报告.txt/);
+    }
+    const h=harness(),s=packageHttpSnapshot();
+    h.c.respond=url=>url==='/api/agent/tasks'?response({...s.task,status:'created'},202):response(s);
+    await h.c.runAgent();s.task.workspace='FOREIGN';s.results[4].data.plan.task.workspace='FOREIGN';await h.c.pollAgent();
+    assert.match(h.el('agentPackagePreview').innerHTML,/当前任务归属不一致/);
+    s.task.workspace=h.state.taskContext.workspace;s.results[4].data.plan.task.workspace=s.task.workspace;
+    s.results.push({...s.results[3]});await h.c.pollAgent();assert.match(h.el('agentPackagePreview').innerHTML,/过期/);
+    assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/具体文件映射/);
 });

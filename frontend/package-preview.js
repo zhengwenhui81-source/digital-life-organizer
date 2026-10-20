@@ -156,5 +156,47 @@
         if(report)html+=section('报告中的缺项与未决事项',risk(report.missing_items,report.package_unresolved?.items));
         return html;
     }
-    const api={inspect,render};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PackagePreview=api;
+    // Read-only adapter: only the latest planning attempt in this exact Snapshot.
+    // No cached success, inferred approval, transport or Fixture dependency.
+    function inspectSnapshot(snapshot,expectedTask=snapshot?.task){
+        const base={state:'unavailable',resultIndex:null,input:null,issues:[]};
+        const invalid=message=>({...base,state:'invalid',issues:[message]});
+        if(snapshot==null)return base;
+        if(!obj(snapshot)||!obj(snapshot.task)||!arr(snapshot.results))return invalid('TaskSnapshot 数据格式异常：task/results 缺失或无效');
+        const taskKeys=['task_id','user_goal','workspace'];
+        if(!obj(expectedTask)||taskKeys.some(k=>!str(expectedTask[k])||snapshot.task[k]!==expectedTask[k]))return invalid('TaskSnapshot 与当前任务归属不一致或任务字段缺失');
+        let resultIndex=-1;
+        snapshot.results.forEach((result,index)=>{if(result?.tool==='plan_package')resultIndex=index;});
+        if(resultIndex<0){
+            if(snapshot.package_execution!=null)return invalid('存在 Package 执行关联但未提供对应规划结果；不能回退查找旧方案');
+            if(snapshot.results.some(result=>!resultRecord(result)))return invalid('TaskSnapshot.results 包含格式异常的工具记录');
+            return base;
+        }
+        const result=snapshot.results[resultIndex],current={...base,resultIndex};
+        if(!resultRecord(result))return {...current,state:'invalid',issues:['当前 plan_package ToolResult 格式异常；不使用历史成功']};
+        if(snapshot.task.status==='failed'||!result.success||snapshot.results.some(item=>item?.success===false))return {...current,state:'failed',issues:['当前任务或工具执行失败；不使用历史成功规划补齐预览',snapshot.error,result.error].filter(str)};
+        const plan=result.data.plan;
+        if(!obj(plan)||!obj(plan.task)||taskKeys.some(k=>plan.task[k]!==expectedTask[k]))return {...current,state:'invalid',issues:['规划结果与当前任务归属不一致或 plan/task 缺失；不展示跨任务方案']};
+        if(snapshot.results.slice(resultIndex+1).some(item=>slots.includes(item?.tool)||item?.tool==='read_document'))return {...current,state:'invalid',issues:['规划之后存在新的分析或文档读取结果，冻结证据可能已过期；不回退展示旧方案']};
+        const input={planResult:result,snapshot},issues=[...inspect(input).errors];
+        for(const tool of slots){
+            const slot=plan.analysis?.[tool];
+            if(slot!=null&&(!Number.isSafeInteger(slot.result_index)||slot.result_index<0||slot.result_index>=resultIndex))issues.push(tool+' 分析索引未引用本次规划之前的结果');
+        }
+        if(snapshot.preview_id!=null&&!str(snapshot.preview_id))issues.push('preview_id 格式异常；不能确认服务端预览关联');
+        if(snapshot.task.status==='awaiting_approval'&&!str(snapshot.preview_id))issues.push('等待审批但 preview_id 尚未提供；不能确认冻结预览绑定');
+        if(str(snapshot.preview_id)&&(!arr(snapshot.pending_operations)||!snapshot.pending_operations.length))issues.push('preview_id 缺少对应 pending_operations；不能确认冻结操作关联');
+        return {...current,state:issues.length?'invalid':'provided',input,issues};
+    }
+    function renderSnapshot(snapshot,expectedTask){
+        const m=inspectSnapshot(snapshot,expectedTask);
+        let html='<p class="warning">真实 TaskSnapshot 只读展示 · Package 批准与执行未接通；不构成服务端授权。</p>';
+        if(m.state==='unavailable')return html+'<p>真实 Package 规划数据尚未提供。当前 Agent 可能尚未产生 plan_package ToolResult；不使用 Fixture 补齐。</p>';
+        html+=pre({task_id:snapshot?.task?.task_id,plan_id:m.input?.planResult?.data?.plan?.plan_id,plan_sha256:m.input?.planResult?.data?.plan_sha256,preview_id:snapshot?.preview_id,result_index:m.resultIndex});
+        if(m.issues.length)html+='<p class="warning">'+(m.state==='failed'?'当前失败，冻结预览不可用。':'数据不完整、格式异常或来源无法确认；不得视为有效当前冻结预览。')+'</p><ul>'+m.issues.map(issue=>'<li>'+esc(issue)+'</li>').join('')+'</ul>';
+        else html+='<p>规划记录来自当前 Snapshot；'+(str(snapshot?.preview_id)?'preview_id 仅按服务端返回展示，权威绑定尚未验收。':'服务端审批预览尚未提供，当前仅为只读规划。')+'</p>';
+        if(m.input)html+=render(m.input);
+        return html;
+    }
+    const api={inspect,render,inspectSnapshot,renderSnapshot};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PackagePreview=api;
 })(typeof window==='undefined'?globalThis:window);

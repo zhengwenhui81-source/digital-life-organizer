@@ -267,3 +267,66 @@ test('terminal and verification indices require current ordered numeric executio
     const afterFailure=fixtures.get('success');afterFailure.snapshot.results[6]={tool:'copy_file',success:false,data:null,message:'failed',error:'synthetic copy failure'};
     rejectsVerifiedDisplay(afterFailure,/失败后仍有后续操作记录/);
 });
+
+function planningSnapshot(){
+    const s=fixtures.get('complete').snapshot;s.task.status='planning';return s;
+}
+test('Snapshot adapter distinguishes absent real planning from malformed payloads',()=>{
+    const s=planningSnapshot();s.results=s.results.filter(r=>r.tool!=='plan_package');
+    assert.equal(view.inspectSnapshot(s).state,'unavailable');
+    assert.match(view.renderSnapshot(s),/真实 Package 规划数据尚未提供/);
+    assert.doesNotMatch(view.renderSnapshot(s),/数据格式异常/);
+    for(const value of [{},{task:s.task,results:null},{task:s.task,results:[null]}]){
+        assert.equal(view.inspectSnapshot(value).state,'invalid');assert.match(view.renderSnapshot(value),/格式异常|字段缺失/);
+    }
+});
+test('Snapshot adapter renders current planning evidence with identity, preview and immutable order',()=>{
+    const s=planningSnapshot();s.task.status='awaiting_approval';s.preview_id='server-preview';
+    s.pending_operations=[{tool:'build_package',step_id:'build',arguments:{}}];
+    const before=structuredClone(s),m=view.inspectSnapshot(s),html=view.renderSnapshot(s);
+    assert.equal(m.state,'provided');assert.equal(m.resultIndex,4);assert.equal(m.input.planResult,s.results[4]);
+    for(const value of ['server-preview','fixture_task','package_plan_','plan_sha256','结题报告.txt','多候选证据','选材为提议'])assert.ok(html.includes(value),value);
+    assert.match(html,/权威绑定尚未验收/);assert.deepEqual(s,before);
+    delete s.preview_id;assert.match(view.renderSnapshot(s),/preview_id 尚未提供/);
+});
+test('Snapshot adapter never falls back from latest failure, missing manifest or later upstream failure',()=>{
+    for(const latest of [{tool:'plan_package',success:false,data:null,message:'failed',error:'latest failed'},
+        {tool:'plan_package',success:true,data:{},message:'missing plan',error:null},
+        {tool:'read_document',success:false,data:null,message:'failed',error:'read failed'}]){
+        const s=planningSnapshot();s.results.push(latest);const m=view.inspectSnapshot(s),html=view.renderSnapshot(s);
+        assert.notEqual(m.state,'provided');assert.equal(m.input,null);assert.doesNotMatch(html,/提议文件 1/);
+        assert.equal(m.resultIndex,latest.tool==='plan_package'?5:4);
+    }
+    const s=planningSnapshot();s.task.status='failed';s.error='current failed';
+    assert.equal(view.inspectSnapshot(s).state,'failed');assert.match(view.renderSnapshot(s),/current failed/);
+    assert.doesNotMatch(view.renderSnapshot(s),/具体文件映射/);
+});
+test('Snapshot adapter rejects foreign task contexts and expired analysis without leaking mappings',()=>{
+    for(const key of ['task_id','user_goal','workspace']){
+        const s=planningSnapshot(),expected={...s.task,[key]:'other'};
+        assert.equal(view.inspectSnapshot(s,expected).state,'invalid');assert.doesNotMatch(view.renderSnapshot(s,expected),/结题报告.txt/);
+        s.results[4].data.plan.task[key]='other';
+        assert.equal(view.inspectSnapshot(s).state,'invalid');assert.doesNotMatch(view.renderSnapshot(s),/结题报告.txt/);
+    }
+    const s=planningSnapshot();s.results.push({...s.results[3]});
+    assert.equal(view.inspectSnapshot(s).state,'invalid');assert.match(view.renderSnapshot(s),/过期/);
+    assert.doesNotMatch(view.renderSnapshot(s),/具体文件映射/);
+});
+test('Snapshot adapter does not retain old plans between snapshots and marks missing preview evidence',()=>{
+    const first=planningSnapshot();assert.equal(view.inspectSnapshot(first).state,'provided');
+    const second=planningSnapshot();second.results=[];assert.equal(view.inspectSnapshot(second).state,'unavailable');
+    const missing=planningSnapshot();delete missing.results[4].data.plan.selected_files;
+    assert.equal(view.inspectSnapshot(missing).state,'invalid');assert.match(view.renderSnapshot(missing),/selected_files 不是数组/);
+    const preview=planningSnapshot();preview.preview_id='server-preview';preview.pending_operations=[];
+    assert.match(view.renderSnapshot(preview),/pending_operations/);
+    preview.preview_id=42;assert.match(view.renderSnapshot(preview),/preview_id 格式异常/);
+});
+test('Snapshot adapter binds the displayed identity and preview to the latest planning record',()=>{
+    const s=planningSnapshot(),next=structuredClone(s.results[4]);
+    next.data.plan.plan_id='package_plan_'+'2'.repeat(32);next.data.plan_sha256='sha256:'+'e'.repeat(64);
+    s.results.push(next);s.preview_id='new-server-preview';s.pending_operations=[{tool:'build_package',step_id:'build',arguments:{}}];
+    const m=view.inspectSnapshot(s),html=view.renderSnapshot(s);
+    assert.equal(m.state,'provided');assert.equal(m.resultIndex,5);assert.equal(m.input.planResult,next);
+    assert.match(html,/new-server-preview/);assert.ok(html.includes(next.data.plan.plan_id));
+    assert.ok(html.includes(next.data.plan_sha256));assert.ok(!html.includes(s.results[4].data.plan.plan_id));
+});
