@@ -603,3 +603,49 @@ def test_success_worker_exits_and_closes_all_pipes(monkeypatch):
     assert process.returncode == 0
     assert process.poll() == 0
     assert process.stdin.closed and process.stdout.closed and process.stderr.closed
+
+
+def test_public_complete_reread_document_is_preserved_and_deduplicated(tmp_path):
+    source = tmp_path / "complete.txt"
+    source.write_text("Complete snapshot, same source", encoding="utf-8")
+    before = (source.read_bytes(), source.stat().st_mtime_ns)
+    first = read_document(str(source))
+    second = read_document(str(source))
+    assert first["success"] and second["success"]
+    assert first["data"]["document"] == second["data"]["document"]
+    documents = [first["data"]["document"], second["data"]["document"]]
+    original = copy.deepcopy(documents)
+    result = compare_versions(documents)
+    assert result["success"] and result["error"] is None
+    assert len(result["data"]["groups"]) == 1
+    group = result["data"]["groups"][0]
+    assert group["documents"] == [original[0]]
+    assert group["newest_candidate"] is None and group["changes"] == []
+    assert group["recommendation_reason"] == "single_document"
+    assert documents == original
+    assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+
+
+@pytest.mark.parametrize(
+    "reason", ["identical_content", "insufficient_evidence", "version_tie"]
+)
+def test_public_abstention_preserves_null_reason_and_original_documents(reason):
+    text = "Shared unchanged information\n" * 12
+    first = document("material_v1.txt", text + "old", "a")
+    if reason == "identical_content":
+        second = document("material_v2.txt", first["text"], "b")
+    elif reason == "insufficient_evidence":
+        second = document("material_final.txt", text + "new", "b")
+    else:
+        second = document("material_v1.0.txt", text + "new", "b")
+    documents = [first, second]
+    original = copy.deepcopy(documents)
+    result = compare_versions(documents)
+    assert result["success"] is True and result["error"] is None
+    assert len(result["data"]["groups"]) == 1
+    group = result["data"]["groups"][0]
+    assert group["newest_candidate"] is None
+    assert group["recommendation_reason"] == reason
+    assert group["documents"] == original
+    assert group["changes"]
+    assert documents == original
