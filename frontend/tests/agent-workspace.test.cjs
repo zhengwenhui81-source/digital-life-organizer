@@ -23,6 +23,25 @@ function harness(mode='real') {
 }
 const response=(data,status=200)=>({ok:status<300,status,text:async()=>JSON.stringify(data)});
 const snapshot=(status,extra={})=>({task:{task_id:'task',status},plan:{steps:[]},results:[],pending_operations:[],preview_id:null,error:null,...extra});
+const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
+function seedTask(h,status='completed'){
+    h.state.mode='real';h.c.AgentAPI.setMode('real');h.c.renderAgent(snapshot(status,{preview_id:'preview'}));
+}
+function replaceTask(h,{sameId=false,advanceGeneration=true}={}){
+    if(advanceGeneration)h.state.generation++;
+    h.state.task={task_id:sameId?'task':'new-task',status:'planning'};
+    h.state.snapshot={task:h.state.task};h.state.report=null;h.state.busy=true;
+    h.state.pollInFlight=true;h.state.decisionBusy=true;h.state.decisionAction='new-request';h.state.userRejected=false;
+    h.el('agentFinal').textContent='new task view';h.el('agentErrorDetail').textContent='new task error';
+    h.el('agentFinalCard').dataset.completed='false';
+}
+function assertReplacementUntouched(h){
+    assert.equal(h.state.task.status,'planning');assert.equal(h.state.report,null);
+    assert.equal(h.state.pollInFlight,true);assert.equal(h.state.decisionBusy,true);
+    assert.equal(h.state.decisionAction,'new-request');assert.equal(h.state.userRejected,false);
+    assert.equal(h.el('agentFinal').textContent,'new task view');
+    assert.equal(h.el('agentErrorDetail').textContent,'new task error');assert.equal(h.el('agentFinalCard').dataset.completed,'false');
+}
 
 test('real polling handles every task state, exact preview, report and single loop',async()=>{
     const h=harness();let status='created';
@@ -112,4 +131,75 @@ test('approval displays exact backend arguments and failure details without prom
     await h.c.pollAgent();assert.match(h.el('agentErrorDetail').textContent,/verification failed; one copy may already exist/);
     assert.match(h.el('agentOtherResults').innerHTML,/one copy completed/);assert.match(h.el('agentOtherResults').innerHTML,/verification failed/);
     assert.equal(h.state.report,null);assert.equal(h.calls.some(c=>c.url.endsWith('/report')),false);
+});
+
+test('late report success and errors cannot change a new generation, even with the same task id',async()=>{
+    for(const replacement of [{sameId:false},{sameId:true},{advanceGeneration:false}])for(const fails of [false,true]){
+        const h=harness(),request=deferred(),started=deferred();seedTask(h);
+        h.c.AgentAPI.getReport=()=>{started.resolve();return request.promise;};
+        const pending=h.c.applyAgentSnapshot(snapshot('completed'));await started.promise;
+        replaceTask(h,replacement);
+        if(fails)request.reject(Error('old report error'));else request.resolve({task_id:'task',status:'completed',package_path:''});
+        await pending;assertReplacementUntouched(h);
+    }
+});
+
+test('a newer failed snapshot prevents a late successful report for the same task',async()=>{
+    const h=harness(),request=deferred();seedTask(h);h.c.AgentAPI.getReport=()=>request.promise;
+    const pending=h.c.applyAgentSnapshot(snapshot('completed'));
+    await h.c.applyAgentSnapshot(snapshot('failed',{error:'current failure'}));
+    request.resolve({task_id:'task',status:'completed',package_path:''});await pending;
+    assert.equal(h.state.task.status,'failed');assert.equal(h.state.report,null);
+    assert.equal(h.el('agentErrorDetail').textContent,'current failure');assert.equal(h.el('agentFinalCard').dataset.completed,'false');
+});
+
+test('late approve and reject responses and errors never alter another task or release its locks',async()=>{
+    for(const approve of [true,false])for(const fails of [false,true]){
+        const h=harness(),request=deferred();seedTask(h,'awaiting_approval');
+        h.c.AgentAPI[approve?'approveTask':'rejectTask']=()=>request.promise;
+        const pending=h.c.decideAgent(approve);replaceTask(h);
+        if(fails)request.reject(Object.assign(Error('old conflict'),{status:409}));else request.resolve(snapshot(approve?'executing':'failed'));
+        await pending;assertReplacementUntouched(h);assert.equal(h.calls.length,0);
+    }
+});
+
+test('409 refresh is bound to its original task and ignores late refresh results and failures',async()=>{
+    for(const fails of [false,true]){
+        const h=harness(),refresh=deferred(),started=deferred();seedTask(h,'awaiting_approval');
+        h.c.AgentAPI.approveTask=async()=>{throw Object.assign(Error('stale'),{status:409});};
+        h.c.AgentAPI.getTask=id=>{assert.equal(id,'task');started.resolve();return refresh.promise;};
+        const pending=h.c.decideAgent(true);await started.promise;replaceTask(h);
+        if(fails)refresh.reject(Error('old refresh failed'));else refresh.resolve(snapshot('awaiting_approval',{preview_id:'old-new-preview'}));
+        await pending;assertReplacementUntouched(h);
+    }
+});
+
+test('old polling success or error cannot stop new task polling or clear new request state',async()=>{
+    for(const fails of [false,true]){
+        const h=harness(),request=deferred();seedTask(h,'planning');h.c.AgentAPI.getTask=()=>request.promise;
+        const pending=h.c.pollAgent();replaceTask(h);
+        const timer=h.c.setTimeout(()=>{},1000);
+        if(fails)request.reject(Error('old polling error'));else request.resolve(snapshot('completed'));
+        await pending;assertReplacementUntouched(h);assert.equal(h.timers.has(timer),true);
+    }
+});
+
+test('a wrong-task approval response cannot mark the current task as rejected',async()=>{
+    const h=harness();seedTask(h,'awaiting_approval');
+    h.c.AgentAPI.rejectTask=async()=>snapshot('failed',{task:{task_id:'wrong-task',status:'failed'}});
+    await h.c.decideAgent(false);
+    assert.equal(h.state.task.task_id,'task');assert.equal(h.state.task.status,'awaiting_approval');
+    assert.equal(h.state.userRejected,false);assert.match(h.el('agentErrorDetail').textContent,/does not match/);
+});
+
+test('unintegrated real Package approval and success presentation stay blocked, rejection remains available',async()=>{
+    const h=harness();seedTask(h,'awaiting_approval');
+    h.c.renderAgent(snapshot('awaiting_approval',{preview_id:'package-preview',results:[{tool:'plan_package',success:true,data:{},message:'plan only',error:null}]}));
+    assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.el('rejectAgent').disabled,false);
+    assert.match(h.el('agentActions').innerHTML,/accept_incomplete 尚未接通/);
+    await h.c.decideAgent(true);assert.equal(h.calls.length,0);assert.match(h.el('agentErrorDetail').textContent,/不会发送批准请求/);
+    h.c.AgentAPI.rejectTask=async(id,preview)=>{assert.equal(id,'task');assert.equal(preview,'package-preview');return snapshot('failed',{error:'Rejected'});};
+    await h.c.decideAgent(false);assert.equal(h.state.task.status,'failed');assert.equal(h.state.userRejected,true);
+    seedTask(h);assert.throws(()=>h.c.renderAgentReport({task_id:'task',status:'completed',package_path:'E:/package'}),/Package 报告集成尚未验收/);
+    assert.equal(h.state.report,null);
 });

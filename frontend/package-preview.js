@@ -48,7 +48,7 @@
             if(arr(p.selected_files)&&p.selected_files.some(f=>!Number.isInteger(f?.snapshot?.mtime_ns)||!/^([a-f0-9]{64})$/.test(f?.snapshot?.sha256)))warn('文件快照时间或摘要格式不正确');
             if(arr(p.selected_files)&&p.selected_files.some(f=>Number.isInteger(f?.snapshot?.mtime_ns)&&!Number.isSafeInteger(f.snapshot.mtime_ns)))warn('纳秒时间戳超出 JavaScript 安全整数范围：精度无法确认，Number 相等不能证明来源快照一致；需 A/D 确认无损接入');
             const targets=p.verification_targets;
-            if(!obj(targets)||!equalData(targets.selected_file_indices,list(p.selected_files).map((_,i)=>i))||targets.report!==true||targets.exact_directory_entries!==true)warn('verification_targets 缺失或无效：不能确认冻结验证范围');
+            if(!obj(targets)||Object.keys(targets).length!==3||!equalData(targets.selected_file_indices,list(p.selected_files).map((_,i)=>i))||targets.report!==true||targets.exact_directory_entries!==true)warn('verification_targets 缺失或无效：不能确认冻结验证范围');
             if(!obj(p.report)||!str(p.report.path)||typeof p.report.content!=='string'||!str(p.report.sha256))warn('冻结报告不完整');
             if(arr(p.missing)&&p.missing.some(v=>!str(v)))warn('missing 数据不完整');
             if(arr(p.unresolved)&&p.unresolved.some(v=>!obj(v)||!Object.hasOwn(labels,v.kind)||!str(v.text)||!arr(v.documents)))warn('未决事项数据不完整');
@@ -109,6 +109,8 @@
                 const keys=['step_id','status','reason','residual_state'];
                 if(cleanup.some(c=>!obj(c)||Object.keys(c).length!==keys.length||keys.some(k=>!Object.hasOwn(c,k))||!str(c.step_id)||!str(c.reason)||!['not_attempted','succeeded','failed'].includes(c.status)||!['absent','owned_fragment','other_object','unknown'].includes(c.residual_state)))warn('cleanup_results 记录不完整/无效：保留原始清理信息');
                 if(cleanup.length!==attemptedCopies.length||attemptedCopies.some(copy=>cleanup.filter(c=>c?.step_id===copy.step_id).length!==1)||cleanup.some(c=>!attemptedCopies.some(copy=>copy.step_id===c?.step_id)))warn('cleanup_results 与已尝试复制关联不完整：缺失、重复或未知步骤，残留不可推断');
+                if(cleanup.some(c=>c?.status==='failed'))warn('清理尝试失败：保留原始复制错误和清理原因，不表示已回滚');
+                if(cleanup.some(c=>c?.residual_state==='unknown'))warn('清理残留状态未知：不能确认对象已移除，不表示已回滚');
                 for(const copy of attemptedCopies){
                     const c=cleanup.find(c=>c?.step_id===copy.step_id);
                     if(!obj(c))continue;

@@ -172,7 +172,8 @@ test('verification targets require the exact ordered selected-file coverage and 
         {selected_file_indices:['0'],report:true,exact_directory_entries:true},
         {selected_file_indices:[0,0],report:true,exact_directory_entries:true},
         {selected_file_indices:[0],report:1,exact_directory_entries:true},
-        {selected_file_indices:[0],report:true,exact_directory_entries:null}]){
+        {selected_file_indices:[0],report:true,exact_directory_entries:null},
+        {selected_file_indices:[0],report:true,exact_directory_entries:true,extra:'invalid'}]){
         const d=fixtures.get('success');d.planResult.data.plan.verification_targets=value;
         rejectsVerifiedDisplay(d,/verification_targets 缺失或无效/);
     }
@@ -229,7 +230,8 @@ test('consistent failure fixtures retain both copy observations and correct curr
         const d=fixtures.get(name),e=d.snapshot.package_execution,m=view.inspect(d);
         const copies=e.operation_results.filter(link=>d.snapshot.results[link.result_index].tool==='copy_file');
         assert.equal(copies.length,2);assert.deepEqual(e.cleanup_results.map(c=>c.step_id),copies.map(c=>c.step_id));
-        assert.deepEqual(m.errors,['当前任务失败；旧成功结果不能代表当前成功']);
+        const cleanupWarning=name==='cleanup_failed'?'清理尝试失败：保留原始复制错误和清理原因，不表示已回滚':name==='unknown_residual'?'清理残留状态未知：不能确认对象已移除，不表示已回滚':null;
+        assert.deepEqual(m.errors,[...(cleanupWarning?[cleanupWarning]:[]),'当前任务失败；旧成功结果不能代表当前成功']);
         assert.equal(m.build,d.snapshot.results[e.final_result_index]);assert.equal(m.build.success,false);
         assert.equal(d.report,null);assert.match(view.render(d),/首次复制文件保留/);
     }

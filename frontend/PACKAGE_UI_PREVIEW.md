@@ -43,7 +43,7 @@ node --test frontend/tests/package-browser.cjs
 
 ## 第一阶段集成准备边界
 
-本阶段只增强独立展示模块、合成数据和离线测试。没有改动生产 Agent 页面、HTTP transport 或后端；正式 Package 审批仍始终禁用。展示诊断不是后端完整 schema、源文件所有权、字节摘要或批准状态的校验。
+本阶段增强独立展示模块、合成数据和离线测试，并为现有 Agent 页的异步报告、审批及轮询补齐 generation/task_id/mode 防护。没有改动 HTTP transport 或后端；正式 Package 审批仍始终禁用。展示诊断不是后端完整 schema、源文件所有权、字节摘要或批准状态的校验。
 
 - `partial` / `stale_success` 为每次已尝试复制保留一条清理观察：成功复制为 not_attempted/copy_succeeded/absent；第二次复制在创建目标前失败，为 not_attempted/absent。成功文件仍保留，失败任务没有 FinalReport。
 - `cleanup_failed` 表示后端已安全绑定失败片段，获准进行的移除尝试失败；`unknown_residual` 表示所有权无法确认，未尝试移除。前端只呈现这些合成事实，不推断所有权或执行清理。
@@ -59,6 +59,21 @@ node --test frontend/tests/package-browser.cjs
 这不是无损 JSON transport 的实现，也不表示后端方案无效。真实接入前仍须与 A/D 确认无损整数展示/关联策略、当前 preview 与冻结 manifest 的绑定、accept_incomplete HTTP 行为、执行索引及 cleanup/FinalReport 的实际支持。浏览器不重算规范摘要、不复验真实文件、不替代服务端授权。
 
 Chrome 回归覆盖 18 个 Fixture、1366px / 390px 两种宽度及 8 组异常组合；同时检查无页面异常、无 HTTP 请求、输入不变、HTML 转义、切换后确认清空和正式审批禁用。这些检查不构成 LLM、真实 Package 或 Windows 离线五场景的人工验收记录。
+
+### 真实入口的受控阻塞
+
+Agent 页识别 Snapshot 中显式的 Package 工具/执行记录后禁用批准，事件处理器也阻止发送批准请求；现有 reject 仍仅提交 preview_id。若真实响应带 Package 路径或结构化风险，普通 FinalReport 渲染器不将其降级为已验收的 Package 成功。Mock 流程不受此阻塞影响，生产入口不加载 Package Fixture 数据。
+
+报告和审批响应、错误、409 状态刷新及 finally 均检查请求的 generation/task_id/mode；报告额外绑定发起读取时的 Snapshot 对象，避免同一任务较新的失败快照被旧报告覆盖。不自动重试审批，不新建轮询并发，也不将这些前端检查当成服务端授权。
+
+| 阶段 | 沿用接口及数据 | 仍待 A/D 完成或确认 |
+| --- | --- | --- |
+| 预览 | GET /api/agent/tasks/{task_id}，results 中 plan_package 的 data.{plan,plan_sha256}，同一 Snapshot 的 pending_operations/preview_id | A 保证当前预览与 D 冻结 manifest、来源重验和任务归属一致；不按旧成功结果补齐 |
+| 批准/拒绝 | 现有 POST approve/reject；本阶段 Package 批准阻塞，reject 仍仅 preview_id | A 实现并验收 approve 的 accept_incomplete 增量；同预览风险接受不能产生独立授权 |
+| 执行/失败 | GET Snapshot 的 package_execution 与 results 原始索引；失败不取成功报告 | A 提供实际子操作、终止结果及每次复制的 cleanup_results；失败报告 GET 保持 409 |
+| 成功报告 | 现有 GET report；未来复用展示模块的 Snapshot/manifest/FinalReport 输入 | A 保留冻结 missing/package_unresolved/conflicts 并绑定当前验证成功执行；D 保证冻结报告及快照；A/D 明确无损整数策略 |
+
+这些是现有契约的数据映射和阻塞说明，不是新 API，也不是已接入能力。没有 plan_package/build_package HTTP 请求、前端文件整理、权威哈希计算或客户端批准凭据。
 
 ## 真实接入依赖
 
