@@ -62,3 +62,34 @@ test('all local scenarios render without fetching any API',()=>{
     try{for(const name of ['mixed','single','empty','unknown','collision','incomplete'])assert.equal(typeof preview.render(demo.get(name)),'string');}
     finally{global.fetch=original;}
 });
+
+test('formal organization is blocked without a frozen classification contract, never a Fixture consumer',()=>{
+    for(const data of [null,undefined,demo.get('mixed'),{categories:[{name:'PRIVATE_CATEGORY'}]},{}]){
+        const before=structuredClone(data),model=preview.inspectSnapshot(data),html=preview.renderSnapshot(data);
+        assert.equal(model.approvalEnabled,false);assert.ok(['blocked','invalid'].includes(model.state));
+        assert.match(html,/分类接口待团队确认/);assert.match(html,/尚未执行后端风险检查/);
+        assert.doesNotMatch(html,/PRIVATE_CATEGORY|本地UI样本|摘录.docx|已确认无风险|操作成功/);assert.deepEqual(data,before);
+    }
+});
+
+test('formal organization validates only known task metadata and never renders opaque result mappings',()=>{
+    const expected={task_id:'org-task',user_goal:'整理测试',workspace:'E:/isolated'};
+    const source={task:{...expected,status:'completed'},results:[{tool:'unconfirmed_tool',success:true,data:{source:'PRIVATE_SOURCE',target:'PRIVATE_TARGET',category:'PRIVATE_CATEGORY'},message:'private body',error:null}],package_execution:{path:'PRIVATE_PACKAGE'}};
+    const before=structuredClone(source),model=preview.inspectSnapshot(source,expected),html=preview.renderSnapshot(source,expected);
+    assert.equal(model.state,'blocked');assert.equal(model.taskStatus,'completed');assert.equal(model.approvalEnabled,false);
+    assert.match(html,/任务完成不代表分类或整理验证通过/);assert.doesNotMatch(html,/PRIVATE_|private body/);
+    assert.deepEqual(source,before);
+    for(const field of ['task_id','user_goal','workspace']){
+        const foreign={...expected,[field]:'FOREIGN'};
+        assert.equal(preview.inspectSnapshot(source,foreign).state,'invalid');
+        assert.doesNotMatch(preview.renderSnapshot(source,foreign),/PRIVATE_|FOREIGN/);
+    }
+    for(const value of [42,'bad',{},null]){
+        const s={...source,results:value};assert.equal(preview.inspectSnapshot(s,expected).state,'invalid');
+        assert.doesNotMatch(preview.renderSnapshot(s,expected),/PRIVATE_/);
+    }
+    assert.equal(preview.inspectSnapshot({...source,results:[]},expected).state,'blocked');
+    const stale={...source,results:[...source.results,...source.results]};
+    assert.equal(preview.inspectSnapshot(stale,expected).state,'blocked');
+    assert.doesNotMatch(preview.renderSnapshot(stale,expected),/PRIVATE_/);
+});

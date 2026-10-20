@@ -517,32 +517,6 @@
                 <button id="materialWorkflowTab" class="btn" aria-pressed="true" onclick="switchAgentWorkflow('materials')">任务驱动材料准备</button>
                 <button id="organizationWorkflowTab" class="btn btn-secondary" aria-pressed="false" onclick="switchAgentWorkflow('organization')">轻量智能分类整理</button>
             </nav>
-            <section id="organizationWorkspace" class="agent-card" hidden>
-                <h2>轻量智能分类整理 · UI 预览</h2>
-                <p class="result-warning">当前仅展示整理方案，尚未执行文件操作。</p>
-                <p class="agent-note">此页面使用虚构的本地 UI 演示数据，不读取 Workspace，不代表真实分类能力。分类与执行接口尚未接入。</p>
-                <div class="org-toolbar">
-                    <label for="organizationScenario">本地演示场景</label>
-                    <select id="organizationScenario" class="filter-select">
-                        <option value="mixed">多分类 / 待确认 / 空文件夹</option>
-                        <option value="empty">0 个文件</option>
-                        <option value="single">1 个文件</option>
-                        <option value="unknown">全部待人工确认</option>
-                        <option value="collision">同名目标冲突</option>
-                        <option value="incomplete">预览数据不完整</option>
-                    </select>
-                    <button id="organizationLoad" class="btn btn-primary" onclick="showOrganizationPreview()">加载演示预览</button>
-                    <button id="organizationReset" class="btn btn-secondary" onclick="showOrganizationPreview(true)">清空预览</button>
-                </div>
-                <div class="org-toolbar" aria-label="尚未接入的真实操作">
-                    <button class="btn btn-secondary" disabled>扫描并分类 · 尚未接入</button>
-                    <button class="btn btn-secondary" disabled>确认方案并执行 · 尚未接入</button>
-                </div>
-                <p class="agent-note">真实操作将在后端生成方案并经用户审批后执行；本页尚未接入真实分类、审批和执行。</p>
-                <div id="organizationPreview" aria-live="polite"><p class="agent-note">尚未开始。选择本地 UI 场景，再点击“加载演示预览”。不会扫描 Workspace。</p></div>
-                <button class="btn btn-secondary" onclick="switchAgentWorkflow('materials')">返回材料准备</button>
-            </section>
-            <div id="materialWorkspace">
             <div class="agent-card">
                 <h2>1. Task Input</h2>
                 <p class="agent-note">Goal → Plan → Analysis → Approval → Result</p>
@@ -571,6 +545,36 @@
                 <p id="agentModeNote" class="agent-note">Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。</p>
                 <div id="agentError" class="agent-error" role="alert" hidden><strong id="agentErrorTitle"></strong><span id="agentErrorDetail"></span></div>
             </div>
+            <section id="organizationWorkspace" class="agent-card" hidden>
+                <h2>轻量智能分类整理 · 正式接入准备</h2>
+                <p class="agent-note">复用上方 Workspace 和用户目标。正式分类契约尚未确认，当前不启动任务或文件操作。切换工作流会清除任务展示和审批状态，保留输入。</p>
+                <div id="organizationRealPreview" aria-live="polite"></div>
+                <label><input id="organizationFixtureToggle" type="checkbox" onchange="setOrganizationDemo(this.checked)"> 查看隔离的本地 Fixture（合成数据，非真实结果）</label>
+                <div id="organizationDemoPanel" hidden>
+                <p class="org-demo-badge">本地 UI Fixture · 非 Workspace 扫描或真实分类结果</p>
+                <div class="org-toolbar">
+                    <label for="organizationScenario">本地演示场景</label>
+                    <select id="organizationScenario" class="filter-select">
+                        <option value="mixed">多分类 / 待确认 / 空文件夹</option>
+                        <option value="empty">0 个文件</option>
+                        <option value="single">1 个文件</option>
+                        <option value="unknown">全部待人工确认</option>
+                        <option value="collision">同名目标冲突</option>
+                        <option value="incomplete">预览数据不完整</option>
+                    </select>
+                    <button id="organizationLoad" class="btn btn-primary" onclick="showOrganizationPreview()">加载演示预览</button>
+                    <button id="organizationReset" class="btn btn-secondary" onclick="showOrganizationPreview(true)">清空预览</button>
+                </div>
+                <div id="organizationPreview" aria-live="polite"><p class="agent-note">尚未开始。选择本地 UI 场景，再点击“加载演示预览”。不会扫描 Workspace。</p></div>
+                </div>
+                <div class="org-toolbar" aria-label="尚未接入的真实操作">
+                    <button id="organizationScan" class="btn btn-secondary" disabled>扫描并分类 · 接口待确认</button>
+                    <button id="organizationExecute" class="btn btn-secondary" disabled>批准并复制 · 尚未接入</button>
+                </div>
+                <p class="agent-note">真实操作将在后端生成方案并经用户审批后执行；本页尚未接入真实分类、审批和执行。</p>
+                <button class="btn btn-secondary" onclick="switchAgentWorkflow('materials')">返回材料准备</button>
+            </section>
+            <div id="materialWorkspace">
             <div class="agent-card"><h2>2. Agent Plan</h2><div id="agentPlan" aria-live="polite"><p class="agent-placeholder">Run a task to see the execution plan.</p></div></div>
             <div class="agent-card"><h2>3. Analysis Results</h2>
                 <div class="agent-grid">
@@ -713,7 +717,7 @@
     <script src="/static/organization-demo.js"></script>
     <script>
         // State
-        const agentState = {task: null, taskContext: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null};
+        const agentState = {workflow: 'materials', organizationDemo: false, task: null, taskContext: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null};
         const byId = id => document.getElementById(id);
         const agentArray = value => Array.isArray(value) ? value.filter(item => item != null) : [];
         const agentText = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
@@ -726,14 +730,40 @@
             byId('filesViewTab').setAttribute('aria-selected', String(view === 'files'));
         }
         function showOrganizationPreview(reset = false) {
+            if (agentState.workflow !== 'organization' || !agentState.organizationDemo) return;
             byId('organizationPreview').innerHTML = OrganizationPreview.render(reset ? null : OrganizationDemo.get(byId('organizationScenario').value));
         }
+        function renderOrganizationStatus(snapshot = null, expectedTask = null) {
+            if (agentState.workflow !== 'organization') return;
+            byId('organizationRealPreview').innerHTML = OrganizationPreview.renderSnapshot(snapshot, expectedTask);
+        }
+        function setOrganizationDemo(enabled) {
+            if (agentState.workflow !== 'organization') return;
+            agentState.organizationDemo = enabled === true;
+            byId('organizationFixtureToggle').checked = agentState.organizationDemo;
+            byId('organizationDemoPanel').hidden = !agentState.organizationDemo;
+            byId('organizationRealPreview').hidden = agentState.organizationDemo;
+            byId('organizationPreview').innerHTML = OrganizationPreview.render(null);
+            renderOrganizationStatus();
+        }
         function switchAgentWorkflow(workflow) {
-            if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
+            if (!['materials','organization'].includes(workflow) || agentState.busy || agentState.pollInFlight || agentState.decisionBusy || workflow === agentState.workflow) return;
+            stopAgentPolling(); agentState.generation++;
+            Object.assign(agentState, {workflow, task: null, taskContext: null, snapshot: null, report: null, approvalValid: false, userRejected: false});
+            resetAgentPresentation();
             byId('materialWorkspace').hidden = workflow !== 'materials';
             byId('organizationWorkspace').hidden = workflow !== 'organization';
             byId('materialWorkflowTab').setAttribute('aria-pressed', String(workflow === 'materials'));
             byId('organizationWorkflowTab').setAttribute('aria-pressed', String(workflow === 'organization'));
+            setOrganizationDemo(false);
+            if (workflow === 'materials') {
+                agentState.organizationDemo = false;
+                byId('organizationPreview').textContent = '';
+                byId('organizationRealPreview').textContent = '';
+            }
+            byId('agentTaskStatus').textContent = workflow === 'organization' ? '整理模式 · 接口待确认，未启动任务' : 'Ready · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
+            byId('agentModeNote').textContent = workflow === 'organization' ? '正式整理尚未接通，不发送任务或执行请求。Fixture 需在独立区域明确开启。' : agentState.mode === 'mock' ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。' : 'Real Mode：调用正式 Agent API，不回退到 Mock。';
+            updateAgentControls();
         }
         function stopAgentPolling() { clearTimeout(agentState.timer); agentState.timer = null; }
         function scheduleAgentPolling() {
@@ -745,10 +775,10 @@
             if (agentState.task && agentState.task.task_id !== task.task_id) throw new Error('Task response does not match the current task');
         }
         function agentRequestContext() {
-            return {generation: agentState.generation, taskId: agentState.task?.task_id, mode: agentState.mode};
+            return {generation: agentState.generation, taskId: agentState.task?.task_id, mode: agentState.mode, workflow: agentState.workflow};
         }
         function isCurrentAgentRequest(context) {
-            return context.generation === agentState.generation && context.taskId === agentState.task?.task_id && context.mode === agentState.mode;
+            return context.generation === agentState.generation && context.taskId === agentState.task?.task_id && context.mode === agentState.mode && context.workflow === agentState.workflow;
         }
         function hasAgentPackageData(snapshot) {
             return snapshot?.package_execution != null || [...agentArray(snapshot?.results), ...agentArray(snapshot?.pending_operations)].some(item => ['plan_package','build_package','write_package_report'].includes(item.tool));
@@ -756,20 +786,25 @@
         // Rendering
         function updateAgentControls() {
             const locked = agentState.busy || agentState.pollInFlight || agentState.decisionBusy;
+            const organization = agentState.workflow === 'organization';
             byId('materialWorkflowTab').disabled = byId('organizationWorkflowTab').disabled = locked;
-            byId('runAgent').disabled = locked || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
+            byId('runAgent').disabled = organization || locked || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
             ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario'].forEach(id => byId(id).disabled = locked);
-            byId('runAgent').textContent = agentState.busy ? 'Running...' : 'Run Agent';
+            byId('agentMode').disabled = locked || organization;
+            byId('agentScenario').disabled = locked || organization;
+            byId('runAgent').textContent = organization ? '整理任务 · 接口待确认' : agentState.busy ? 'Running...' : 'Run Agent';
             const awaiting = agentState.task?.status === 'awaiting_approval';
             const preview = agentState.snapshot?.preview_id;
             const hasPreview = agentState.mode === 'mock' || (typeof preview === 'string' && preview.length > 0);
             byId('approveAgent').disabled = byId('rejectAgent').disabled = !awaiting || !hasPreview || !agentState.approvalValid || agentState.decisionBusy || agentState.pollInFlight;
             if (agentState.mode === 'real' && hasAgentPackageData(agentState.snapshot)) byId('approveAgent').disabled = true;
-            byId('refreshAgent').disabled = !agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode;
+            if (organization) byId('approveAgent').disabled = byId('rejectAgent').disabled = true;
+            byId('organizationScan').disabled = byId('organizationExecute').disabled = true;
+            byId('refreshAgent').disabled = organization || !agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode;
             byId('approveAgent').textContent = agentState.decisionBusy && agentState.decisionAction === 'approve' ? 'Executing...' : 'Approve & Execute';
             byId('rejectAgent').textContent = agentState.decisionBusy && agentState.decisionAction === 'reject' ? 'Rejecting...' : 'Reject';
-            byId('agentScenario').hidden = byId('agentMode').value !== 'mock';
-            byId('agentScenarioLabel').hidden = byId('agentMode').value !== 'mock';
+            byId('agentScenario').hidden = organization || byId('agentMode').value !== 'mock';
+            byId('agentScenarioLabel').hidden = organization || byId('agentMode').value !== 'mock';
         }
         function agentError(message, title) {
             const detail = agentText(message);
@@ -805,6 +840,7 @@
             return value == null ? '<p class="agent-note">结果结构尚未提供。</p>' : '<pre style="white-space:pre-wrap;overflow-wrap:anywhere">' + agentEscape(value) + '</pre>';
         }
         function renderAgent(snapshot) {
+            if (agentState.workflow !== 'materials') return;
             validateAgentTask(snapshot?.task);
             const packageTask = agentState.taskContext || agentState.task || snapshot.task;
             agentState.task = snapshot.task;
@@ -851,6 +887,7 @@
             updateAgentControls();
         }
         function renderAgentReport(report) {
+            if (agentState.workflow !== 'materials') return;
             if (!report || agentState.task?.status !== 'completed' || report.task_id !== agentState.task.task_id || report.status !== 'completed') throw new Error('Invalid FinalReport response');
             if (agentState.mode === 'real' && (hasAgentPackageData(agentState.snapshot) || report.package_unresolved !== undefined || report.package_path)) throw new Error('真实 Package 报告集成尚未验收，不能确认打包成功；请核对当前任务证据。');
             agentState.report = report;
@@ -904,6 +941,7 @@
             else scheduleAgentPolling();
         }
         async function pollAgent() {
+            if (agentState.workflow !== 'materials') return;
             if (!agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode) return;
             stopAgentPolling();
             agentState.pollInFlight = true; agentState.approvalValid = false; updateAgentControls();
@@ -920,6 +958,7 @@
             } finally { if (isCurrentAgentRequest(context)) { agentState.pollInFlight = false; updateAgentControls(); } }
         }
         async function runAgent() {
+            if (agentState.workflow !== 'materials') { renderOrganizationStatus(); return; }
             if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             if (!byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim()) { agentError('请填写 Workspace 和 Goal。'); return; }
             stopAgentPolling(); agentState.generation++;
@@ -939,6 +978,7 @@
             } finally { updateAgentControls(); }
         }
         async function decideAgent(approve) {
+            if (agentState.workflow !== 'materials') return;
             if (agentState.decisionBusy || agentState.pollInFlight || !agentState.approvalValid || agentState.task?.status !== 'awaiting_approval') return;
             if (approve && agentState.mode === 'real' && hasAgentPackageData(agentState.snapshot)) { agentError('真实 Package 审批尚未接通；不会发送批准请求。'); return; }
             const previewId = agentState.snapshot?.preview_id;
@@ -978,7 +1018,7 @@
         ['agentWorkspacePath','agentGoal'].forEach(id => byId(id).addEventListener('input', updateAgentControls));
         byId('agentMode').addEventListener('change', () => {
             // Mode is locked during active work; clear only the idle view.
-            if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
+            if (agentState.workflow !== 'materials' || agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             stopAgentPolling(); agentState.generation++;
             Object.assign(agentState, {task: null, taskContext: null, snapshot: null, report: null, approvalValid: false, userRejected: false, mode: byId('agentMode').value});
             AgentAPI.setMode(agentState.mode);

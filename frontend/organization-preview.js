@@ -73,6 +73,29 @@
             + heading('将复制的文件（预览）') + (model.files.map(f => item('<strong>复制 · ' + escape(f.filename) + '</strong>' + note('来源') + path(f.source) + note('目标') + path(destination(data,f.target)))).join('') || note('没有拟复制的文件。'))
             + heading('不参与自动整理的文件') + (pending + excluded || note('本地数据没有列出排除项。')) + '</section>';
     }
-    const api={analyze,render,destination};
+    // Stable TaskSnapshot metadata only. Classification payload is deliberately
+    // opaque until a team-approved contract exists; never pass it to demo render.
+    function inspectSnapshot(snapshot,expectedTask){
+        const base={state:'blocked',taskStatus:null,approvalEnabled:false};
+        if(snapshot==null)return base;
+        const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+        const invalid=()=>({...base,state:'invalid'});
+        if(!object(snapshot)||!object(snapshot.task)||!Array.isArray(snapshot.results)
+            ||!object(expectedTask)||['task_id','user_goal','workspace'].some(k=>!text(expectedTask[k])||snapshot.task[k]!==expectedTask[k])
+            ||!['created','planning','awaiting_approval','executing','verifying','completed','failed'].includes(snapshot.task.status)
+            ||snapshot.results.some(r=>!object(r)||!text(r.tool)||typeof r.success!=='boolean'||!Object.hasOwn(r,'data')||typeof r.message!=='string'||!Object.hasOwn(r,'error')))return invalid();
+        return {...base,taskStatus:snapshot.task.status};
+    }
+    function renderSnapshot(snapshot,expectedTask){
+        const model=inspectSnapshot(snapshot,expectedTask);
+        return '<p class="result-warning" role="status">正式整理模式 · 分类接口待团队确认，当前不能启动分类、审批或复制。</p>'
+            + (model.state==='invalid'?note('数据异常或任务归属无法确认；不展示任何文件映射。'):note('真实分类数据尚未接入，不使用本地演示或 Package 结果补齐。'))
+            + note(model.taskStatus?'关联任务状态：'+model.taskStatus+'；任务完成不代表分类或整理验证通过。':'尚未启动正式整理任务。')
+            + '<div class="org-grid"><section class="org-panel">'+heading('分类目录与源/目标路径')+note('待正式契约提供分类目录、源路径、目标路径和分类依据；当前均未提供。')+'</section>'
+            + '<section class="org-panel">'+heading('未确定文件与需要确认的类别')+note('待真实分析，不代表没有待确认文件；文件名或扩展名不是用途证明。')+'</section></div>'
+            + '<section class="org-panel">'+heading('重名冲突、危险路径与执行风险')+note('尚未执行后端风险检查，不能显示为无风险。目标占用、越界路径、链接和覆盖风险须由后端校验。')
+            + note('默认方案应为复制到独立目标；不移动、删除或覆盖原文件。前端不生成分类、权威摘要或审批凭据。')+'</section>';
+    }
+    const api={analyze,render,destination,inspectSnapshot,renderSnapshot};
     if(typeof module!=='undefined' && module.exports)module.exports=api;else root.OrganizationPreview=api;
 })(typeof window==='undefined'?globalThis:window);

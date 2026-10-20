@@ -95,14 +95,51 @@ test('Mock happy, reject and failure flows stay separate and functional',async()
 });
 test('every organization preview sends no requests and material Mock happy path still completes',async()=>{
     const h=harness();h.c.switchAgentWorkflow('organization');assert.equal(h.el('organizationWorkspace').hidden,false);assert.equal(h.el('materialWorkspace').hidden,true);
+    h.c.setOrganizationDemo(true);
     for(const scenario of ['mixed','single','empty','unknown','collision','incomplete']){
-        h.el('organizationScenario').value=scenario;h.c.showOrganizationPreview();assert.ok(h.el('organizationPreview').innerHTML.length>0);
+        h.el('organizationScenario').value=scenario;h.c.showOrganizationPreview();assert.match(h.el('organizationPreview').innerHTML,scenario==='incomplete'?/结构不完整/:/本地 UI 演示预览/);
     }
     h.c.showOrganizationPreview(true);assert.match(h.el('organizationPreview').innerHTML,/尚未开始/);
     h.c.switchAgentWorkflow('materials');assert.equal(h.el('materialWorkspace').hidden,false);assert.equal(h.calls.length,0);
     h.el('agentMode').value='mock';await h.c.runAgent();for(let i=0;i<5;i++)await h.c.pollAgent();
     assert.equal(h.state.task.status,'awaiting_approval');await h.c.decideAgent(true);for(let i=0;i<3;i++)await h.c.pollAgent();
     assert.equal(h.state.task.status,'completed');assert.equal(h.calls.length,0);
+});
+
+test('formal organization reuses input, blocks all Agent actions and never promotes Fixture or Package data',async()=>{
+    const h=harness(),workspace=h.el('agentWorkspacePath').value,goal=h.el('agentGoal').value;
+    h.c.switchAgentWorkflow('organization');
+    assert.equal(h.state.workflow,'organization');assert.equal(h.state.organizationDemo,false);
+    assert.equal(h.el('agentWorkspacePath').value,workspace);assert.equal(h.el('agentGoal').value,goal);
+    assert.match(h.el('organizationRealPreview').innerHTML,/分类接口待团队确认/);
+    assert.equal(h.el('organizationDemoPanel').hidden,true);
+    for(const id of ['runAgent','refreshAgent','approveAgent','rejectAgent','organizationScan','organizationExecute'])assert.equal(h.el(id).disabled,true,id);
+    h.el('organizationScenario').value='mixed';h.c.showOrganizationPreview();
+    assert.doesNotMatch(h.el('organizationRealPreview').innerHTML,/本地UI样本|结题报告|摘录.docx/);
+    for(const mode of ['real','mock']){
+        h.el('agentMode').value=mode;await h.c.runAgent();await h.c.pollAgent();await h.c.decideAgent(true);await h.c.decideAgent(false);
+    }
+    assert.equal(h.calls.length,0);assert.equal(h.state.task,null);
+    const html=h.el('organizationRealPreview').innerHTML;
+    h.c.renderAgent(require('../package-fixtures.js').get('success').snapshot);
+    h.c.renderAgentReport({status:'completed',task_id:'old',package_path:'PRIVATE_PATH'});
+    assert.equal(h.el('organizationRealPreview').innerHTML,html);assert.equal(h.state.report,null);
+    h.c.setOrganizationDemo(true);h.c.showOrganizationPreview();assert.match(h.el('organizationPreview').innerHTML,/本地 UI 演示预览/);
+    h.c.setOrganizationDemo(false);assert.match(h.el('organizationRealPreview').innerHTML,/真实分类数据尚未接入/);
+    h.c.switchAgentWorkflow('materials');assert.equal(h.state.task,null);assert.equal(h.state.approvalValid,false);
+    assert.equal(h.el('organizationRealPreview').textContent,'');assert.equal(h.calls.length,0);
+});
+
+test('workflow generation prevents late snapshots and reports from entering organization or a fresh material view',async()=>{
+    const h=harness();seedTask(h);const context=h.c.agentRequestContext();
+    const old=snapshot('completed',{results:[{tool:'plan_package',success:true,data:{plan:{path:'PRIVATE_OLD_MAPPING'}},message:'old',error:null}]});
+    h.c.switchAgentWorkflow('organization');const formal=h.el('organizationRealPreview').innerHTML;
+    assert.equal(h.c.isCurrentAgentRequest(context),false);
+    await h.c.applyAgentSnapshot(old,context);
+    assert.equal(h.state.task,null);assert.equal(h.el('organizationRealPreview').innerHTML,formal);assert.equal(h.calls.length,0);
+    h.c.switchAgentWorkflow('materials');await h.c.applyAgentSnapshot(old,context);
+    assert.equal(h.state.snapshot,null);assert.equal(h.state.report,null);assert.equal(h.calls.length,0);
+    assert.doesNotMatch(h.el('agentPackagePreview').textContent,/PRIVATE_OLD_MAPPING/);
 });
 
 test('Real Snapshot retains matching ToolResults and renders them separately from extraction',async()=>{
