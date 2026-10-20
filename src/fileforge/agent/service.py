@@ -556,7 +556,9 @@ class TaskService:
                 "Completed and verified approved file operations"
                 if entry["approved_operations_verified"]
                 else (
-                    "Documents read; no material requirements found"
+                    "Analysis completed; requirement extraction returned no "
+                    "material names. Whether materials are required remains "
+                    "unverified; no package was built."
                     if empty_requirements
                     else (
                         "Filename candidate matching completed; materials not reviewed"
