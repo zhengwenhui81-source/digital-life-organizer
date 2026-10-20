@@ -1,8 +1,11 @@
 /* Synthetic fixtures only. Paths and results are illustrative; nothing is executed. */
 (function(root){
     const ok=(tool,data)=>({tool,success:true,data,message:tool+' synthetic result',error:null});
-    const names=['complete','risks','success','partial','cleanup_failed','unknown_residual','bad_index','mismatch','missing','null','empty','wrong_type','long','non_package','missing_unresolved','stale_success','invalid_cleanup','unsafe_timestamp'];
+    const names=['complete','risks','success','partial','cleanup_failed','unknown_residual','bad_index','mismatch','missing','null','empty','wrong_type','long','non_package','missing_unresolved','stale_success','invalid_cleanup','unsafe_timestamp','executing','verifying','verification_failed','cleanup_succeeded'];
     function get(name='complete'){
+        const requested=name;
+        if(['executing','verifying','verification_failed'].includes(name))name='success';
+        if(name==='cleanup_succeeded')name='partial';
         const task={task_id:'fixture_task',user_goal:'准备虚构课程结题材料',workspace:'E:\\虚构输入',status:'awaiting_approval'};
         const ref={file_id:'fixture_file_1',path:'E:\\虚构输入\\结题报告.txt',filename:'结题报告.txt'};
         const results=[ok('extract_requirements',{required_documents:['报告']}),ok('match_requirements',{required_documents:['报告'],matched:[{requirement:'报告',documents:[ref,{...ref,file_id:'fixture_file_2',filename:'报告_v2.txt',path:'E:\\虚构输入\\报告_v2.txt'}]}],missing:[]}),ok('detect_conflicts',{conflicts:[]}),ok('compare_versions',{groups:[]})];
@@ -63,6 +66,20 @@
         if(name==='wrong_type'){plan.missing={};plan.unresolved='invalid';plan.operations=42;}
         if(name==='long'){ref.path='E:\\'+ '很长的虚构目录\\'.repeat(35)+'报告.txt';plan.selected_files[0].snapshot.sha256='a'.repeat(1024);}
         if(name==='non_package')return {planResult:null,snapshot:{task:{task_id:'analysis',status:'completed'},results:[]},report:{task_id:'analysis',status:'completed',package_path:'',operations:[],missing_items:[],summary:'分析结束'}};
+        if(['executing','verifying'].includes(requested)){
+            const count=requested==='executing'?1:3;
+            task.status=requested;data.report=null;
+            results.length=5+count;
+            snapshot.package_execution.operation_results=snapshot.package_execution.operation_results.slice(0,count);
+            snapshot.package_execution.final_result_index=null;
+            if(requested==='executing')snapshot.package_execution.cleanup_results=[];
+        }
+        if(requested==='verification_failed'){
+            task.status='failed';data.report=null;snapshot.error='Fixture: material digest verification failed';
+            results[8]={tool:'verify_result',success:false,data:null,message:'verification failed',error:snapshot.error};
+            results[9]={tool:'build_package',success:false,data:null,message:'build failed',error:snapshot.error};
+        }
+        if(requested==='cleanup_succeeded')snapshot.package_execution.cleanup_results[1]={step_id:'package_003',status:'succeeded',reason:'Fixture: safely bound owned failed-copy fragment removed',residual_state:'absent'};
         return JSON.parse(JSON.stringify(data));
     }
     const api={get,names};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PackageFixtures=api;

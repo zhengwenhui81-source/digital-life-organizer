@@ -60,7 +60,7 @@ node --test frontend/tests/package-browser.cjs
 
 这不是无损 JSON transport 的实现，也不表示后端方案无效。真实接入前仍须与 A/D 确认无损整数展示/关联策略、当前 preview 与冻结 manifest 的绑定、accept_incomplete HTTP 行为、执行索引及 cleanup/FinalReport 的实际支持。浏览器不重算规范摘要、不复验真实文件、不替代服务端授权。
 
-Chrome 回归覆盖 18 个 Fixture、1366px / 390px 两种宽度及 8 组异常组合；同时检查无页面异常、无 HTTP 请求、输入不变、HTML 转义、切换后确认清空和正式审批禁用。这些检查不构成 LLM、真实 Package 或 Windows 离线五场景的人工验收记录。
+Chrome 回归覆盖 22 个 Fixture、1366px / 390px 两种宽度及 8 组异常组合；同时检查无页面异常、无 HTTP 请求、输入不变、HTML 转义、切换后确认清空和正式审批禁用。这些检查不构成 LLM、真实 Package 或 Windows 离线五场景的人工验收记录。
 
 ### 真实入口的受控阻塞
 
@@ -92,3 +92,77 @@ D 的 plan_package 已通过 PR #35 合并；A 的 PR #40 已提供 accept_incom
 - Package 批准仍由页面按钮和事件处理器双重阻塞，未增加风险接受或执行交互；普通 Agent 的 approve/reject、轮询、报告和过期响应防护保留。
 
 测试中的 HTTP JSON 和 Fixture 都是明确的合成输入，用于验证生产页的数据映射及保守展示，不是后端或真实 LLM/Package 验收。当前仍缺 A 实际产生并绑定的规划 Snapshot、真实执行适配器及成功报告的验收证据，亦未解决无损纳秒整数传输。
+
+## 执行结果展示准备（与 PR #44 独立）
+
+基于 dev `a0267e84a4ace9dd8af470c61bc5ae5a44697681`，不包含或修改仍在审查的 PR #44。此轮复用 inspect/render 原有输入签名 `{planResult,snapshot,report}`，没有改动生产 index.html、Agent transport、审批或轮询。新增的 operationRows、cleanupRows、executionLabel、packageSucceeded 仅为组件内部展示投影，不是公共 Task 状态或响应字段。
+
+- 在冻结操作顺序中逐项展示已关联结果、源/目标路径、错误及原始 ToolResult；失败 data=null 时路径明确来自冻结映射，不代表复制完成。每个已返回工具结果不等于字节进度。
+- `executing` / `verifying` 是既有 Task 状态。没有逐文件 running 信号时显示“尚无完成结果，无法确认是否已开始”；没有执行关联且任务尚未执行时显示未执行。失败子操作及最终失败已关联后，后续无结果步骤显示失败后停止；证据不完整时保持未知，不静默当作成功或跳过。
+- cleanup 按 step_id 关联已尝试复制。succeeded 只表示失败复制片段已移除；failed 保留原始复制失败与清理原因；unknown 不推断对象已删除。absent 不表示成功文件或目录已回滚。重复/未知步骤与矛盾清理记录保留原文，标为关联无效。
+- 只有当前任务 completed、当前有效规划/执行绑定、全部子操作和验证证据一致、完整 Package FinalReport 保留冻结风险时，显示 Package 执行与文件验证成功。没有 FinalReport 时不确认 Package 完成。验证调用返回 success=true 但 passed=false 仍是验证未通过。
+- 较新 plan_package/build_package、跨任务、异常或非递增索引、生成文件/报告路径不符、必要报告字段缺失均禁止确认成功；不从旧成功搜索补齐。独立失败 ToolResult 仍作为诊断保留，不因正向证据失效而丢弃原始失败。
+
+新增合成场景：executing（只返回目录操作）、verifying（写操作已返回，验证尚无结果）、verification_failed（复制成功但验证失败）、cleanup_succeeded（失败片段移除成功，任务仍失败）。它们只描述约定数据，不执行复制或清理，也不是已存在后端能力的声明。
+
+### 必须等待 A 的后端清单
+
+以实际代码为准：D 的只读 plan_package 已通过 PR #35 合并；PR #40 已有 accept_incomplete 解析和执行不可用防护。仍待 A 完成默认工具路由/TaskService 规划接入，当前 task/plan/digest/preview 的权威绑定，受批准约束的复合执行、按序追加子结果与唯一 final_result_index、每次已尝试复制的 cleanup_results、批准源摘要/冻结报告/精确文件集的实际验证，以及成功 FinalReport 映射和失败报告 GET 409。前端不补造任何接口或事实。
+
+本轮不接通这些真实接口；未来只传入 A 的原始 Snapshot 与报告即可复用展示。实际文件验证、无损纳秒整数传输和真实 HTTP/Package 验收仍待后续工作，当前合成测试通过不能替代它们。
+# PR #45 执行证据修复
+
+有效子操作首次失败后，后续子结果仅保留为“失败后异常记录，不可作为有效执行证据”。
+它们不进入 boundOperations、writes 或 verification；异常成功 build_package 不进入 build。
+合法的最终失败 build_package 仍保留原始错误。逐步展示以 evidenceValid 区分原始诊断和有效执行记录，不能将异常 success=true 标为文件操作执行成功。
+异常复制的 cleanup_results 原样保留但不确认其关联或清理成功；前端不推断实际文件状态，也不执行清理。
+最终成功还要求完整、按序、有效且全部成功的子链、当前验证、任务和 FinalReport。
+
+本轮回归：四文件 Node 回归 86 通过、0 失败（exit 0）；Chrome 沙箱内首次启动超时，
+该次未完成、不计通过。获准在沙箱外重跑本地浏览器后 1 通过、0 失败（exit 0），
+覆盖 22 Fixture × 两种宽度、8 组异常输入和 2 条失败执行链；零 HTTP、正式审批禁用。
+新增四组 Node 回归直接断言可信集合、逐步 evidenceValid、原始错误、异常验证/构建隔离、
+cleanup 诊断、输入不可变及完整合法成功链。上述仅为合成展示测试，不是实际 Package 执行验收。
+
+## C 补审：验证时序与报告来源
+
+- 规划之后的 verify_result 必须唯一关联冻结 verify 步骤；额外、重复或范围无法归属的验证不作为重试。旧验证与异常新记录原样保留诊断，旧验证移出可信集合，成功构建也不能再充当有效证据。不会用最后一个成功结果填补缺失关联。
+- found_files 按当前 Snapshot 的规划前成功 list_files/files、search_files/matches 收集，保持后端发现顺序及首次路径去重语义，并比较完整记录；同路径冲突、失败、缺失或规划后出现新发现使来源不能确认。路径仅用于既有去重，不能代替内容比较或后端来源认证。
+- version_groups 和 conflicts 绑定冻结 analysis 的工具、数值索引、完整结果和当前 Snapshot；过期或内容不符时报告不确认。这里不计算文件摘要或重新分析，也不替代 A 的权威任务来源验证。
+- null/not-run 分支必须有对应 analysis_not_run 冻结未决项，报告必须保留完全一致的 package_unresolved 和不完整摘要。此时 conflicts=[] 只表示没有可报告的已确认分析结论，不是“已分析无冲突”。没有风险记录、风险被报告擦除或缺少分析槽位仍会拒绝成功判定。
+- authorizationConfirmed=false 仅为内部展示投影；没有新增公共字段或批准事实。不从完整/不完整展示、本地风险勾选推断审批有效，正式批准仍禁用。
+
+上述补审阶段未同步 PR #44；其合并后的共同组件整合见下节。真实后端契约验收仍待进行。
+
+补审修复实际回归：四文件 Node 测试 92 通过、0 失败，exit 0；已安装 Chrome 本地测试
+1 通过、0 失败，exit 0（22 Fixture × 两种宽度、8 异常输入、2 失败链及 5 验证/报告场景；
+无 HTTP 请求、无页面异常或横向溢出，正式批准禁用）。三个修改 JS/CJS 语法和 diff 空白检查通过。
+六组新增 Node 测试覆盖 C 的原始复现、工具失败及 passed=false、重复/缺失/错误验证关联、
+报告完整来源比较和过期/错误来源、显式未执行冲突分析正向场景与风险被擦除反例。
+
+## 与已合并 PR #44 的整合
+
+本轮普通 merge 基线为 dev `6c12c979c887a9cde4e495ceb9f41a6c9df2a580`，保留 #45 历史，不修改 #44 开发分支。
+冲突为本说明、package-preview.test.cjs、package-browser.cjs 的追加段落；保留两边测试与说明，采用 dev 已更正的依赖段落，浏览器汇总包含两边场景。package-preview.js 自动合并后逐段复核，无删除任一套适配器/证据逻辑。
+
+- 正式 renderSnapshot 仍只在 inspectSnapshot.state=provided 时调用详细 render；invalid/failed/unavailable 不渲染映射或原始执行正文。规划、任务、来源、索引及 preview 缺失保护不变，不用历史或 Fixture 补齐。
+- 独立 inspect/render 保留执行进度、失败停止、异常验证、报告来源与未决风险核对、cleanup 诊断和完整成功链检查。正式 Snapshot 入口的执行证据异常同样触发详细展示保护；不能用独立 Fixture 诊断规则绕过正式入口。
+- 正式页面仍未接通 Package 批准或成功 FinalReport；没有报告时不能由 Snapshot 自行生成 Package 成功。组件可接收原始 FinalReport 的展示能力保留，不放宽普通 Agent 的报告/审批/拒绝/轮询保护。
+- 新增组合单测覆盖正式入口的 executing/verifying、无报告的完成 Snapshot、较新失败验证、失败复制、未知 cleanup 以及生产页面审批禁用与映射撤回。真实 API、文件操作、来源摘要和审批权威性仍由 A 负责。
+
+Windows 验收准备文件在独立 #46 分支保存，不在本 PR 差异中；本轮不修改、删除或重新暂存这些文件。
+
+本轮整合实际运行：`node --test frontend/tests/package-preview.test.cjs frontend/tests/agent-results.test.cjs frontend/tests/agent-workspace.test.cjs frontend/tests/organization-preview.test.cjs` 为 110 passed、0 failed、exit 0。
+`node --test frontend/tests/package-browser.cjs` 为 1 passed、0 failed、exit 0；覆盖 22 Fixture × 两种宽度、8 异常输入、2 失败链、5 验证/报告、4 Snapshot 保护及 3 组合状态，无 HTTP 请求、页面异常或横向溢出。
+package-preview.js、package-fixtures.js 和三个相关测试 CJS 的 `node --check`，以及相对最新 dev 的 diff 空白检查通过。测试均为合成展示/HTTP 响应回归，不是实际后端 Package 或 LLM 验收。
+
+## null/not-run 与真实分析记录一致性修复
+
+在集成 HEAD `9ba13065d7c4dabf0c10cafbf98f679e0a4bc947` 重跑 C 的 Version/Conflicts 两种反例，均能复现错误成功。
+现统一由 analysisNotRun 检查冻结槽为 null 且当前 Snapshot 中没有同名工具记录。
+只要存在该工具调用（包括成功空结果、失败或畸形记录），就不能以 analysis_not_run 擦除执行历史。
+矛盾会诊断“分析来源矛盾”，对应 reportSources 保持 null，Package 成功判定为 false，正式 Snapshot 入口为 invalid，不展示详细映射。
+不从历史记录自动恢复分析槽、修复索引或重新计算摘要；原始输入不变。真正无该工具记录、显式冻结未决风险且报告完整保留风险的合法不完整方案仍可展示执行结果，authorizationConfirmed=false，正式批准禁用。
+本轮不再次 merge、不撤销冲突解决，不修改 A/C/D 或公共契约。新增两个工具各自的矛盾/合法正向单测，以及空/失败/畸形记录反例和四个浏览器 not-run 场景。
+
+本轮实际结果：既有四组 Node 回归 115 passed、0 failed、exit 0；Chrome 1 passed、0 failed、exit 0（保留全部整合场景，另加四个 not-run 场景，无 HTTP/页面异常/溢出）。五个相关 JS/CJS 的语法检查及 diff 空白检查通过。以上是合成输入展示回归，不是实际 Package 执行或材料验收。

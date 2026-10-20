@@ -32,6 +32,10 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
                 const result=await evaluate(`(()=>{scenario.value=${JSON.stringify(name)};scenario.dispatchEvent(new Event('change'));return {disabled:formalApprove.disabled,overflow:document.documentElement.scrollWidth>innerWidth,text:document.body.innerText}})()`);
                 assert.equal(result.disabled,true);assert.equal(result.overflow,false,name+' at '+width);assert.match(result.text,/Mock \/ Fixture/);
                 assert.match(result.text,/材料真实性、完整性及有效性未由本界面核验/);
+                if(['executing','verifying'].includes(name)){assert.match(result.text,/Package 执行中/);assert.match(result.text,/尚无完成结果/);assert.doesNotMatch(result.text,/Package 执行与文件验证成功/);}
+                if(name==='success')assert.match(result.text,/Package 执行与文件验证成功/);
+                if(name==='verification_failed'){assert.match(result.text,/验证失败，Package 未成功/);assert.doesNotMatch(result.text,/文件验证：通过/);}
+                if(name==='cleanup_succeeded'){assert.match(result.text,/清理成功 · 仅失败复制片段已移除/);assert.doesNotMatch(result.text,/Package 执行与文件验证成功/);}
             }
         }
         const combinations=await evaluate(`(()=>{
@@ -53,6 +57,58 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         })()`);
         const warnings={null_task:/方案数据不完整/,null_operation:/执行记录不完整\/无效/,unresolved_source:/未决事项来源关联无效/,failed_report:/Package 报告状态无效/,missing_targets:/verification_targets 缺失或无效/,missing_cleanup:/cleanup_results 缺失或无效/,workspace_mismatch:/任务上下文不一致/,unsafe_timestamp:/精度无法确认/};
         for(const item of combinations){assert.equal(item.unchanged,true);assert.equal(item.disabled,true);assert.equal(item.overflow,false);assert.match(item.text,warnings[item.kind]);assert.match(item.text,/文件验证：未确认通过/);assert.doesNotMatch(item.text,/文件验证：通过/);}
+        const failedChains=await evaluate(`(()=>{
+            return [5,6].map(index=>{
+                const d=PackageFixtures.get('success');d.snapshot.task.status='failed';d.report=null;
+                d.snapshot.results[index]={tool:index===5?'create_folder':'copy_file',success:false,data:null,message:'injected failure',error:'original failure retained'};
+                const before=JSON.stringify(d),m=PackagePreview.inspect(d);content.innerHTML=PackagePreview.render(d);
+                return {index,bound:m.boundOperations.map(row=>row.result_index),writes:m.writes.filter(row=>row.result.success).length,
+                    verification:m.verification,build:m.build,packageSucceeded:m.packageSucceeded,
+                    anomalous:m.anomalousResults.map(row=>row.result_index),rows:m.operationRows.map(row=>({valid:row.evidenceValid,label:row.label})),
+                    text:content.innerText,disabled:formalApprove.disabled,unchanged:before===JSON.stringify(d),overflow:document.documentElement.scrollWidth>innerWidth};
+            });
+        })()`);
+        for(const item of failedChains){
+            assert.deepEqual(item.bound,item.index===5?[5]:[5,6]);assert.equal(item.writes,item.index===5?0:1);
+            assert.equal(item.verification,null);assert.equal(item.build,null);assert.equal(item.packageSucceeded,false);
+            assert.deepEqual(item.anomalous,item.index===5?[6,7,8,9]:[7,8,9]);
+            assert.ok(item.rows.slice(item.index-4).every(row=>!row.valid&&row.label==='失败后异常记录，不可作为有效执行证据'));
+            assert.match(item.text,/original failure retained/);assert.match(item.text,/失败后异常记录/);
+            if(item.index===5)assert.doesNotMatch(item.text,/文件操作执行成功/);
+            assert.doesNotMatch(item.text,/文件验证：通过|Package 执行与文件验证成功/);
+            assert.equal(item.disabled,true);assert.equal(item.unchanged,true);assert.equal(item.overflow,false);
+        }
+        const reportCases=await evaluate(`(()=>{
+            return ['new_verify_failure','foreign_found','foreign_versions','unrun_conflicts','missing_conflict_risk'].map(kind=>{
+                const d=PackageFixtures.get('success'),p=d.planResult.data.plan;
+                if(kind==='new_verify_failure'){
+                    const bad=structuredClone(d.snapshot.results[8]);bad.data.passed=false;bad.data.checks[0].passed=false;
+                    d.snapshot.results.splice(9,0,bad);d.snapshot.package_execution.final_result_index=10;
+                }
+                if(kind==='foreign_found')d.report.found_files=[{path:'OLD_FOREIGN_SOURCE'}];
+                if(kind==='foreign_versions')d.report.version_groups=[{group_id:'FOREIGN_OLD_GROUP'}];
+                if(kind==='unrun_conflicts'||kind==='missing_conflict_risk'){
+                    p.analysis.detect_conflicts=null;
+                    p.unresolved=p.unresolved.filter(u=>u.source_tool!=='detect_conflicts');
+                    if(kind==='unrun_conflicts')p.unresolved.push({kind:'analysis_not_run',source_tool:'detect_conflicts',source_result_index:null,documents:[],text:'Conflict analysis not run'});
+                    d.report.package_unresolved.items=structuredClone(p.unresolved);d.report.conflicts=[];
+                    d.snapshot.results[2]={tool:'read_document',success:true,data:{},message:'no conflict analysis',error:null};
+                    d.snapshot.results[4]=structuredClone(d.planResult);
+                }
+                const before=JSON.stringify(d),m=PackagePreview.inspect(d);content.innerHTML=PackagePreview.render(d);
+                return {kind,verified:m.verification!==null,build:m.build!==null,bound:m.boundOperations.length,
+                    packageSucceeded:m.packageSucceeded,authorization:m.authorizationConfirmed,text:content.innerText,
+                    disabled:formalApprove.disabled,unchanged:before===JSON.stringify(d),overflow:document.documentElement.scrollWidth>innerWidth};
+            });
+        })()`);
+        for(const item of reportCases){
+            assert.equal(item.packageSucceeded,item.kind==='unrun_conflicts');
+            assert.equal(item.authorization,false);assert.equal(item.disabled,true);assert.equal(item.unchanged,true);assert.equal(item.overflow,false);
+            if(item.kind==='new_verify_failure'){assert.equal(item.verified,false);assert.equal(item.build,false);assert.equal(item.bound,3);assert.doesNotMatch(item.text,/文件验证：通过/);}
+            if(item.kind==='unrun_conflicts'){assert.equal(item.bound,4);assert.match(item.text,/Conflict analysis not run/);assert.match(item.text,/打包执行成功，但材料包仍有缺项或未决事项/);}
+            else {assert.match(item.text,/报告未通过当前执行完整性检查/);assert.doesNotMatch(item.text,/Package 执行与文件验证成功/);}
+        }
+
         const snapshotGates=await evaluate(`(()=>{
             return ['missing_snapshot','stale_before_plan','failed','unavailable'].map(kind=>{
                 const s=PackageFixtures.get('complete').snapshot;
@@ -72,6 +128,48 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
             assert.doesNotMatch(gate.text,/提议文件|具体文件映射|文件验证：通过/);
             assert.match(gate.text,gate.kind==='missing_snapshot'?/快照数据不完整/:gate.kind==='stale_before_plan'?/来源不一致或已过期/:gate.kind==='failed'?/当前失败/:/规划数据尚未提供/);
         }
+        const integrated=await evaluate(`(()=>{
+            return ['executing','verifying','new_verification'].map(kind=>{
+                const s=PackageFixtures.get(kind==='new_verification'?'success':kind).snapshot;
+                if(kind==='new_verification'){
+                    const bad=structuredClone(s.results[8]);bad.data.passed=false;bad.data.checks[0].passed=false;
+                    s.results.splice(9,0,bad);s.package_execution.final_result_index=10;
+                }
+                const before=JSON.stringify(s),m=PackagePreview.inspectSnapshot(s);content.innerHTML=PackagePreview.renderSnapshot(s);
+                return {kind,state:m.state,text:content.innerText,unchanged:before===JSON.stringify(s),disabled:formalApprove.disabled,overflow:document.documentElement.scrollWidth>innerWidth};
+            });
+        })()`);
+        for(const item of integrated){
+            assert.equal(item.state,item.kind==='new_verification'?'invalid':'provided');
+            if(item.kind==='new_verification'){assert.match(item.text,/验证记录缺失、重复或关联不完整/);assert.doesNotMatch(item.text,/结题报告.txt|具体文件映射|文件验证：通过/);}
+            else{assert.match(item.text,/Package 执行中/);assert.match(item.text,/结题报告.txt/);}
+            assert.doesNotMatch(item.text,/Package 执行与文件验证成功/);
+            assert.equal(item.unchanged,true);assert.equal(item.disabled,true);assert.equal(item.overflow,false);
+        }
+        const notRunCases=await evaluate(`(()=>{
+            const findings=[];
+            for(const tool of ['compare_versions','detect_conflicts'])for(const trulyUnrun of [false,true]){
+                const d=PackageFixtures.get('success'),p=d.planResult.data.plan,index=p.analysis[tool].result_index,field=tool==='compare_versions'?'version_groups':'conflicts';
+                p.analysis[tool]=null;
+                p.unresolved=p.unresolved.map(u=>u.source_tool===tool?{kind:'analysis_not_run',source_tool:tool,source_result_index:null,documents:[],text:tool+' explicitly not run'}:u);
+                d.report[field]=[];d.report.package_unresolved.items=structuredClone(p.unresolved);
+                if(trulyUnrun)d.snapshot.results[index]={tool:'read_document',success:true,data:{},message:'no analysis call',error:null};
+                d.snapshot.results[4]=structuredClone(d.planResult);
+                const before=JSON.stringify(d),m=PackagePreview.inspect(d),gate=PackagePreview.inspectSnapshot(d.snapshot);
+                content.innerHTML=PackagePreview.render(d);const text=content.innerText;
+                content.innerHTML=PackagePreview.renderSnapshot(d.snapshot);
+                findings.push({tool,trulyUnrun,succeeded:m.packageSucceeded,source:m.reportSources[field],state:gate.state,text,
+                    leaks:[p.selected_files[0].source.filename,p.selected_files[0].source.path,p.selected_files[0].target].some(value=>content.innerText.includes(value)),
+                    authorization:m.authorizationConfirmed,disabled:formalApprove.disabled,unchanged:before===JSON.stringify(d),overflow:document.documentElement.scrollWidth>innerWidth});
+            }
+            return findings;
+        })()`);
+        for(const item of notRunCases){
+            assert.equal(item.succeeded,item.trulyUnrun);assert.equal(item.state,item.trulyUnrun?'provided':'invalid');
+            if(item.trulyUnrun){assert.deepEqual(item.source,[]);assert.match(item.text,/打包执行成功，但材料包仍有缺项或未决事项/);}
+            else {assert.equal(item.source,null);assert.equal(item.leaks,false);assert.match(item.text,/分析来源矛盾/);assert.doesNotMatch(item.text,/Package 执行与文件验证成功|文件验证：通过/);}
+            assert.equal(item.authorization,false);assert.equal(item.disabled,true);assert.equal(item.unchanged,true);assert.equal(item.overflow,false);
+        }
         // The unavailable gate intentionally has no details/pre; restore a valid
         // Fixture before running the existing detailed-layout assertion.
         await evaluate("scenario.value='complete';scenario.dispatchEvent(new Event('change'))");
@@ -82,7 +180,7 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         assert.equal(await evaluate('formalApprove.disabled'),true);
         assert.deepEqual(pageErrors,[]);
         assert.deepEqual(network.filter(r=>/^https?:/.test(r.url)),[]);
-        console.log('Validated 18 fixtures × 2 viewports + 8 malformed-input combinations + 4 Snapshot detail gates; no HTTP requests; approval disabled.');
+        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations + 2 failed execution chains + 5 verification/report cases + 4 Snapshot detail gates + 3 integrated Snapshot states + 4 not-run cases; no HTTP requests; approval disabled.');
     }finally{
         if(ws)ws.close();browser.kill();await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));
         // Only remove the exact profile created by this test, outside user Workspace.

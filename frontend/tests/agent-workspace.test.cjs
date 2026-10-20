@@ -300,3 +300,30 @@ test('renderAgent clears valid Package mappings for invalid, failed and unavaila
         assert.deepEqual(s,before);assert.equal(h.c.PackagePreview.inspectSnapshot(h.state.snapshot,h.state.taskContext).state,state);
     }
 });
+
+test('production Package progress and new failed verification preserve the Snapshot detail gate after integration',async()=>{
+    const fixtures=require('../package-fixtures.js');
+    for(const name of ['executing','verifying','new_verification','failed_copy']){
+        const d=fixtures.get(name==='new_verification'?'success':name==='failed_copy'?'partial':name),s=d.snapshot;
+        if(name==='new_verification'){
+            const bad=structuredClone(s.results[8]);bad.data.passed=false;bad.data.checks[0].passed=false;
+            s.results.splice(9,0,bad);s.package_execution.final_result_index=10;
+        }
+        const before=structuredClone(s),h=harness();
+        h.c.respond=url=>url==='/api/agent/tasks'?response({...s.task,status:'created'},202):url.endsWith('/report')?response({detail:'Package report unavailable'},409):response(s);
+        await h.c.runAgent();await assert.doesNotReject(()=>h.c.pollAgent());
+        const html=h.el('agentPackagePreview').innerHTML;
+        if(['executing','verifying'].includes(name)){
+            assert.match(html,/Package 执行中/);assert.match(html,/结题报告.txt/);
+            assert.equal(h.c.PackagePreview.inspectSnapshot(h.state.snapshot,h.state.taskContext).state,'provided');
+        }else{
+            assert.doesNotMatch(html,/具体文件映射|结题报告.txt|文件验证：通过|文件操作执行成功/);
+            assert.match(html,name==='new_verification'?/验证记录缺失、重复或关联不完整/:/当前失败/);
+        }
+        assert.ok(h.el('agentTaskStatus').textContent.startsWith(s.task.status));
+        assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.state.report,null);
+        const count=h.calls.length;await h.c.decideAgent(true);assert.equal(h.calls.length,count);
+        assert.equal(h.calls.filter(call=>call.url.endsWith('/approve')).length,0);
+        assert.equal(h.c.window.PackageFixtures,undefined);assert.deepEqual(s,before);
+    }
+});
