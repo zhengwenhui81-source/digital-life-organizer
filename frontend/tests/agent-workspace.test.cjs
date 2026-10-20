@@ -276,3 +276,27 @@ test('malformed current Package ToolResult cannot interrupt task rendering or en
         assert.equal(h.state.report,null);assert.deepEqual(s,before);
     }
 });
+
+test('renderAgent clears valid Package mappings for invalid, failed and unavailable snapshots',async()=>{
+    const cases=[
+        ['invalid',s=>delete s.results[4].data.plan.selected_files[0].snapshot,/快照数据不完整/],
+        ['invalid',s=>s.results.splice(4,0,structuredClone(s.results[3])),/来源不一致或已过期/],
+        ['failed',s=>{s.task.status='failed';s.error='current task failed';},/当前失败/],
+        ['unavailable',s=>{s.results=[];},/规划数据尚未提供/]
+    ];
+    for(const [state,change,warning] of cases){
+        const h=harness(),s=packageHttpSnapshot(),file=structuredClone(s.results[4].data.plan.selected_files[0]);
+        h.c.respond=url=>url==='/api/agent/tasks'?response({...s.task,status:'created'},202):response(s);
+        await h.c.runAgent();await h.c.pollAgent();
+        assert.match(h.el('agentPackagePreview').innerHTML,/结题报告.txt/);
+        change(s);const before=structuredClone(s);
+        h.el('agentTaskStatus').textContent='waiting for the next rendered snapshot';
+        await assert.doesNotReject(()=>h.c.pollAgent());
+        const html=h.el('agentPackagePreview').innerHTML;
+        assert.match(html,warning);for(const value of ['提议文件','具体文件映射',file.source.filename,file.source.path,file.target])assert.equal(html.includes(value),false,value);
+        assert.equal(h.state.task.status,s.task.status);assert.ok(h.el('agentTaskStatus').textContent.startsWith(s.task.status+' · Real Mode'));
+        assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.state.pollInFlight,false);assert.equal(h.state.report,null);
+        assert.equal(h.calls.length,3);await h.c.decideAgent(true);assert.equal(h.calls.length,3);
+        assert.deepEqual(s,before);assert.equal(h.c.PackagePreview.inspectSnapshot(h.state.snapshot,h.state.taskContext).state,state);
+    }
+});

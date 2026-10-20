@@ -361,3 +361,30 @@ test('invalid manifest and digest identities never enter detailed Snapshot rende
         assert.doesNotMatch(html,/结题报告.txt|具体文件映射|文件验证：通过/);assert.deepEqual(s,before);
     }
 });
+
+test('invalid source snapshots and superseded frozen indices expose diagnostics but no detailed mapping',()=>{
+    for(const change of [s=>delete s.results[4].data.plan.selected_files[0].snapshot,
+        s=>s.results.splice(4,0,structuredClone(s.results[3]))]){
+        const s=planningSnapshot();s.task.status='awaiting_approval';s.preview_id='server-preview';
+        s.pending_operations=[{tool:'build_package',step_id:'build',arguments:{}}];
+        const file=structuredClone(s.results[4].data.plan.selected_files[0]);
+        assert.equal(view.inspectSnapshot(s).state,'provided');change(s);
+        const before=structuredClone(s),m=view.inspectSnapshot(s),html=view.renderSnapshot(s);
+        assert.equal(m.state,'invalid');assert.equal(m.input,null);assert.match(html,/快照数据不完整|来源不一致或已过期/);
+        for(const value of ['提议文件','具体文件映射',file.source.filename,file.source.path,file.target])assert.equal(html.includes(value),false,value);
+        assert.doesNotMatch(html,/文件验证：通过|文件操作执行成功/);assert.deepEqual(s,before);
+    }
+});
+
+test('all non-provided Snapshot states withhold detail while standalone Fixture diagnostics stay separate',()=>{
+    const invalid=planningSnapshot();delete invalid.results[4].data.plan.selected_files[0].snapshot;
+    const failed=planningSnapshot();failed.task.status='failed';failed.error='current failed';
+    const unavailable=planningSnapshot();unavailable.results=[];
+    for(const s of [invalid,failed,unavailable,null]){
+        const m=view.inspectSnapshot(s),html=view.renderSnapshot(s);
+        assert.ok(['invalid','failed','unavailable'].includes(m.state));assert.equal(m.input,null);
+        assert.doesNotMatch(html,/提议文件|结题报告.txt|具体文件映射|冻结分析与多候选证据|文件验证：通过/);
+    }
+    const fixture=fixtures.get('complete');delete fixture.planResult.data.plan.selected_files[0].snapshot;
+    assert.match(view.render(fixture),/快照数据不完整/);assert.match(view.render(fixture),/结题报告.txt/);
+});

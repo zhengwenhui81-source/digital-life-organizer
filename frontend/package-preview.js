@@ -192,7 +192,7 @@
         if(snapshot.preview_id!=null&&!str(snapshot.preview_id))issues.push('preview_id 格式异常；不能确认服务端预览关联');
         if(snapshot.task.status==='awaiting_approval'&&!str(snapshot.preview_id))issues.push('等待审批但 preview_id 尚未提供；不能确认冻结预览绑定');
         if(str(snapshot.preview_id)&&(!arr(snapshot.pending_operations)||!snapshot.pending_operations.length))issues.push('preview_id 缺少对应 pending_operations；不能确认冻结操作关联');
-        return {...current,state:issues.length?'invalid':'provided',input,issues};
+        return {...current,state:issues.length?'invalid':'provided',input:issues.length?null:input,issues};
     }
     function renderSnapshot(snapshot,expectedTask){
         const m=inspectSnapshot(snapshot,expectedTask);
@@ -201,7 +201,9 @@
         html+=pre({task_id:snapshot?.task?.task_id,plan_id:m.input?.planResult?.data?.plan?.plan_id,plan_sha256:m.input?.planResult?.data?.plan_sha256,preview_id:snapshot?.preview_id,result_index:m.resultIndex});
         if(m.issues.length)html+='<p class="warning">'+(m.state==='failed'?'当前失败，冻结预览不可用。':'数据不完整、格式异常或来源无法确认；不得视为有效当前冻结预览。')+'</p><ul>'+m.issues.map(issue=>'<li>'+esc(issue)+'</li>').join('')+'</ul>';
         else html+='<p>规划记录来自当前 Snapshot；'+(str(snapshot?.preview_id)?'preview_id 仅按服务端返回展示，权威绑定尚未验收。':'服务端审批预览尚未提供，当前仅为只读规划。')+'</p>';
-        if(m.input)html+=render(m.input);
+        // Only a provided Snapshot may enter detailed rendering. The standalone
+        // Fixture render() still retains its separate raw-data diagnostic use.
+        if(m.state==='provided'&&m.input)html+=render(m.input);
         return html;
     }
     const api={inspect,render,inspectSnapshot,renderSnapshot};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PackagePreview=api;
