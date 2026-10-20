@@ -58,7 +58,7 @@ node --test frontend/tests/package-browser.cjs
 
 这不是无损 JSON transport 的实现，也不表示后端方案无效。真实接入前仍须与 A/D 确认无损整数展示/关联策略、当前 preview 与冻结 manifest 的绑定、accept_incomplete HTTP 行为、执行索引及 cleanup/FinalReport 的实际支持。浏览器不重算规范摘要、不复验真实文件、不替代服务端授权。
 
-Chrome 回归覆盖 18 个 Fixture、1366px / 390px 两种宽度及 8 组异常组合；同时检查无页面异常、无 HTTP 请求、输入不变、HTML 转义、切换后确认清空和正式审批禁用。这些检查不构成 LLM、真实 Package 或 Windows 离线五场景的人工验收记录。
+Chrome 回归覆盖 22 个 Fixture、1366px / 390px 两种宽度及 8 组异常组合；同时检查无页面异常、无 HTTP 请求、输入不变、HTML 转义、切换后确认清空和正式审批禁用。这些检查不构成 LLM、真实 Package 或 Windows 离线五场景的人工验收记录。
 
 ### 真实入口的受控阻塞
 
@@ -78,3 +78,21 @@ Agent 页识别 Snapshot 中显式的 Package 工具/执行记录后禁用批准
 ## 真实接入依赖
 
 等待 D 实现/导出冻结计划和报告，A 注册工具并实现当前 task/plan/digest/preview 绑定、风险接受、单次执行和结果索引关联、清理记录及成功 FinalReport 映射。未来只向展示模块提供真实对象；当前没有 plan_package/build_package HTTP 调用。approve 的 accept_incomplete 增量未接入，也不改变现有 Real Mode。失败任务保持 Snapshot 诊断，报告 409 不降级为普通成功。Matching/Version 和现有 Agent UI 未改动。
+
+## 执行结果展示准备（与 PR #44 独立）
+
+基于 dev `a0267e84a4ace9dd8af470c61bc5ae5a44697681`，不包含或修改仍在审查的 PR #44。此轮复用 inspect/render 原有输入签名 `{planResult,snapshot,report}`，没有改动生产 index.html、Agent transport、审批或轮询。新增的 operationRows、cleanupRows、executionLabel、packageSucceeded 仅为组件内部展示投影，不是公共 Task 状态或响应字段。
+
+- 在冻结操作顺序中逐项展示已关联结果、源/目标路径、错误及原始 ToolResult；失败 data=null 时路径明确来自冻结映射，不代表复制完成。每个已返回工具结果不等于字节进度。
+- `executing` / `verifying` 是既有 Task 状态。没有逐文件 running 信号时显示“尚无完成结果，无法确认是否已开始”；没有执行关联且任务尚未执行时显示未执行。失败子操作及最终失败已关联后，后续无结果步骤显示失败后停止；证据不完整时保持未知，不静默当作成功或跳过。
+- cleanup 按 step_id 关联已尝试复制。succeeded 只表示失败复制片段已移除；failed 保留原始复制失败与清理原因；unknown 不推断对象已删除。absent 不表示成功文件或目录已回滚。重复/未知步骤与矛盾清理记录保留原文，标为关联无效。
+- 只有当前任务 completed、当前有效规划/执行绑定、全部子操作和验证证据一致、完整 Package FinalReport 保留冻结风险时，显示 Package 执行与文件验证成功。没有 FinalReport 时不确认 Package 完成。验证调用返回 success=true 但 passed=false 仍是验证未通过。
+- 较新 plan_package/build_package、跨任务、异常或非递增索引、生成文件/报告路径不符、必要报告字段缺失均禁止确认成功；不从旧成功搜索补齐。独立失败 ToolResult 仍作为诊断保留，不因正向证据失效而丢弃原始失败。
+
+新增合成场景：executing（只返回目录操作）、verifying（写操作已返回，验证尚无结果）、verification_failed（复制成功但验证失败）、cleanup_succeeded（失败片段移除成功，任务仍失败）。它们只描述约定数据，不执行复制或清理，也不是已存在后端能力的声明。
+
+### 必须等待 A 的后端清单
+
+以实际代码为准：D 的只读 plan_package 已通过 PR #35 合并；PR #40 已有 accept_incomplete 解析和执行不可用防护。仍待 A 完成默认工具路由/TaskService 规划接入，当前 task/plan/digest/preview 的权威绑定，受批准约束的复合执行、按序追加子结果与唯一 final_result_index、每次已尝试复制的 cleanup_results、批准源摘要/冻结报告/精确文件集的实际验证，以及成功 FinalReport 映射和失败报告 GET 409。前端不补造任何接口或事实。
+
+本轮不接通这些真实接口；未来只传入 A 的原始 Snapshot 与报告即可复用展示。实际文件验证、无损纳秒整数传输和真实 HTTP/Package 验收仍待后续工作，当前合成测试通过不能替代它们。

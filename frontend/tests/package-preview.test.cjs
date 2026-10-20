@@ -44,6 +44,7 @@ test('incorrect indices and mismatched plan identity fail provenance checks',()=
 });
 test('non-Package report may omit package_unresolved',()=>{
     const d=fixtures.get('non_package');assert.equal(view.inspect(d).isPackage,false);assert.doesNotMatch(view.inspect(d).errors.join(),/报告缺少 package_unresolved/);
+    assert.match(view.render(d),/非 Package 报告，不要求 package_unresolved/);assert.doesNotMatch(view.render(d),/报告未通过当前执行完整性检查/);
 });
 test('Package success requires structured frozen risks and verified execution',()=>{
     assert.deepEqual(view.inspect(fixtures.get('success')).errors,[]);
@@ -266,4 +267,75 @@ test('terminal and verification indices require current ordered numeric executio
     rejectsVerifiedDisplay(early,/最终执行结果来源不一致/);
     const afterFailure=fixtures.get('success');afterFailure.snapshot.results[6]={tool:'copy_file',success:false,data:null,message:'failed',error:'synthetic copy failure'};
     rejectsVerifiedDisplay(afterFailure,/失败后仍有后续操作记录/);
+});
+
+test('read-only progress distinguishes no execution, returned outcomes and unknown in-flight steps',()=>{
+    const idle=view.inspect(fixtures.get('complete'));assert.equal(idle.packageSucceeded,false);
+    assert.ok(idle.operationRows.every(row=>row.label.includes('未执行')));
+    for(const name of ['executing','verifying']){
+        const d=fixtures.get(name),before=structuredClone(d),m=view.inspect(d),html=view.render(d);
+        assert.deepEqual(m.errors,[]);assert.equal(m.packageSucceeded,false);assert.match(html,/Package 执行中/);
+        assert.ok(m.operationRows.some(row=>row.label.includes('尚无完成结果')));
+        assert.equal(m.operationRows.filter(row=>row.result).length,name==='executing'?1:3);
+        assert.doesNotMatch(html,/Package 执行与文件验证成功/);assert.deepEqual(d,before);
+    }
+    const missing=fixtures.get('complete');missing.snapshot.task.status='executing';
+    assert.ok(view.inspect(missing).operationRows.every(row=>row.label.includes('不能推断未执行')));
+});
+
+test('partial failure exposes exact frozen paths and errors and never counts unattempted steps as successes',()=>{
+    const d=fixtures.get('partial'),m=view.inspect(d),html=view.render(d),failed=m.operationRows[2];
+    assert.equal(failed.source,d.planResult.data.plan.selected_files[1].source.path);
+    assert.equal(failed.target,d.planResult.data.plan.selected_files[1].target);
+    assert.equal(failed.result.data,null);assert.equal(failed.result.success,false);
+    assert.match(html,/second copy failed/);assert.match(html,/部分操作成功，Package 任务失败/);
+    assert.ok(m.operationRows.slice(3).every(row=>row.label.includes('未执行')&&!row.result));
+    assert.equal(m.packageSucceeded,false);assert.equal(d.report,null);
+});
+
+test('cleanup labels distinguish removed fragments, failed cleanup and unknown residue without rollback claims',()=>{
+    for(const [name,label,residual] of [['cleanup_succeeded','清理成功','无失败复制片段'],['cleanup_failed','清理失败','失败复制片段仍存在'],['unknown_residual','未尝试清理','未知残留']]){
+        const d=fixtures.get(name),m=view.inspect(d),html=view.render(d),row=m.cleanupRows[1];
+        assert.ok(row.label.includes(label));assert.ok(row.residual.includes(residual));
+        assert.equal(m.packageSucceeded,false);assert.match(html,/不表示已回滚|不代表回滚/);
+        assert.equal(m.cleanupRows[0].record.reason,'copy_succeeded');assert.match(m.cleanupRows[0].residual,/成功文件仍可能保留/);
+    }
+    const invalid=fixtures.get('cleanup_succeeded');invalid.snapshot.package_execution.cleanup_results.push({...invalid.snapshot.package_execution.cleanup_results[1]});
+    const rows=view.inspect(invalid).cleanupRows.filter(row=>row.record.step_id==='package_003');
+    assert.ok(rows.every(row=>row.label.includes('关联无效')));
+});
+
+test('Package completion requires current verified execution and full FinalReport while frozen risks survive',()=>{
+    const good=fixtures.get('success'),m=view.inspect(good),html=view.render(good);
+    assert.equal(m.packageSucceeded,true);assert.match(html,/Package 执行与文件验证成功；不代表材料内容合格/);
+    for(const value of ['签字页','selection_pending','version_undecided','conflict','analysis_not_run'])assert.ok(html.includes(value));
+    const noReport=fixtures.get('success');noReport.report=null;
+    assert.equal(view.inspect(noReport).packageSucceeded,false);assert.match(view.render(noReport),/完成仍待完整证据与 FinalReport/);
+    for(const change of [d=>delete d.report.summary,d=>d.report.summary='材料全部审核通过',d=>delete d.report.operations,d=>d.snapshot.results[9].data.generated_files=[],d=>d.snapshot.results[9].data.report_path='wrong']){
+        const d=fixtures.get('success');change(d);assert.equal(view.inspect(d).packageSucceeded,false);
+        assert.doesNotMatch(view.render(d),/Package 执行与文件验证成功/);
+    }
+});
+
+test('verification failure remains failed even when all copies and report writes succeeded',()=>{
+    const d=fixtures.get('verification_failed'),m=view.inspect(d),html=view.render(d);
+    assert.equal(m.writes.length,3);assert.ok(m.writes.every(row=>row.result.success));
+    assert.equal(m.verification.success,false);assert.equal(m.build.success,false);assert.equal(m.packageSucceeded,false);
+    assert.match(html,/验证失败，Package 未成功/);assert.match(html,/digest verification failed/);
+    assert.doesNotMatch(html,/文件验证：通过/);
+    const flag=fixtures.get('verification_failed');flag.snapshot.results[8]={tool:'verify_result',success:true,data:{passed:false,checks:[]},message:'checks failed',error:null};
+    assert.match(view.render(flag),/验证失败，Package 未成功/);
+    assert.match(view.inspect(flag).operationRows[3].label,/验证结果已返回/);assert.doesNotMatch(view.inspect(flag).operationRows[3].label,/成功/);
+});
+
+test('stale terminal results, replaced planning records and cross-task data cannot confirm execution',()=>{
+    const old=fixtures.get('success');old.snapshot.results.push({tool:'build_package',success:false,data:null,message:'new failure',error:'current failure'});
+    assert.equal(view.inspect(old).packageSucceeded,false);assert.match(view.render(old),/终止结果已过期/);
+    assert.ok(view.inspect(old).operationRows.every(row=>!row.result));
+    const repl=fixtures.get('success'),plan=structuredClone(repl.planResult);plan.data.plan.plan_id='package_plan_'+'2'.repeat(32);repl.snapshot.results.push(plan);
+    const m=view.inspect(repl);assert.equal(m.packageSucceeded,false);assert.equal(m.writes.length,0);assert.match(view.render(repl),/较新规划替代/);
+    const foreign=fixtures.get('success');foreign.snapshot.task.task_id='foreign';
+    assert.equal(view.inspect(foreign).packageSucceeded,false);assert.ok(view.inspect(foreign).operationRows.every(row=>!row.result));
+    const polluted=fixtures.get('stale_success');assert.equal(view.inspect(polluted).packageSucceeded,false);
+    assert.match(view.render(polluted),/部分操作成功，Package 任务失败/);
 });

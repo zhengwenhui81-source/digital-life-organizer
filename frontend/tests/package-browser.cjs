@@ -32,6 +32,10 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
                 const result=await evaluate(`(()=>{scenario.value=${JSON.stringify(name)};scenario.dispatchEvent(new Event('change'));return {disabled:formalApprove.disabled,overflow:document.documentElement.scrollWidth>innerWidth,text:document.body.innerText}})()`);
                 assert.equal(result.disabled,true);assert.equal(result.overflow,false,name+' at '+width);assert.match(result.text,/Mock \/ Fixture/);
                 assert.match(result.text,/材料真实性、完整性及有效性未由本界面核验/);
+                if(['executing','verifying'].includes(name)){assert.match(result.text,/Package 执行中/);assert.match(result.text,/尚无完成结果/);assert.doesNotMatch(result.text,/Package 执行与文件验证成功/);}
+                if(name==='success')assert.match(result.text,/Package 执行与文件验证成功/);
+                if(name==='verification_failed'){assert.match(result.text,/验证失败，Package 未成功/);assert.doesNotMatch(result.text,/文件验证：通过/);}
+                if(name==='cleanup_succeeded'){assert.match(result.text,/清理成功 · 仅失败复制片段已移除/);assert.doesNotMatch(result.text,/Package 执行与文件验证成功/);}
             }
         }
         const combinations=await evaluate(`(()=>{
@@ -60,7 +64,7 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         assert.equal(await evaluate('formalApprove.disabled'),true);
         assert.deepEqual(pageErrors,[]);
         assert.deepEqual(network.filter(r=>/^https?:/.test(r.url)),[]);
-        console.log('Validated 18 fixtures × 2 viewports + 8 malformed-input combinations; no HTTP requests; approval disabled.');
+        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations; no HTTP requests; approval disabled.');
     }finally{
         if(ws)ws.close();browser.kill();await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));
         // Only remove the exact profile created by this test, outside user Workspace.
