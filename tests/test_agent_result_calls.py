@@ -77,4 +77,3 @@ def test_result_calls_keep_failed_call_without_later_calls(tmp_path: Path) -> No
     assert len(state["results"]) == len(state["result_calls"]) == 1
     assert state["result_calls"][0]["result_index"] == 0
     assert state["result_calls"][0]["arguments"] == {"path": paths[0]}
-

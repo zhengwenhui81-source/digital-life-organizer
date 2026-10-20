@@ -51,4 +51,3 @@ def test_analysis_rejects_document_with_extra_field(tmp_path: Path) -> None:
     ]
     with pytest.raises(ValueError, match="successful read_document"):
         TaskService()._scoped_resolver(tmp_path, [step])(step, results)
-

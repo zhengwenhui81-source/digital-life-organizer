@@ -389,4 +389,3 @@ def recheck_approved_source_bytes(
         expected = (evidence["sha256"], evidence["size"], evidence["mtime_ns"])
         if current != expected:
             raise ValueError("Approved Package source differs from frozen preview")
-

@@ -238,4 +238,3 @@ def reject(state: dict[str, Any]) -> dict[str, Any]:
     state["pending_operations"] = []
     state["status"] = "failed"
     return state
-

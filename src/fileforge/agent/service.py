@@ -700,4 +700,3 @@ class TaskService:
             if entry["task"]["status"] != "completed" or entry["report"] is None:
                 raise TaskConflict("Report is not available")
             return deepcopy(entry["report"])
-

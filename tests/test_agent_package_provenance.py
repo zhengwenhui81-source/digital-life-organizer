@@ -233,4 +233,3 @@ def test_service_preflight_rejects_cross_task_execution(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="different task or plan"):
         service._package_preflight(task["task_id"])
     assert service.snapshot(task["task_id"])["task"]["status"] == "failed"
-
