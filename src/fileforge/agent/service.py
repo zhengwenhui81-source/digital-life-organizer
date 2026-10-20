@@ -19,6 +19,12 @@ from fileforge.agent.executor import (
     execute,
     reject,
 )
+from fileforge.agent.package_evidence import (
+    _same_document,
+    collect_package_read_results,
+    current_package_analysis,
+    revalidate_documents,
+)
 from fileforge.agent.planner import plan_task
 
 _READABLE_EXTENSIONS = frozenset({".txt", ".pdf", ".docx", ".xlsx"})
@@ -88,6 +94,32 @@ class TaskService:
                     "error": entry["error"],
                 }
             )
+
+    def _package_preflight(self, task_id: str) -> dict[str, Any]:
+        """Authenticate and revalidate current analysis before Package planning."""
+        with self._lock:
+            entry = self._entry(task_id)
+            state = entry["execution"]
+            if (
+                entry["task"]["status"] != "completed"
+                or state is None
+                or state["status"] != "completed"
+            ):
+                raise TaskConflict("Package analysis is not completed")
+            try:
+                reads = collect_package_read_results(state, task_id=task_id)
+                analysis = current_package_analysis(state, task_id=task_id)
+                checked = revalidate_documents(entry["task"]["workspace"], reads)
+            except Exception as exc:
+                state["status"] = "failed"
+                state["pending_operations"] = []
+                entry["task"]["status"] = "failed"
+                entry["error"] = str(exc) or type(exc).__name__
+                entry["report"] = None
+                entry["preview_id"] = None
+                entry["package_approval"] = None
+                raise
+            return {"analysis": analysis, "checked": checked}
 
     def run(self, task_id: str) -> None:
         with self._lock:
@@ -365,7 +397,15 @@ class TaskService:
                         "Candidate documents are unresolved; collect and read "
                         "materials after requirement extraction"
                     )
-                if arguments.get("candidate_documents") not in (None, [], documents):
+                supplied_candidates = arguments.get("candidate_documents")
+                if supplied_candidates not in (None, []) and (
+                    type(supplied_candidates) is not list
+                    or len(supplied_candidates) != len(documents)
+                    or any(
+                        not _same_document(supplied, actual)
+                        for supplied, actual in zip(supplied_candidates, documents)
+                    )
+                ):
                     raise ValueError(
                         "Matching candidates must come from successful read_document"
                     )
@@ -402,7 +442,12 @@ class TaskService:
                         and isinstance(result.get("data"), dict)
                         and isinstance(result["data"].get("document"), dict)
                     ]
-                    if any(document not in read_documents for document in documents):
+                    if any(
+                        not any(
+                            _same_document(document, prior) for prior in read_documents
+                        )
+                        for document in documents
+                    ):
                         raise ValueError(
                             "Analysis documents must come from successful read_document"
                         )
@@ -655,3 +700,4 @@ class TaskService:
             if entry["task"]["status"] != "completed" or entry["report"] is None:
                 raise TaskConflict("Report is not available")
             return deepcopy(entry["report"])
+

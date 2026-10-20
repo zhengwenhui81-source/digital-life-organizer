@@ -12,10 +12,147 @@ import math
 import os
 import stat
 from collections.abc import Callable, Iterable
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from fileforge.document import read_document
+
+_ANALYSIS_DOCUMENT_ARGUMENTS = {
+    "compare_versions": "documents",
+    "detect_conflicts": "documents",
+    "extract_requirements": "documents",
+    "match_requirements": "candidate_documents",
+}
+_PACKAGE_ANALYSES = (
+    "extract_requirements",
+    "match_requirements",
+    "detect_conflicts",
+    "compare_versions",
+)
+
+
+def collect_package_read_results(
+    state: dict[str, Any], *, task_id: str
+) -> list[tuple[int, dict[str, Any]]]:
+    """Authenticate analysis inputs against earlier reads in this execution.
+
+    Return every successful read, including notice and unselected candidates,
+    for current-source revalidation. No caller-supplied Document can become
+    Package evidence merely because it appears in an analysis ToolResult.
+    """
+    if type(state) is not dict:
+        raise ValueError("Package execution evidence is invalid")
+    plan = state.get("plan")
+    steps = plan.get("steps") if type(plan) is dict else None
+    if (
+        type(task_id) is not str
+        or not task_id
+        or state.get("task_id") != task_id
+        or type(plan) is not dict
+        or plan.get("task_id") != task_id
+        or type(steps) is not list
+    ):
+        raise ValueError("Package evidence belongs to a different task or plan")
+    step_tools = {}
+    for step in steps:
+        if (
+            type(step) is not dict
+            or type(step.get("step_id")) is not str
+            or type(step.get("tool")) is not str
+            or step["step_id"] in step_tools
+        ):
+            raise ValueError("Package execution plan has invalid steps")
+        step_tools[step["step_id"]] = step["tool"]
+    results = state.get("results")
+    calls = state.get("result_calls")
+    if (
+        type(results) is not list
+        or type(calls) is not list
+        or len(calls) != len(results)
+    ):
+        raise ValueError("Package result-call provenance is incomplete")
+    reads: list[tuple[int, dict[str, Any]]] = []
+    documents: list[dict[str, Any]] = []
+    for index, (result, call) in enumerate(zip(results, calls)):
+        if (
+            type(result) is not dict
+            or type(call) is not dict
+            or type(call.get("result_index")) is not int
+            or call["result_index"] != index
+            or type(call.get("step_id")) is not str
+            or type(call.get("arguments")) is not dict
+            or call.get("tool") != result.get("tool")
+            or step_tools.get(call["step_id"]) != call["tool"]
+        ):
+            raise ValueError("Package result-call provenance is inconsistent")
+        if result.get("success") is not True:
+            raise ValueError("Failed upstream tool prevents Package planning")
+        tool = call["tool"]
+        if tool == "read_document":
+            data = result.get("data")
+            document = data.get("document") if type(data) is dict else None
+            if type(document) is not dict or not _json_shape(document):
+                raise ValueError("Package read result has no valid Document")
+            requested_path = call["arguments"].get("path")
+            document_path = document.get("path")
+            if (
+                type(requested_path) is not str
+                or type(document_path) is not str
+                or not Path(requested_path).is_absolute()
+                or not Path(document_path).is_absolute()
+                or Path(requested_path).resolve() != Path(document_path).resolve()
+            ):
+                raise ValueError("Package Document does not belong to read call")
+            reads.append((index, result))
+            documents.append(document)
+        elif tool in _ANALYSIS_DOCUMENT_ARGUMENTS:
+            field = _ANALYSIS_DOCUMENT_ARGUMENTS[tool]
+            supplied = call["arguments"].get(field)
+            if type(supplied) is not list:
+                raise ValueError(f"Package {tool} input Documents are missing")
+            for document in supplied:
+                if (
+                    type(document) is not dict
+                    or not _json_shape(document)
+                    or not any(_same_document(document, prior) for prior in documents)
+                ):
+                    raise ValueError(
+                        f"Package {tool} input lacks an earlier successful read"
+                    )
+    if not reads:
+        raise ValueError("Package evidence has no successful Document reads")
+    return reads
+
+
+def current_package_analysis(
+    state: dict[str, Any], *, task_id: str
+) -> dict[str, dict[str, Any] | None]:
+    """Freeze each latest analysis ToolResult with its current result index.
+
+    This uses the same call/result audit as the read collector. A later failure
+    cannot be hidden by choosing an older successful analysis result.
+    """
+    collect_package_read_results(state, task_id=task_id)
+    results = state["results"]
+    analysis: dict[str, dict[str, Any] | None] = {}
+    for tool in _PACKAGE_ANALYSES:
+        latest = next(
+            (
+                index
+                for index in range(len(results) - 1, -1, -1)
+                if results[index]["tool"] == tool
+            ),
+            None,
+        )
+        if latest is None:
+            analysis[tool] = None
+            continue
+        result = results[latest]
+        if not _json_shape(result):
+            raise ValueError(f"Package {tool} result is not strict JSON")
+        analysis[tool] = {"result_index": latest, "result": deepcopy(result)}
+    return analysis
 
 
 def _json_shape(value: Any, active: set[int] | None = None) -> bool:
@@ -215,3 +352,41 @@ def bind_selected_snapshots(
             raise ValueError("Package plan source snapshot differs from checked bytes")
         bindings[selected_index] = result_index
     return bindings
+
+
+def recheck_approved_source_bytes(
+    workspace: str, checked: dict[int, dict[str, Any]]
+) -> None:
+    """Fail if any previously checked analysis source changed after preview.
+
+    Call before mutations and again before each source is used. This is only a
+    source-byte check; the Package adapter must separately verify the frozen
+    plan/approval, destination vacancy, and path/ancestor safety.
+    """
+    root = Path(workspace)
+    if not root.is_absolute() or not root.is_dir():
+        raise ValueError("Package workspace is invalid")
+    _check_path(root, root)
+    if type(checked) is not dict or not checked:
+        raise ValueError("Approved Package source evidence is missing")
+    for index, evidence in checked.items():
+        if (
+            type(index) is not int
+            or index < 0
+            or type(evidence) is not dict
+            or type(evidence.get("file_id")) is not str
+            or not evidence["file_id"]
+            or type(evidence.get("path")) is not str
+            or type(evidence.get("size")) is not int
+            or evidence["size"] < 0
+            or type(evidence.get("mtime_ns")) is not int
+            or type(evidence.get("sha256")) is not str
+            or len(evidence["sha256"]) != 64
+            or any(char not in "0123456789abcdef" for char in evidence["sha256"])
+        ):
+            raise ValueError("Approved Package source evidence is invalid")
+        current = _digest(Path(evidence["path"]), root)
+        expected = (evidence["sha256"], evidence["size"], evidence["mtime_ns"])
+        if current != expected:
+            raise ValueError("Approved Package source differs from frozen preview")
+

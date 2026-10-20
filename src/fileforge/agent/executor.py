@@ -129,6 +129,10 @@ def create_execution(plan: dict[str, Any]) -> dict[str, Any]:
         "status": "created",
         "plan": deepcopy(normalized),
         "results": [],
+        # Internal evidence of the exact arguments used for each ToolResult.
+        # Package preflight uses this to authenticate analysis inputs without
+        # adding an unreviewed field to the public TaskSnapshot.
+        "result_calls": [],
         "pending_operations": [],
     }
 
@@ -203,10 +207,18 @@ def execute(
             continue
         step["status"] = "running"
         for call in calls:
+            result_index = len(state["results"])
+            call_record = {
+                "result_index": result_index,
+                "step_id": step["step_id"],
+                "tool": name,
+                "arguments": deepcopy(call),
+            }
             result = router.call(
                 name, call, approved=step["step_id"] in approved_preview
             )
             state["results"].append(result)
+            state["result_calls"].append(call_record)
             if not result["success"]:
                 step["status"] = "failed"
                 state["status"] = "failed"
@@ -226,3 +238,4 @@ def reject(state: dict[str, Any]) -> dict[str, Any]:
     state["pending_operations"] = []
     state["status"] = "failed"
     return state
+
