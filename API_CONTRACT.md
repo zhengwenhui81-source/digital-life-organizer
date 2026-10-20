@@ -293,9 +293,34 @@ Rules:
 For the MVP, `FinalReport` is guaranteed only for `completed` tasks. Failed or rejected tasks expose their current state and readable failure/rejection detail through `TaskSnapshot`; requesting a report before completion returns `409`.
 
 The existing fields above remain unchanged. Package-specific mandatory mapping and
-the proposed `package_unresolved` extension are defined in
+the confirmed `package_unresolved` contract extension are defined in
 [Package FinalReport mapping](#mandatory-package-finalreport-mapping-proposed-not-implemented).
-The extension is pending A/B confirmation, not an existing implemented field.
+The team has confirmed this field and its omission for non-Package reports;
+implementation remains pending. This supersedes the earlier null suggestion.
+
+### Non-Package FinalReport compatibility example
+
+A completed analysis-only task whose goal did not require Package uses existing
+fields and omits package_unresolved entirely (not null or {}). Its empty
+package_path does not stand in for a required but unexecuted Package.
+
+```json
+{
+  "task_id": "task_analysis_only",
+  "status": "completed",
+  "found_files": [],
+  "version_groups": [],
+  "conflicts": [],
+  "missing_items": ["课程笔记"],
+  "operations": [],
+  "package_path": "",
+  "summary": "文件名候选分析完成；本次未找到课程笔记的文件名候选，未进行材料内容审核。"
+}
+```
+
+This example presumes a current successful match_requirements result with
+missing=["课程笔记"] and no requested Package. It is not a fallback after a
+Package failure. Required Package completion follows the mandatory mapping below.
 
 ## 2. Agent HTTP API
 
@@ -1046,14 +1071,18 @@ Phase 2.
 
 #### Actual baseline and ownership
 
-At dev `43a723ab0fef9396fa5f0c278b3b28107093df36`, A freezes concrete
+Current synchronized dev baseline is `f4ecec1eb1ce34e979378d2cd2dc79071c02e615`.
+A freezes concrete
 create_folder/copy_file/move_file operations and rejects caller-supplied approved.
 TaskService verifies copied target bytes against the then-current source SHA-256;
 that is not a comparison against an approved source snapshot. Public verify_result
 checks workspace-relative existence only. Neither a Package router nor a report
 write operation exists. The approve HTTP route accepts exactly preview_id today.
-PR #27 at `62c1c0d95d015d1607b1b05241c9de4fc80ef4de` is read-only reference
-for matching integration, not merged baseline capability.
+PR #27 (`62c1c0d95d015d1607b1b05241c9de4fc80ef4de`) is merged via
+`c74308d`; current Agent code routes Phase 1 matching and propagates failures.
+PRs #30/#31 add frontend matching display/smoke updates; PRs #28/#32 add DOCX
+table extraction and validation records. These are integrated baseline abilities,
+not Package execution support. Package approval/report execution remains absent.
 
 D owns plan validation, read-only snapshots and frozen report rendering. A owns
 service authority, approval, composite execution, filesystem defenses and result
@@ -1405,7 +1434,7 @@ successful report (409); A must not mark Package completion with these gaps.
 | package_path | Existing | Exactly this associated successful build_package.data.package_path, checked against the approved mapping; never a planned path or older result. |
 | operations | Existing | Full successful write ToolResult envelopes from this execution's package_execution.operation_results, in frozen operation order: create_folder, copy_file and proposed write_package_report. Resolve each result_index to TaskSnapshot.results and its step_id to the frozen descriptor/source-target mapping. Exclude verify_result, plan_package and build_package; do not include planned, skipped, unattempted or failed writes as completed. Other task operations, if reported, remain outside this Package slice and must not be misattributed to it. |
 | missing_items | Existing | Exact ordered copy of the approved frozen plan.missing, even after all copies/verification succeed. This is the current Package-specific authority, not a later matching result or an empty default. It means this candidate set had no filename candidate, not content/authenticity review. |
-| package_unresolved | **New proposal, pending A/B confirmation** | Required for Package reports: `{plan_id,plan_sha256,items}`. IDs bind the same execution; items is the exact ordered copy of frozen plan.unresolved, retaining kind/text/source_tool/source_result_index/documents. Empty items is valid only when frozen unresolved is empty. No global unresolved schema is introduced. |
+| package_unresolved | **Confirmed extension; not implemented** | Required for Package reports: `{plan_id,plan_sha256,items}`. IDs bind the same execution; items is the exact ordered copy of frozen plan.unresolved, retaining kind/text/source_tool/source_result_index/documents. Empty items is valid only when frozen unresolved is empty. No global unresolved schema is introduced. |
 | conflicts | Existing | Preserve this plan's current effective successful analysis.detect_conflicts.result.data.conflicts verbatim, including every value/source; null/not-run analysis is not a successful no-conflict finding and remains represented in package_unresolved. Do not arbitrate or erase conflicts on acceptance. |
 | summary | Existing | If frozen missing or unresolved is nonempty, must include exactly “打包执行成功，但材料包仍有缺项或未决事项”. Otherwise state only execution/verification success, never material completeness, truth, content, signature or validity approval. In both cases explain that filename candidates are not material review. |
 | found_files / version_groups | Existing | Preserve current effective discovery/Version evidence under existing semantics; no fabricated files, version selection or review conclusion. These fields never override the frozen Package risks. |
@@ -1414,15 +1443,21 @@ accept_incomplete=true accepts the frozen risks; it never clears missing_items,
 package_unresolved.items or conflicts. B must display the structured missing and
 unresolved facts alongside execution success, not infer “materials complete” from
 copy success, summary alone or an accepted-risk flag. For non-Package reports the
-new package_unresolved member is omitted; this proposed applicability/shape needs
-A/B confirmation. Existing FinalReport has no structured field preserving all
+package_unresolved member MUST be omitted, never null or an empty object. This
+confirmed rule supersedes the earlier null suggestion. In Package reports the
+member is mandatory even when items=[]; items is copied verbatim in order, never
+recomputed. Existing implemented FinalReport has no structured field preserving all
 Package unresolved records: summary and conflicts alone cannot represent it.
 Do not claim this mapping is implemented by current TaskService._report: it
 currently sets package_path="", collects ordinary operation results, and derives
 missing_items from the latest matching result without Package execution binding.
 
-Final build failure/data=null provides no successful FinalReport: report GET stays
-409, including partial writes or cleanup failures. Snapshot retains the bound
+Only completed tasks that did not require Package may produce an ordinary
+non-Package report. If Package was required, missing execution, failed/partial
+execution, missing verification or failed verification MUST NOT fall back to an
+ordinary successful report. Report GET remains 409; Snapshot preserves actual
+operation results. Final build failure/data=null likewise provides no successful
+FinalReport, including partial writes or cleanup failures. Snapshot retains the bound
 child results, cleanup observations and final failure. A previous successful
 result cannot be used as a fallback. These rules do not change selection,
 approval, report bytes, identifiers, cleanup or Document/Version boundaries.
