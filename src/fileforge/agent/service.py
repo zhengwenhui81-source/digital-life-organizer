@@ -64,6 +64,7 @@ class TaskService:
                 "error": None,
                 "report": None,
                 "approved_operations_verified": False,
+                "package_approval": None,
             }
         return deepcopy(task)
 
@@ -566,7 +567,14 @@ class TaskService:
             ),
         }
 
-    def decide(self, task_id: str, preview_id: str, *, approve: bool) -> dict[str, Any]:
+    def decide(
+        self,
+        task_id: str,
+        preview_id: str,
+        *,
+        approve: bool,
+        accept_incomplete: bool = False,
+    ) -> dict[str, Any]:
         with self._lock:
             entry = self._entry(task_id)
             if (
@@ -577,6 +585,33 @@ class TaskService:
                 raise TaskConflict(
                     "Approval preview is stale or task is not awaiting approval"
                 )
+            if type(accept_incomplete) is not bool:
+                raise TaskConflict("accept_incomplete must be a boolean")
+            if not approve and accept_incomplete:
+                raise TaskConflict("Rejection cannot accept Package risks")
+            package = entry["package_approval"]
+            if approve and package is not None:
+                if (
+                    type(package) is not dict
+                    or package.get("preview_id") != preview_id
+                    or type(package.get("plan_id")) is not str
+                    or not package["plan_id"]
+                    or type(package.get("plan_sha256")) is not str
+                    or not package["plan_sha256"]
+                    or type(package.get("missing")) is not list
+                    or type(package.get("unresolved")) is not list
+                ):
+                    raise TaskConflict("Package plan is not bound to this preview")
+                if (
+                    package["missing"] or package["unresolved"]
+                ) and not accept_incomplete:
+                    raise TaskConflict(
+                        "Package has missing or unresolved items; accept this "
+                        "preview's specific risks before approval"
+                    )
+                # A's composite builder is not registered yet. Never let a
+                # Package marker fall through to ordinary file-tool execution.
+                raise TaskConflict("Package execution is not available")
             entry["preview_id"] = None  # consume before running any file operation
             entry["task"]["status"] = "executing" if approve else "failed"
             state = entry["execution"]
