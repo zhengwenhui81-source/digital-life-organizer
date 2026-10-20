@@ -108,6 +108,47 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
             if(item.kind==='unrun_conflicts'){assert.equal(item.bound,4);assert.match(item.text,/Conflict analysis not run/);assert.match(item.text,/打包执行成功，但材料包仍有缺项或未决事项/);}
             else {assert.match(item.text,/报告未通过当前执行完整性检查/);assert.doesNotMatch(item.text,/Package 执行与文件验证成功/);}
         }
+
+        const snapshotGates=await evaluate(`(()=>{
+            return ['missing_snapshot','stale_before_plan','failed','unavailable'].map(kind=>{
+                const s=PackageFixtures.get('complete').snapshot;
+                s.preview_id='server-preview';s.pending_operations=[{tool:'build_package',step_id:'build',arguments:{}}];
+                const file=s.results[4].data.plan.selected_files[0];
+                const hidden=[file.source.filename,file.source.path,file.target];
+                if(kind==='missing_snapshot')delete file.snapshot;
+                if(kind==='stale_before_plan')s.results.splice(4,0,structuredClone(s.results[3]));
+                if(kind==='failed'){s.task.status='failed';s.error='current task failed';}
+                if(kind==='unavailable')s.results=[];
+                const before=JSON.stringify(s);content.innerHTML=PackagePreview.renderSnapshot(s);
+                return {kind,text:content.innerText,leaks:hidden.some(value=>content.innerText.includes(value)),unchanged:before===JSON.stringify(s),disabled:formalApprove.disabled,overflow:document.documentElement.scrollWidth>innerWidth};
+            });
+        })()`);
+        for(const gate of snapshotGates){
+            assert.equal(gate.leaks,false);assert.equal(gate.unchanged,true);assert.equal(gate.disabled,true);assert.equal(gate.overflow,false);
+            assert.doesNotMatch(gate.text,/提议文件|具体文件映射|文件验证：通过/);
+            assert.match(gate.text,gate.kind==='missing_snapshot'?/快照数据不完整/:gate.kind==='stale_before_plan'?/来源不一致或已过期/:gate.kind==='failed'?/当前失败/:/规划数据尚未提供/);
+        }
+        const integrated=await evaluate(`(()=>{
+            return ['executing','verifying','new_verification'].map(kind=>{
+                const s=PackageFixtures.get(kind==='new_verification'?'success':kind).snapshot;
+                if(kind==='new_verification'){
+                    const bad=structuredClone(s.results[8]);bad.data.passed=false;bad.data.checks[0].passed=false;
+                    s.results.splice(9,0,bad);s.package_execution.final_result_index=10;
+                }
+                const before=JSON.stringify(s),m=PackagePreview.inspectSnapshot(s);content.innerHTML=PackagePreview.renderSnapshot(s);
+                return {kind,state:m.state,text:content.innerText,unchanged:before===JSON.stringify(s),disabled:formalApprove.disabled,overflow:document.documentElement.scrollWidth>innerWidth};
+            });
+        })()`);
+        for(const item of integrated){
+            assert.equal(item.state,item.kind==='new_verification'?'invalid':'provided');
+            if(item.kind==='new_verification'){assert.match(item.text,/验证记录缺失、重复或关联不完整/);assert.doesNotMatch(item.text,/结题报告.txt|具体文件映射|文件验证：通过/);}
+            else{assert.match(item.text,/Package 执行中/);assert.match(item.text,/结题报告.txt/);}
+            assert.doesNotMatch(item.text,/Package 执行与文件验证成功/);
+            assert.equal(item.unchanged,true);assert.equal(item.disabled,true);assert.equal(item.overflow,false);
+        }
+        // The unavailable gate intentionally has no details/pre; restore a valid
+        // Fixture before running the existing detailed-layout assertion.
+        await evaluate("scenario.value='complete';scenario.dispatchEvent(new Event('change'))");
         assert.equal(await evaluate("getComputedStyle(document.querySelector('pre')).whiteSpace==='pre-wrap'"),true);
         assert.equal(await evaluate("(()=>{scenario.value='risks';scenario.dispatchEvent(new Event('change'));riskIntent.click();return PackageDemo.state.accepted})()"),true);
         assert.equal(await evaluate("(()=>{scenario.value='complete';scenario.dispatchEvent(new Event('change'));return riskIntent.checked||PackageDemo.state.accepted})()"),false);
@@ -115,7 +156,7 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         assert.equal(await evaluate('formalApprove.disabled'),true);
         assert.deepEqual(pageErrors,[]);
         assert.deepEqual(network.filter(r=>/^https?:/.test(r.url)),[]);
-        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations + 2 failed execution chains + 5 verification/report cases; no HTTP requests; approval disabled.');
+        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations + 2 failed execution chains + 5 verification/report cases + 4 Snapshot detail gates + 3 integrated Snapshot states; no HTTP requests; approval disabled.');
     }finally{
         if(ws)ws.close();browser.kill();await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));
         // Only remove the exact profile created by this test, outside user Workspace.

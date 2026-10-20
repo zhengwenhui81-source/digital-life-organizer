@@ -2,6 +2,8 @@
 
 独立合成数据验收页，不调用模型、AgentAPI、Package HTTP 或文件操作接口。正式审批始终禁用；风险复选框只记录本地 UI 意向，不生成 preview_id 或服务端批准事实。
 
+正式 Agent 页现已复用同一展示模块读取 TaskSnapshot，详见下方“正式页面只读预览”；独立 Fixture 页仍仅用于合成数据测试。
+
 ## 打开页面
 
 直接在本机浏览器打开 `frontend/package-preview.html`（file URL），无需运行后端。
@@ -77,7 +79,19 @@ Agent 页识别 Snapshot 中显式的 Package 工具/执行记录后禁用批准
 
 ## 真实接入依赖
 
-等待 D 实现/导出冻结计划和报告，A 注册工具并实现当前 task/plan/digest/preview 绑定、风险接受、单次执行和结果索引关联、清理记录及成功 FinalReport 映射。未来只向展示模块提供真实对象；当前没有 plan_package/build_package HTTP 调用。approve 的 accept_incomplete 增量未接入，也不改变现有 Real Mode。失败任务保持 Snapshot 诊断，报告 409 不降级为普通成功。Matching/Version 和现有 Agent UI 未改动。
+D 的 plan_package 已通过 PR #35 合并；A 的 PR #40 已提供 accept_incomplete 请求解析和当前不可执行的审批防护。默认 Agent 路由尚未注册 plan_package，仍待 A 实现规划证据到当前 preview 的集成、复合执行、结果索引关联、清理记录及成功 FinalReport 映射。前端未接通 accept_incomplete 或 Package 执行，也没有 plan_package/build_package HTTP 调用。失败任务保持 Snapshot 诊断，报告 409 不降级为普通成功。公共契约部分“未实现”基线文字可能早于这些提交，本说明以实际代码区分已合并能力和剩余阻塞，不修改公共契约。
+
+## 正式页面只读预览
+
+基线：dev `a0267e8`（PR #35 / #40 / #42 已合并）。生产 index.html 仅新增加载纯展示模块 package-preview.js，不加载 package-fixtures.js 或 package-demo.js。
+
+- 数据入口仍为现有 GET /api/agent/tasks/{task_id}；不新增请求或端点。renderSnapshot(snapshot, expectedTask) 从当前 results 选择最后一次 plan_package，显示其 result_index、task_id、plan_id、plan_sha256 以及同一 Snapshot 的 preview_id，再复用 render 展示冻结映射、提议依据、风险、缺项和报告。
+- 无 plan_package 且 Snapshot 格式正常时显示“真实 Package 规划数据尚未提供”。缺少 results/task、当前 ToolResult 格式异常或当前 manifest 不完整，另行显示数据诊断；不以 Fixture 填补。Mock Mode 不向此区域提供真实规划。
+- 创建任务响应中的 task_id/user_goal/workspace 保存在本地视图上下文，仅用于响应归属比较；新任务和模式切换清空。跨任务 manifest 不显示映射；最新规划失败、当前任务/工具失败、规划后出现新分析/文档读取时，不回退展示旧成功方案。字段异常和不安全整数延续保守诊断，输入不被修改。
+- preview_id 仅按服务端返回展示，不由前端生成，也不证明其已经权威绑定当前 manifest。规划成功但尚未提供审批预览时只显示只读规划；等待审批却缺 preview_id，或已有 preview_id 却无 pending_operations，均提示绑定无法确认。
+- Package 批准仍由页面按钮和事件处理器双重阻塞，未增加风险接受或执行交互；普通 Agent 的 approve/reject、轮询、报告和过期响应防护保留。
+
+测试中的 HTTP JSON 和 Fixture 都是明确的合成输入，用于验证生产页的数据映射及保守展示，不是后端或真实 LLM/Package 验收。当前仍缺 A 实际产生并绑定的规划 Snapshot、真实执行适配器及成功报告的验收证据，亦未解决无损纳秒整数传输。
 
 ## 执行结果展示准备（与 PR #44 独立）
 
@@ -118,10 +132,26 @@ cleanup 诊断、输入不可变及完整合法成功链。上述仅为合成展
 - null/not-run 分支必须有对应 analysis_not_run 冻结未决项，报告必须保留完全一致的 package_unresolved 和不完整摘要。此时 conflicts=[] 只表示没有可报告的已确认分析结论，不是“已分析无冲突”。没有风险记录、风险被报告擦除或缺少分析槽位仍会拒绝成功判定。
 - authorizationConfirmed=false 仅为内部展示投影；没有新增公共字段或批准事实。不从完整/不完整展示、本地风险勾选推断审批有效，正式批准仍禁用。
 
-PR #44 合并后的共同组件整合和真实后端契约验收仍待进行，本次不提前同步或修改其分支。
+上述补审阶段未同步 PR #44；其合并后的共同组件整合见下节。真实后端契约验收仍待进行。
 
 补审修复实际回归：四文件 Node 测试 92 通过、0 失败，exit 0；已安装 Chrome 本地测试
 1 通过、0 失败，exit 0（22 Fixture × 两种宽度、8 异常输入、2 失败链及 5 验证/报告场景；
 无 HTTP 请求、无页面异常或横向溢出，正式批准禁用）。三个修改 JS/CJS 语法和 diff 空白检查通过。
 六组新增 Node 测试覆盖 C 的原始复现、工具失败及 passed=false、重复/缺失/错误验证关联、
 报告完整来源比较和过期/错误来源、显式未执行冲突分析正向场景与风险被擦除反例。
+
+## 与已合并 PR #44 的整合
+
+本轮普通 merge 基线为 dev `6c12c979c887a9cde4e495ceb9f41a6c9df2a580`，保留 #45 历史，不修改 #44 开发分支。
+冲突为本说明、package-preview.test.cjs、package-browser.cjs 的追加段落；保留两边测试与说明，采用 dev 已更正的依赖段落，浏览器汇总包含两边场景。package-preview.js 自动合并后逐段复核，无删除任一套适配器/证据逻辑。
+
+- 正式 renderSnapshot 仍只在 inspectSnapshot.state=provided 时调用详细 render；invalid/failed/unavailable 不渲染映射或原始执行正文。规划、任务、来源、索引及 preview 缺失保护不变，不用历史或 Fixture 补齐。
+- 独立 inspect/render 保留执行进度、失败停止、异常验证、报告来源与未决风险核对、cleanup 诊断和完整成功链检查。正式 Snapshot 入口的执行证据异常同样触发详细展示保护；不能用独立 Fixture 诊断规则绕过正式入口。
+- 正式页面仍未接通 Package 批准或成功 FinalReport；没有报告时不能由 Snapshot 自行生成 Package 成功。组件可接收原始 FinalReport 的展示能力保留，不放宽普通 Agent 的报告/审批/拒绝/轮询保护。
+- 新增组合单测覆盖正式入口的 executing/verifying、无报告的完成 Snapshot、较新失败验证、失败复制、未知 cleanup 以及生产页面审批禁用与映射撤回。真实 API、文件操作、来源摘要和审批权威性仍由 A 负责。
+
+Windows 验收准备文件在独立 #46 分支保存，不在本 PR 差异中；本轮不修改、删除或重新暂存这些文件。
+
+本轮整合实际运行：`node --test frontend/tests/package-preview.test.cjs frontend/tests/agent-results.test.cjs frontend/tests/agent-workspace.test.cjs frontend/tests/organization-preview.test.cjs` 为 110 passed、0 failed、exit 0。
+`node --test frontend/tests/package-browser.cjs` 为 1 passed、0 failed、exit 0；覆盖 22 Fixture × 两种宽度、8 异常输入、2 失败链、5 验证/报告、4 Snapshot 保护及 3 组合状态，无 HTTP 请求、页面异常或横向溢出。
+package-preview.js、package-fixtures.js 和三个相关测试 CJS 的 `node --check`，以及相对最新 dev 的 diff 空白检查通过。测试均为合成展示/HTTP 响应回归，不是实际后端 Package 或 LLM 验收。
