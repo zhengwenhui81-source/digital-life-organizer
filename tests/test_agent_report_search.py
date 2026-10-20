@@ -50,3 +50,48 @@ def test_search_then_read_reports_found_files(tmp_path: Path) -> None:
     report = service.report(task_id)
     assert report["found_files"] == expected
     assert report["operations"] == []
+
+
+def test_list_and_search_count_each_file_once(tmp_path: Path) -> None:
+    for name in ("notice.txt", "material.txt", "other.txt", "notes.docx"):
+        (tmp_path / name).write_text("fixture", encoding="utf-8")
+
+    def planner(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": "list_files",
+                        "description": "Scan workspace",
+                        "arguments": {"workspace": workspace},
+                    },
+                    {
+                        "tool": "search_files",
+                        "description": "Search text files",
+                        "arguments": {"workspace": workspace, "query": ".txt"},
+                    },
+                    {
+                        "tool": "search_files",
+                        "description": "Search notice again",
+                        "arguments": {"workspace": workspace, "query": "notice"},
+                    },
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    service = TaskService(planner=planner)
+    task_id = service.create("Find files", str(tmp_path))["task_id"]
+    service.run(task_id)
+
+    snapshot = service.snapshot(task_id)
+    assert snapshot["task"]["status"] == "completed"
+    assert len(snapshot["results"][0]["data"]["files"]) == 4
+    assert len(snapshot["results"][1]["data"]["matches"]) == 3
+    assert len(snapshot["results"][2]["data"]["matches"]) == 1
+    found = service.report(task_id)["found_files"]
+    assert len(found) == 4
+    assert [item["path"] for item in found] == [
+        item["path"] for item in snapshot["results"][0]["data"]["files"]
+    ]

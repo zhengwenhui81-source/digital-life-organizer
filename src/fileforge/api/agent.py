@@ -23,12 +23,30 @@ async def _body(request: Request, fields: set[str]) -> dict[str, str]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
     if (
-        not isinstance(data, dict) or set(data) != fields
-        or any(not isinstance(data[key], str) or not data[key].strip() for key in fields)
-    ):
-        raise HTTPException(
-            status_code=400, detail="Invalid Agent request fields"
+        not isinstance(data, dict)
+        or set(data) != fields
+        or any(
+            not isinstance(data[key], str) or not data[key].strip() for key in fields
         )
+    ):
+        raise HTTPException(status_code=400, detail="Invalid Agent request fields")
+    return data
+
+
+async def _approve_body(request: Request) -> dict:
+    """Accept only the Package risk flag added to the existing approval body."""
+    try:
+        data = await request.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+    if (
+        type(data) is not dict
+        or set(data) - {"preview_id", "accept_incomplete"}
+        or type(data.get("preview_id")) is not str
+        or not data["preview_id"].strip()
+        or ("accept_incomplete" in data and type(data["accept_incomplete"]) is not bool)
+    ):
+        raise HTTPException(status_code=400, detail="Invalid Agent request fields")
     return data
 
 
@@ -63,13 +81,18 @@ async def get_task(task_id: str, service: TaskService = Depends(get_service)) ->
 
 @router.post("/{task_id}/approve")
 async def approve_task(
-    task_id: str, request: Request,
+    task_id: str,
+    request: Request,
     service: TaskService = Depends(get_service),
 ) -> dict:
-    data = await _body(request, {"preview_id"})
+    data = await _approve_body(request)
     try:
         return await asyncio.to_thread(
-            service.decide, task_id, data["preview_id"], approve=True
+            service.decide,
+            task_id,
+            data["preview_id"],
+            approve=True,
+            accept_incomplete=data.get("accept_incomplete", False),
         )
     except KeyError as exc:
         raise _not_found(exc) from exc
@@ -79,7 +102,8 @@ async def approve_task(
 
 @router.post("/{task_id}/reject")
 async def reject_task(
-    task_id: str, request: Request,
+    task_id: str,
+    request: Request,
     service: TaskService = Depends(get_service),
 ) -> dict:
     data = await _body(request, {"preview_id"})
