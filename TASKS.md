@@ -317,8 +317,8 @@ Phase 1 must not be described as satisfying the full generalized matching requir
 
 ### Phase D4 — Package Builder
 
-Architecture confirmed; concrete Package schema proposed for A/B review in
-[API_CONTRACT.md](API_CONTRACT.md#plan_package--build_package--minimal-package-proposal).
+Architecture and Package schema merged in PR #29; implementation pending under
+[API_CONTRACT.md](API_CONTRACT.md#plan_package--build_package--package-contract-not-implemented).
 Use the team-required plan_id/selected_files/missing/unresolved/operations/report
 structure with a separate content digest, not parallel files/issues arrays.
 Separate read-only planning from approved actual execution; freeze full report
@@ -332,8 +332,15 @@ same preview approval; accept_incomplete only additionally accepts its risks.
 Any upstream failure ends the current Task; no Package recovery or historical
 result import is supplied. The fixed proposed cleanup rule is fail-closed:
 remove only safely bound, exclusively-created failed fragments; otherwise retain
-and disclose. Current A unlink-by-path is insufficient. Cleanup record fields
-and the Package execution integration remain for A/B review.
+and disclose. Current A unlink-by-path is insufficient. The four-field
+cleanup_results shape and fail-closed recording policy are confirmed but not
+implemented; Package execution integration remains pending.
+Before plan_package, A must reread every analysis-dependent source, compare the
+complete Document and check pre/post raw-byte SHA-256. Before an executable
+preview, A must compare D's selected snapshot digests with its checked digests;
+after approval it must recheck approved sources and targets. This is current
+consistency revalidation, not proof of historical analysis bytes or removal of
+all read races. See the handoff in API_CONTRACT.md.
 Package FinalReport mapping must bind the current successful verified execution:
 actual package_path and successful write results, frozen missing and unresolved,
 and current conflict evidence are mandatory. Team-confirmed package_unresolved

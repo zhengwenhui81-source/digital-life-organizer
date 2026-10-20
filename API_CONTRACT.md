@@ -335,7 +335,7 @@ The MVP Agent API is fixed as follows.
 | Get report | `GET /api/agent/tasks/{task_id}/report` | none | `200`, `FinalReport` |
 
 Package-specific proposed approve acceptance is described in the
-[Package proposal](#plan_package--build_package--minimal-package-proposal);
+[Package contract](#plan_package--build_package--package-contract-not-implemented);
 the table above remains the currently implemented request shape.
 
 ### Task execution and polling
@@ -1058,16 +1058,15 @@ Risk: `medium`
 
 For old versions, move to an archive location instead of deleting.
 
-### plan_package / build_package — minimal Package proposal
+### plan_package / build_package — Package contract (not implemented)
 
-**架构已确认，具体 schema 待 A/B 复核。** All interfaces, fields and HTTP
-increments in this section are **proposed**, not implemented/exported/registered
-capabilities. The overall architecture has A/B acceptance; the UUID lifecycle,
-digest exclusions, Package-local unresolved records, Snapshot extension,
-restricted report writer and partial-failure correlation below remain concrete
-schema proposals for A/B review. This proposal replaces the earlier provisional
-four-field build_package sketch; it does not change Matching, classify_files or
-Phase 2.
+The team merged this Package schema in PR #29. It describes required behavior
+for implementation, not existing exported or registered capabilities. This
+clarification confirms the revalidation handoff and cleanup_results shape;
+remaining "proposed" wording in examples means unimplemented, not permission
+to bypass these confirmed boundaries. Future shared-interface changes still
+require team agreement before implementation. This contract does not change
+Matching, classify_files or Phase 2.
 
 #### Actual baseline and ownership
 
@@ -1261,6 +1260,43 @@ and binds task_id, plan_id, plan_sha256, the full server-frozen plan,
 concrete operations and actual approval state. Neither plan_id nor digest grants
 authority or substitutes for the same-preview approval.
 
+#### Confirmed v1 analysis-to-source revalidation handoff (not implemented)
+
+Before invoking plan_package, A revalidates every source Document that supports
+the current selection, Version result or other supplied analysis, including
+notice/rule documents and relevant candidate files, not only selected_files.
+Each must come from a successful read_document result in this Task. A rereads it
+through C's public reader and compares the complete Document with the original
+using the shared strict snapshot rules: all fields, metadata, extra fields,
+missing versus null and exact value types. A also computes raw-file SHA-256
+before and after that reread; the two digests must agree. Same file_id, size,
+mtime or parsed text alone is insufficient. A retains the checked digest and
+source/result association in its task-scoped approval state; this adds no
+Document field and does not let D authenticate caller-supplied evidence.
+
+After a successful plan_package result and before publishing an executable
+preview, A validates its task/result provenance and compares each returned
+selected_files.snapshot.sha256 with the corresponding checked digest, as well
+as the source reference, size and mtime_ns. Any absent evidence, failed reread,
+contradictory Document, unstable byte read or mismatch fails the Task without
+an executable preview. A must not replace D's snapshot or accept the mismatch
+through accept_incomplete. The frozen plan and A's checked source associations
+are bound to the same preview_id; a new plan needs a new preview and approval.
+
+After approval, A rechecks the approved source digests and path/target safety
+before mutation and again when each source is used. Final verification compares
+created files against the approved digests, the report against frozen bytes and
+the directory against the approved file set. A failure stops remaining operations,
+preserves actual child results, makes the Task failed and keeps report GET at 409.
+
+This is a current consistency recheck. Matching complete parsed Documents does
+not prove that the original analysis read these same raw bytes. Matching hashes
+before and after a reread detects observable change but cannot exclude an
+adversarial change-and-restore during the read or every filesystem race. V1
+accepts this stated limit; a stronger historical-byte guarantee requires a
+separately agreed C/A read-time evidence mechanism. No new Document field or
+claim of historical byte identity is introduced here.
+
 #### Frozen report and incomplete approval (proposed HTTP increment)
 
 The report describes goal, requirements or unknown state, selected files/reasons,
@@ -1391,10 +1427,10 @@ unconditional destination.unlink() on copy exceptions. It does not bind deletion
 to the held object's identity or protect against replacement; an unlink error can
 mask the original error, and no structured cleanup outcome is retained. Therefore
 it does NOT satisfy this rule. A must replace/guard that cleanup in the Package
-execution path and add durable result recording before enabling Package execution.
+execution path and add task-scoped result recording before enabling Package execution.
 This documentation does not authorize calling the existing path as if compliant.
 
-Proposed additional package_execution.cleanup_results, **pending A/B review**:
+Confirmed package_execution.cleanup_results shape, **not implemented**:
 array of `{step_id,status,reason,residual_state}` for each attempted copy.
 status is not_attempted, succeeded or failed. residual_state is absent,
 owned_fragment, other_object or unknown; it records observation, not a rollback
@@ -1404,9 +1440,16 @@ created target. For successful copies use not_attempted/reason=copy_succeeded
 For a source failure before target creation use not_attempted with absent when
 observed. The target is obtained from the step's frozen selected_file_index;
 do not duplicate its path or put cleanup data in failed ToolResult.data.
-A owns recording, including failures before any target is created. The Snapshot
-field and exact status/reason vocabulary remain concrete schema for A/B review;
-the fail-closed ownership requirement above is the fixed proposed behavior.
+A owns the cleanup action and records one outcome for each attempted copy,
+including failures before target creation. If ownership or path identity cannot
+be proven at removal, do not unlink: record not_attempted with other_object or
+unknown as observed, and retain the object. A safely removed owned fragment is
+succeeded/absent; an allowed removal attempt that fails is failed with the
+observed owned_fragment or unknown state. Preserve the original copy failure
+and the cleanup reason. Catchable interruptions follow these rules; because the
+Task registry is in memory, process termination or power loss cannot promise a
+durable cleanup record or automatic recovery. This does not authorize deleting
+preexisting files, successful copies or the package directory.
 
 Successful build data is exactly `{plan_id,plan_sha256,package_path,generated_files,
 report_path,verification_result_index}`. generated_files lists only created
@@ -2119,14 +2162,15 @@ may retain a fragment under the fixed ownership-safe rule above. Do not claim un
 
 #### Decisions before implementation
 
-A/B review proposed-selection confirmation, the request/manifest/unresolved schema, operation descriptors and
-proposed plan_id-based Snapshot correlation; A/D review the restricted report tool, source/
-parent race defenses and the fixed ownership-safe failed-fragment rule/records. A must implement acceptance
-validation before preview consumption and a single child/final append owner.
+PR #29 merged the Package schema; this clarification fixes the v1 revalidation
+handoff and cleanup_results record. A must implement acceptance validation
+before preview consumption, source/parent race defenses and a single child/final
+append owner. The restricted report tool and fail-closed fragment policy remain
+implementation work, not existing capabilities.
 B must display not-run analysis and explicit selection/risk approval; failed
 Task diagnostics remain visible only, never an executable recovery plan.
-Only then deliver contract PR → D planning/snapshot/report implementation PR →
-A approval/execution/result-stream PR → cross-task temporary-file integration.
+Deliver D planning/snapshot/report implementation PR, then A
+approval/execution/result-stream PR and cross-module temporary-file integration.
 No Package implementation, generic classification or policy extraction is started
 by this documentation. Matching Phase 2 remains required and unfinished.
 
