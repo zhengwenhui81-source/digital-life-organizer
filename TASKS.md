@@ -698,3 +698,16 @@ Reading table structure does not interpret or calculate scores.
 5. Four-developer Real Mode integration and safety acceptance. Keep the original task-driven material-packaging workflow working in parallel.
 
 **Acceptance distinction:** filename/extension classification is *not* semantic material-purpose understanding; users must be told when the system cannot establish a reliable category. Neither demo convenience nor a successful Mock Mode render counts as proof of a complete Real Mode workflow.
+
+## Package cross-module testing delegation — 2026-10-20
+
+**Ownership update:** A still implements Agent/TaskService/Approval/Execution/Verification and D still implements Package planning. C is additionally assigned **independent tests/fixtures/evidence only**, not A/D production changes. See [AGENTS.md](AGENTS.md#8-package-validation-delegation-2026-10-20).
+
+- [ ] **C-P1 / immediate:** Add nonduplicative temporary-file tests for A's merged `package_evidence.py` covering complete Document strict identity, metadata/extra types, changed bytes with restored size/mtime, modifications during reread, failed reads, unsafe paths, contradictory sources, and D selected snapshot mismatch. The helper cannot prove that A supplied **all** analysis-dependent read results; test that rule when A's authoritative TaskService integration exists.
+- [ ] **C-P2 / prepare now:** Define frozen Package Snapshot/ToolResult/FinalReport tests for partial copy failures, cleanup_results states and unknown ownership, report GET 409, package_unresolved preservation, old success not masking current failure, and omission of package_unresolved on non-Package reports. Do not count tests of not-yet-implemented APIs as passed.
+- [ ] **C-P3 / after A and D integration:** Run controlled public-interface Document/Version -> D plan_package -> A preflight/approval/execution/result acceptance without DeepSeek or B's personal Workspace; verify version recommendation never authorizes a file choice and no partial success is presented as a verified final Package.
+- [ ] **A:** Provide C authoritative input/result association, approval/error/409 contracts and callable integration seams. Keep all Agent production behavior, mutation/cleanup and final report implementation A-owned.
+- [ ] **D:** Provide C public planner inputs and frozen source snapshot semantics; keep planner production implementation D-owned.
+- [ ] **B:** Continue real Windows browser/DeepSeek cross-module acceptance; coordinate full-service startup verification using the merged `docs/local-agent-development.md`.
+
+**Current factual baseline:** PR #36, #37 and #38 are merged; A's Package evidence helper and B's Package Fixture are not connected to a real executable Package flow. D `plan_package` PR #35 remains Draft as of this allocation. These checkboxes are not completed by existing unit tests or documentation alone. This allocation adds no API shape and does not change the already-confirmed Package contract.

@@ -304,3 +304,14 @@ Developer C should primarily study and reuse FileForge extractors and analysis m
 ### Developer D
 
 Developer D should primarily study existing FileForge analysis/action capabilities that can support task-level conflict, requirement and package logic. Package filesystem mutations must still be executed through approved public tools rather than bypassing the Agent approval layer.
+
+## 8. Package validation delegation (2026-10-20)
+
+The team lead delegates **independent Package verification tests, temporary-file fixtures, and test evidence** to Developer C to reduce Developer A's integration workload. This is a limited **testing/acceptance ownership exception**, not a transfer of production module ownership.
+
+- **A retains exclusive production ownership** of `src/fileforge/agent/**`, including authoritative TaskService evidence collection, Package preview/approval, post-approval checks, filesystem mutations, cleanup_results recording, FinalReport and HTTP behavior.
+- **D retains** `src/fileforge/package/**`, including the read-only `plan_package` implementation. **B retains** `frontend/**` and Windows Real Mode/browser acceptance.
+- **C owns the supplementary cross-module Package test scenarios, fixtures and validation records**: full Document/source revalidation, analysis provenance, A/D source snapshot mismatch, partial/failed copies and cleanup outcomes, Package vs non-Package report invariants, and eventual public-interface integration with Document/Version. Use separate C-authored test files and coordinate any edits to A/D-owned existing test files; never modify A/D production modules without explicit agreement.
+- C must not invent unimplemented approval/execution APIs or claim that fixtures, read-only helper tests, or accepted contracts prove actual Package execution. Mark future-API cases as pending, or skip explicitly with reasons; only implemented public behavior may be counted as passing.
+- Existing `API_CONTRACT.md` and its strict Package evidence, approval, and cleanup semantics are unchanged. New shared field names or endpoint changes still require full team review and a separate contract PR.
+- A and D provide C with public interfaces and authoritative index/error/409 expectations; C independently tests them. Keep PRs focused, reviewable and targeted at `dev`.
