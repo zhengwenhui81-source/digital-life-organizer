@@ -155,6 +155,40 @@ def test_identity_survives_repeat_reads_and_content_changes(tmp_dir: Path) -> No
     assert updated["text"] == "updated text"
 
 
+def test_same_length_change_with_restored_mtime_keeps_identity_not_content(
+    tmp_dir: Path,
+) -> None:
+    """Path identity and unchanged stat fields do not certify unchanged bytes."""
+    source = tmp_dir / "HARNESS_same_stat.txt"
+    original = b"alpha evidence\n"
+    replacement = b"bravo evidence\n"
+    assert original != replacement and len(original) == len(replacement)
+    source.write_bytes(original)
+    first_result = read_document(str(source))
+    assert first_result["success"], first_result
+    assert read_document(str(source)) == first_result
+    first = first_result["data"]["document"]
+    before = source.stat()
+    original_digest = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    source.write_bytes(replacement)
+    os.utime(source, ns=(before.st_atime_ns, before.st_mtime_ns))
+    second_result = read_document(str(source))
+    assert second_result["success"], second_result
+    assert read_document(str(source)) == second_result
+    second = second_result["data"]["document"]
+
+    for field in ("file_id", "path", "size", "modified_time"):
+        assert first[field] == second[field], field
+    assert source.stat().st_mtime_ns == before.st_mtime_ns
+    assert source.stat().st_size == before.st_size == len(replacement)
+    assert first["text"] == original.decode("utf-8")
+    assert second["text"] == replacement.decode("utf-8")
+    assert first["text"] != second["text"]
+    assert source.read_bytes() == replacement
+    assert original_digest != hashlib.sha256(source.read_bytes()).hexdigest()
+
+
 def test_copy_and_rename_change_identity(tmp_dir: Path) -> None:
     source = tmp_dir / "HARNESS_source.txt"
     source.write_text("same content", encoding="utf-8")
@@ -533,3 +567,71 @@ def test_format_read_permission_failure_is_not_success(
         "error": "Permission denied reading document",
     }
     assert before == (source.read_bytes(), source.stat().st_mtime_ns)
+
+
+def test_docx_unextracted_property_changes_bytes_not_full_document(
+    tmp_dir: Path,
+) -> None:
+    """A parsed snapshot is not a digest of all DOCX archive properties."""
+    import copy
+    from io import BytesIO
+    from zipfile import ZIP_STORED, ZipFile
+
+    from docx import Document
+
+    from fileforge.document import compare_versions
+
+    source = tmp_dir / "HARNESS_properties.docx"
+    document = Document()
+    document.add_paragraph("Unchanged extracted body")
+    document.core_properties.title = "alpha"
+    document.save(source)
+    template = source.read_bytes()
+
+    def archive_with_title(title: bytes) -> bytes:
+        # Store the property entry without compression, ensuring equal-length
+        # title bytes cannot accidentally change the public Document.size.
+        buffer = BytesIO()
+        with ZipFile(BytesIO(template)) as original, ZipFile(buffer, "w") as output:
+            for info in original.infolist():
+                info = copy.copy(info)
+                data = original.read(info.filename)
+                if info.filename == "docProps/core.xml":
+                    assert data.count(b"<dc:title>alpha</dc:title>") == 1
+                    data = data.replace(
+                        b"<dc:title>alpha</dc:title>",
+                        b"<dc:title>" + title + b"</dc:title>",
+                    )
+                    info.compress_type = ZIP_STORED
+                output.writestr(info, data)
+        return buffer.getvalue()
+
+    original = archive_with_title(b"alpha")
+    replacement = archive_with_title(b"bravo")
+    assert original != replacement and len(original) == len(replacement)
+    source.write_bytes(original)
+    assert Document(source).core_properties.title == "alpha"
+    first = read_document(str(source))
+    assert first["success"], first
+    before = source.stat()
+    source.write_bytes(replacement)
+    os.utime(source, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert Document(source).core_properties.title == "bravo"
+    second = read_document(str(source))
+    assert second["success"], second
+    # Establish the requested real-file fixture condition before comparison.
+    assert first["data"]["document"] == second["data"]["document"]
+    assert first["data"]["document"]["metadata"] == {}
+    assert source.stat().st_mtime_ns == before.st_mtime_ns
+    assert (
+        hashlib.sha256(original).digest()
+        != hashlib.sha256(source.read_bytes()).digest()
+    )
+    preserved = (source.read_bytes(), source.stat().st_mtime_ns)
+    compared = compare_versions([first["data"]["document"], second["data"]["document"]])
+    assert compared["success"] and compared["error"] is None
+    group = compared["data"]["groups"][0]
+    assert group["documents"] == [first["data"]["document"]]
+    assert group["newest_candidate"] is None
+    assert group["recommendation_reason"] == "single_document"
+    assert preserved == (source.read_bytes(), source.stat().st_mtime_ns)
