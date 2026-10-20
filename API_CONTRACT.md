@@ -292,6 +292,11 @@ Rules:
 
 For the MVP, `FinalReport` is guaranteed only for `completed` tasks. Failed or rejected tasks expose their current state and readable failure/rejection detail through `TaskSnapshot`; requesting a report before completion returns `409`.
 
+The existing fields above remain unchanged. Package-specific mandatory mapping and
+the proposed `package_unresolved` extension are defined in
+[Package FinalReport mapping](#mandatory-package-finalreport-mapping-proposed-not-implemented).
+The extension is pending A/B confirmation, not an existing implemented field.
+
 ## 2. Agent HTTP API
 
 The MVP Agent API is fixed as follows.
@@ -1379,9 +1384,48 @@ report_path,verification_result_index}`. generated_files lists only created
 absolute file paths in copy order followed by report; it does not assign new
 Document IDs or include directories. The indexed successful verify_result holds
 actual checks. Package success means operations/verification completed, not
-material completeness/authenticity approval; missing/unresolved remain in the frozen
-report and analysis. A may map actual package_path/operations into FinalReport
-only after completed; it must not label a planned path as an actual package.
+material completeness/authenticity approval. The following FinalReport mapping is
+mandatory for Package completion; preserving risks only in analysis/report text
+is not sufficient.
+
+#### Mandatory Package FinalReport mapping (proposed, not implemented)
+
+A must resolve one current execution through TaskSnapshot.package_execution and
+its server-retained approved frozen plan. Its plan_id and plan_sha256 must agree
+with that plan and with results[final_result_index], a successful build_package.
+The build's verification_result_index must identify this execution's successful
+verify_result with data.passed=true and all required frozen checks passed. Never
+search backward for an older successful build/plan to fill a missing or failed
+current execution. Missing/inconsistent provenance or verification prevents a
+successful report (409); A must not mark Package completion with these gaps.
+
+| FinalReport field | Status | Mandatory authority and mapping |
+| --- | --- | --- |
+| task_id / status | Existing | Authoritative current Task; status=completed only after this build and verification succeed. |
+| package_path | Existing | Exactly this associated successful build_package.data.package_path, checked against the approved mapping; never a planned path or older result. |
+| operations | Existing | Full successful write ToolResult envelopes from this execution's package_execution.operation_results, in frozen operation order: create_folder, copy_file and proposed write_package_report. Resolve each result_index to TaskSnapshot.results and its step_id to the frozen descriptor/source-target mapping. Exclude verify_result, plan_package and build_package; do not include planned, skipped, unattempted or failed writes as completed. Other task operations, if reported, remain outside this Package slice and must not be misattributed to it. |
+| missing_items | Existing | Exact ordered copy of the approved frozen plan.missing, even after all copies/verification succeed. This is the current Package-specific authority, not a later matching result or an empty default. It means this candidate set had no filename candidate, not content/authenticity review. |
+| package_unresolved | **New proposal, pending A/B confirmation** | Required for Package reports: `{plan_id,plan_sha256,items}`. IDs bind the same execution; items is the exact ordered copy of frozen plan.unresolved, retaining kind/text/source_tool/source_result_index/documents. Empty items is valid only when frozen unresolved is empty. No global unresolved schema is introduced. |
+| conflicts | Existing | Preserve this plan's current effective successful analysis.detect_conflicts.result.data.conflicts verbatim, including every value/source; null/not-run analysis is not a successful no-conflict finding and remains represented in package_unresolved. Do not arbitrate or erase conflicts on acceptance. |
+| summary | Existing | If frozen missing or unresolved is nonempty, must include exactly “打包执行成功，但材料包仍有缺项或未决事项”. Otherwise state only execution/verification success, never material completeness, truth, content, signature or validity approval. In both cases explain that filename candidates are not material review. |
+| found_files / version_groups | Existing | Preserve current effective discovery/Version evidence under existing semantics; no fabricated files, version selection or review conclusion. These fields never override the frozen Package risks. |
+
+accept_incomplete=true accepts the frozen risks; it never clears missing_items,
+package_unresolved.items or conflicts. B must display the structured missing and
+unresolved facts alongside execution success, not infer “materials complete” from
+copy success, summary alone or an accepted-risk flag. For non-Package reports the
+new package_unresolved member is omitted; this proposed applicability/shape needs
+A/B confirmation. Existing FinalReport has no structured field preserving all
+Package unresolved records: summary and conflicts alone cannot represent it.
+Do not claim this mapping is implemented by current TaskService._report: it
+currently sets package_path="", collects ordinary operation results, and derives
+missing_items from the latest matching result without Package execution binding.
+
+Final build failure/data=null provides no successful FinalReport: report GET stays
+409, including partial writes or cleanup failures. Snapshot retains the bound
+child results, cleanup observations and final failure. A previous successful
+result cannot be used as a fallback. These rules do not change selection,
+approval, report bytes, identifiers, cleanup or Document/Version boundaries.
 
 #### Complete proposed examples
 
@@ -1870,6 +1914,91 @@ Final result at results[10], after explicit risk acceptance and successful child
   },
   "message": "build_package completed",
   "error": null
+}
+```
+
+##### Successful incomplete Package: proposed FinalReport
+
+Continuing the successful build above, results[5..8] are the successful directory,
+two copies and frozen report write; results[9] is verification and results[10]
+is the final build. package_execution.operation_results binds package_001..005
+to indices 5..9 respectively, final_result_index=10 and the same plan_id/digest.
+The operations array below copies only results[5..8]. The report write's path/hash
+shape remains the proposed restricted operation, not existing functionality.
+The frozen missing and unresolved remain despite explicit risk acceptance.
+
+```json
+{
+  "task_id": "task_incomplete",
+  "status": "completed",
+  "found_files": [],
+  "version_groups": [],
+  "conflicts": [],
+  "missing_items": [
+    "签字页"
+  ],
+  "operations": [
+    {
+      "success": true,
+      "tool": "create_folder",
+      "data": {
+        "path": "/work/课程结题材料包"
+      },
+      "message": "create_folder completed",
+      "error": null
+    },
+    {
+      "success": true,
+      "tool": "copy_file",
+      "data": {
+        "source": "/work/结题报告.txt",
+        "destination": "/work/课程结题材料包/结题报告.txt"
+      },
+      "message": "copy_file completed",
+      "error": null
+    },
+    {
+      "success": true,
+      "tool": "copy_file",
+      "data": {
+        "source": "/work/原始记录.txt",
+        "destination": "/work/课程结题材料包/原始记录.txt"
+      },
+      "message": "copy_file completed",
+      "error": null
+    },
+    {
+      "success": true,
+      "tool": "write_package_report",
+      "data": {
+        "path": "/work/课程结题材料包/PACKAGE_REPORT.md",
+        "sha256": "6d8bd8e630cb1bd5f9ffaa0b3cde051bf82bbf376ce609034de77a5ab0d27586"
+      },
+      "message": "write_package_report completed",
+      "error": null
+    }
+  ],
+  "package_path": "/work/课程结题材料包",
+  "summary": "打包执行成功，但材料包仍有缺项或未决事项；文件名候选不代表材料内容或真实性审核通过。",
+  "package_unresolved": {
+    "plan_id": "package_plan_88888888888888888888888888888888",
+    "plan_sha256": "sha256:d98e2f9a972f6efd0d42a9d545aeaa7aee1aa37245aa648ff3204f4f8f5dc7d1",
+    "items": [
+      {
+        "kind": "selection_pending",
+        "text": "测试记录_v2.txt 尚未纳入本次提议选择",
+        "source_result_index": 1,
+        "documents": [
+          {
+            "file_id": "file_bc9b65c69a82a15ef5d80ea22004dffced363d11219df1faf5cb01d08f40da16",
+            "path": "/work/测试记录_v2.txt",
+            "filename": "测试记录_v2.txt"
+          }
+        ],
+        "source_tool": "match_requirements"
+      }
+    ]
+  }
 }
 ```
 

@@ -333,6 +333,11 @@ result import is supplied. The fixed proposed cleanup rule is fail-closed:
 remove only safely bound, exclusively-created failed fragments; otherwise retain
 and disclose. Current A unlink-by-path is insufficient. Cleanup record fields
 and the Package execution integration remain for A/B review.
+Package FinalReport mapping must bind the current successful verified execution:
+actual package_path and successful write results, frozen missing and unresolved,
+and current conflict evidence are mandatory. Proposed package_unresolved retains
+structured risks and plan identity pending A/B confirmation; accept_incomplete
+does not erase risks. Failed builds expose Snapshot only, with report 409.
 
 - [ ] Implement package selection/generation logic under `src/fileforge/package/**`
 - [ ] Use explicit proposed file mappings at planning and obtain same-preview file/report approval before execution; do not present candidates or `newest_candidate` as a user choice.
