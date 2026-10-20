@@ -188,7 +188,8 @@ def test_no_extracted_requirements_is_distinct_from_matched_materials(
         "missing": [],
     }
     assert service.report(task_id)["summary"] == (
-        "Documents read; no material requirements found"
+        "Analysis completed; requirement extraction returned no material names. "
+        "Whether materials are required remains unverified; no package was built."
     )
 
 

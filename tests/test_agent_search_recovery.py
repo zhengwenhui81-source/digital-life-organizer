@@ -166,5 +166,6 @@ def test_read_document_with_no_materials_reports_empty_extraction(
     assert snapshot["results"][1]["success"] is True
     assert snapshot["results"][2]["data"] == {"required_documents": []}
     assert service.report(task_id)["summary"] == (
-        "Documents read; no material requirements found"
+        "Analysis completed; requirement extraction returned no material names. "
+        "Whether materials are required remains unverified; no package was built."
     )

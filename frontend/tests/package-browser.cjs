@@ -36,17 +36,23 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         }
         const combinations=await evaluate(`(()=>{
             const findings=[];
-            for(const kind of ['null_task','null_operation','unresolved_source']){
-                const d=PackageFixtures.get(kind==='null_task'?'success':kind==='null_operation'?'stale_success':'risks');
+            for(const kind of ['null_task','null_operation','unresolved_source','failed_report','missing_targets','missing_cleanup','workspace_mismatch','unsafe_timestamp']){
+                const d=PackageFixtures.get(kind==='null_operation'?'stale_success':kind==='unresolved_source'?'risks':'success');
                 if(kind==='null_task')d.planResult.data.plan.task=null;
                 if(kind==='null_operation')d.planResult.data.plan.operations[0]=null;
                 if(kind==='unresolved_source'){d.planResult.data.plan.unresolved[0].source_result_index=999;riskIntent.checked=true;riskIntent.dispatchEvent(new Event('change'));}
+                if(kind==='failed_report')d.report.status='failed';
+                if(kind==='missing_targets')delete d.planResult.data.plan.verification_targets;
+                if(kind==='missing_cleanup')delete d.snapshot.package_execution.cleanup_results;
+                if(kind==='workspace_mismatch')d.snapshot.task.workspace='E:\\\\other';
+                if(kind==='unsafe_timestamp')d.planResult.data.plan.selected_files[0].snapshot.mtime_ns=1792310400000000000;
                 const before=JSON.stringify(d);content.innerHTML=PackagePreview.render(d);
                 findings.push({kind,text:content.innerText,unchanged:before===JSON.stringify(d),disabled:formalApprove.disabled,overflow:document.documentElement.scrollWidth>innerWidth});
             }
             return findings;
         })()`);
-        for(const item of combinations){assert.equal(item.unchanged,true);assert.equal(item.disabled,true);assert.equal(item.overflow,false);assert.match(item.text,item.kind==='null_task'?/方案数据不完整/:item.kind==='null_operation'?/执行记录不完整\/无效/:/未决事项来源关联无效/);assert.match(item.text,/未确认通过/);}
+        const warnings={null_task:/方案数据不完整/,null_operation:/执行记录不完整\/无效/,unresolved_source:/未决事项来源关联无效/,failed_report:/Package 报告状态无效/,missing_targets:/verification_targets 缺失或无效/,missing_cleanup:/cleanup_results 缺失或无效/,workspace_mismatch:/任务上下文不一致/,unsafe_timestamp:/精度无法确认/};
+        for(const item of combinations){assert.equal(item.unchanged,true);assert.equal(item.disabled,true);assert.equal(item.overflow,false);assert.match(item.text,warnings[item.kind]);assert.match(item.text,/文件验证：未确认通过/);assert.doesNotMatch(item.text,/文件验证：通过/);}
         assert.equal(await evaluate("getComputedStyle(document.querySelector('pre')).whiteSpace==='pre-wrap'"),true);
         assert.equal(await evaluate("(()=>{scenario.value='risks';scenario.dispatchEvent(new Event('change'));riskIntent.click();return PackageDemo.state.accepted})()"),true);
         assert.equal(await evaluate("(()=>{scenario.value='complete';scenario.dispatchEvent(new Event('change'));return riskIntent.checked||PackageDemo.state.accepted})()"),false);
@@ -54,7 +60,7 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         assert.equal(await evaluate('formalApprove.disabled'),true);
         assert.deepEqual(pageErrors,[]);
         assert.deepEqual(network.filter(r=>/^https?:/.test(r.url)),[]);
-        console.log('Validated 16 fixtures × 2 viewports + 3 malformed-input combinations; no HTTP requests; approval disabled.');
+        console.log('Validated 18 fixtures × 2 viewports + 8 malformed-input combinations; no HTTP requests; approval disabled.');
     }finally{
         if(ws)ws.close();browser.kill();await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));
         // Only remove the exact profile created by this test, outside user Workspace.
