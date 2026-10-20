@@ -2205,3 +2205,20 @@ Any change to:
 - risk levels
 
 must update this document first and be agreed by the team before implementation.
+
+## 8. Workflow 2 — Organization Contract Decision Gate (2026-10-21; NOT FROZEN)
+
+The team-approved **behavior** for Workflow 2 is classification-assisted copying into `Workspace/整理结果/<dynamic category>/<filename>` within a real user-selected Workspace. Keep originals unchanged. Require a frozen preview and explicit user approval for every write; do not silently overwrite, move or delete. Exclude existing/generated destination subtrees from future source scans; unsafe or ambiguous paths and classifications require conservative handling. C's read-only planning and reusable filesystem components must be invoked only through A's authoritative execution/approval gate.
+
+This section **does not register `classify_files`**, add a public endpoint, freeze JSON field names, or certify real execution. The public tool list in §5 and the existing tool contracts in §6 remain unchanged until the decision below is accepted. No member may privately assume a new schema.
+
+**Required pre-implementation agreement (A/B/C/D):**
+- D proposes classification input from real scanned file identities/metadata and already-supported extracted Documents, with the user organization goal, provenance, evidence/reason, dynamically proposed category, abstention/needs-confirmation, successful empty results, errors and explicit resource limits. An extension-only grouping must not be presented as semantic purpose classification.
+- C proposes a minimal organization-only **read-only** operation plan that preserves immutable source identity/path, safe target directory/path, a category and rationale, per-file uncertainty, collision and traversal diagnostics. Prefer existing `create_folder` and `copy_file` tool conventions; add new public tools only if an agreed technical gap requires them.
+- A proposes authoritative task/Workspace/source revalidation, frozen preview identity, correction/confirmation, approval binding, execution order, failure/cleanup results and post-copy byte-verification linkage. No C/D/B-controlled production filesystem mutation.
+- B validates the read-only preview, user edits/confirmations, risks, approval/reject, progress and actual-report display; B must not create a local substitute for server authority.
+- C and A document safe module/code ownership first, especially any re-use or modification of existing A-owned filesystem primitives. No second unaudited write path.
+
+**Acceptance policy (not a claim of implementation):** every reported successful copy requires evidence that actual target bytes equal the source bytes; original files remain unchanged. Ambiguous items are not auto-executed. Classification quality is assessed against a human-labeled set with target accuracy >=95% and coverage disclosed; a target or an untested claim is not a guarantee. Unreadable/unexamined files remain explicit unknowns. Failure and partial success remain distinct.
+
+**Next contract revision:** after the four members approve exact request/result/frozen-plan fields, create a separate narrowly scoped PR updating §5 and §6, error examples, security boundaries and relevant tests. This gate alone is intentionally not a callable API contract.
