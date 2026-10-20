@@ -742,6 +742,15 @@
             if (!task || typeof task.task_id !== 'string' || !task.task_id || ![...agentActiveStatuses,'awaiting_approval','completed','failed'].includes(task.status)) throw new Error('Invalid Agent Task response');
             if (agentState.task && agentState.task.task_id !== task.task_id) throw new Error('Task response does not match the current task');
         }
+        function agentRequestContext() {
+            return {generation: agentState.generation, taskId: agentState.task?.task_id, mode: agentState.mode};
+        }
+        function isCurrentAgentRequest(context) {
+            return context.generation === agentState.generation && context.taskId === agentState.task?.task_id && context.mode === agentState.mode;
+        }
+        function hasAgentPackageData(snapshot) {
+            return snapshot?.package_execution != null || [...agentArray(snapshot?.results), ...agentArray(snapshot?.pending_operations)].some(item => ['plan_package','build_package','write_package_report'].includes(item.tool));
+        }
         // Rendering
         function updateAgentControls() {
             const locked = agentState.busy || agentState.pollInFlight || agentState.decisionBusy;
@@ -753,6 +762,7 @@
             const preview = agentState.snapshot?.preview_id;
             const hasPreview = agentState.mode === 'mock' || (typeof preview === 'string' && preview.length > 0);
             byId('approveAgent').disabled = byId('rejectAgent').disabled = !awaiting || !hasPreview || !agentState.approvalValid || agentState.decisionBusy || agentState.pollInFlight;
+            if (agentState.mode === 'real' && hasAgentPackageData(agentState.snapshot)) byId('approveAgent').disabled = true;
             byId('refreshAgent').disabled = !agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode;
             byId('approveAgent').textContent = agentState.decisionBusy && agentState.decisionAction === 'approve' ? 'Executing...' : 'Approve & Execute';
             byId('rejectAgent').textContent = agentState.decisionBusy && agentState.decisionAction === 'reject' ? 'Rejecting...' : 'Reject';
@@ -830,12 +840,14 @@
                 const operations = agentArray(snapshot.pending_operations);
                 byId('agentActions').innerHTML = operations.map(step => '<div class="agent-item"><span class="badge badge-warning">' + agentEscape(step.tool) + '</span> Risk: ' + agentEscape(step.risk) + '<p>' + agentEscape(step.description) + '</p><small>' + agentEscape(step.step_id) + ' · ' + agentEscape(step.status) + '</small>' + agentDetails(step.arguments) + '</div>').join('') || 'No file operations are waiting for approval.';
                 if (snapshot.task.status === 'awaiting_approval') byId('agentActions').innerHTML += '<p class="agent-note">' + (typeof snapshot.preview_id === 'string' && snapshot.preview_id ? 'Preview: ' + agentEscape(snapshot.preview_id) : '缺少 preview_id，不能提交审批。请刷新任务状态。') + '</p>';
+                if (hasAgentPackageData(snapshot)) byId('agentActions').innerHTML += '<p class="result-warning">真实 Package 集成尚未验收，正式批准已禁用；accept_incomplete 尚未接通。可以拒绝当前预览。</p>';
             }
             byId('agentActions').classList.toggle('agent-placeholder', !agentArray(mock ? snapshot.operations : snapshot.pending_operations).length);
             updateAgentControls();
         }
         function renderAgentReport(report) {
             if (!report || agentState.task?.status !== 'completed' || report.task_id !== agentState.task.task_id || report.status !== 'completed') throw new Error('Invalid FinalReport response');
+            if (agentState.mode === 'real' && (hasAgentPackageData(agentState.snapshot) || report.package_unresolved !== undefined || report.package_path)) throw new Error('真实 Package 报告集成尚未验收，不能确认打包成功；请核对当前任务证据。');
             agentState.report = report;
             const mock = agentState.mode === 'mock';
             byId('agentFinalCard').dataset.completed = 'true';
@@ -854,7 +866,8 @@
             byId('copyPackagePath').hidden = typeof report.package_path !== 'string' || !report.package_path;
         }
         // Event handlers: one sequential timeout loop, never setInterval.
-        async function applyAgentSnapshot(snapshot) {
+        async function applyAgentSnapshot(snapshot, context = agentRequestContext()) {
+            if (!isCurrentAgentRequest(context)) return;
             renderAgent(snapshot);
             const status = snapshot.task.status;
             if (snapshot.error && status !== 'failed') agentError(snapshot.error, 'Task needs attention');
@@ -864,8 +877,13 @@
                 agentState.report = null;
                 byId('copyPackagePath').hidden = true;
                 byId('agentFinalCard').dataset.completed = 'false';
-                try { renderAgentReport(await AgentAPI.getReport(snapshot.task.task_id)); }
+                try {
+                    const report = await AgentAPI.getReport(context.taskId);
+                    if (!isCurrentAgentRequest(context) || agentState.snapshot !== snapshot) return;
+                    renderAgentReport(report);
+                }
                 catch (error) {
+                    if (!isCurrentAgentRequest(context) || agentState.snapshot !== snapshot) return;
                     byId('agentFinal').textContent = error.status === 409 ? '最终报告尚未生成，请刷新任务状态。' : '最终报告加载失败，请刷新任务状态。';
                     agentError(error.message);
                 }
@@ -884,16 +902,17 @@
             if (!agentState.task || agentState.pollInFlight || agentState.decisionBusy || byId('agentMode').value !== agentState.mode) return;
             stopAgentPolling();
             agentState.pollInFlight = true; agentState.approvalValid = false; updateAgentControls();
-            const generation = agentState.generation;
+            const context = agentRequestContext();
             agentError('');
             try {
-                const snapshot = await AgentAPI.getTask(agentState.task.task_id);
-                if (generation !== agentState.generation) return;
-                await applyAgentSnapshot(snapshot);
+                const snapshot = await AgentAPI.getTask(context.taskId);
+                if (!isCurrentAgentRequest(context)) return;
+                await applyAgentSnapshot(snapshot, context);
             } catch (error) {
+                if (!isCurrentAgentRequest(context)) return;
                 stopAgentPolling(); agentState.busy = false; agentState.approvalValid = false;
                 agentError(error.message + '；自动轮询已停止，可刷新任务状态。');
-            } finally { agentState.pollInFlight = false; updateAgentControls(); }
+            } finally { if (isCurrentAgentRequest(context)) { agentState.pollInFlight = false; updateAgentControls(); } }
         }
         async function runAgent() {
             if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
@@ -915,22 +934,28 @@
         }
         async function decideAgent(approve) {
             if (agentState.decisionBusy || agentState.pollInFlight || !agentState.approvalValid || agentState.task?.status !== 'awaiting_approval') return;
+            if (approve && agentState.mode === 'real' && hasAgentPackageData(agentState.snapshot)) { agentError('真实 Package 审批尚未接通；不会发送批准请求。'); return; }
             const previewId = agentState.snapshot?.preview_id;
             if (agentState.mode === 'real' && (typeof previewId !== 'string' || !previewId)) { agentError('缺少 preview_id，请刷新任务状态。'); return; }
             stopAgentPolling(); agentState.decisionAction = approve ? 'approve' : 'reject'; agentState.decisionBusy = true; agentState.approvalValid = false; updateAgentControls(); agentError('');
+            const context = agentRequestContext();
             try {
-                const snapshot = await AgentAPI[approve ? 'approveTask' : 'rejectTask'](agentState.task.task_id, previewId);
+                const snapshot = await AgentAPI[approve ? 'approveTask' : 'rejectTask'](context.taskId, previewId);
+                if (!isCurrentAgentRequest(context)) return;
+                validateAgentTask(snapshot?.task);
                 agentState.userRejected = !approve;
-                await applyAgentSnapshot(snapshot);
+                await applyAgentSnapshot(snapshot, context);
             } catch (error) {
+                if (!isCurrentAgentRequest(context)) return;
                 // Never repeat a mutation: refresh only, especially after stale approval.
                 if (error.status === 409) {
                     agentError('HTTP 409 · The approval preview is no longer current. Refreshing the latest task state.');
-                    try { await applyAgentSnapshot(await AgentAPI.getTask(agentState.task.task_id)); }
-                    catch (refreshError) { agentState.busy = false; agentState.approvalValid = false; agentError(refreshError.message); }
+                    try { await applyAgentSnapshot(await AgentAPI.getTask(context.taskId), context); }
+                    catch (refreshError) { if (!isCurrentAgentRequest(context)) return; agentState.busy = false; agentState.approvalValid = false; agentError(refreshError.message); }
+                    if (!isCurrentAgentRequest(context)) return;
                     agentError('HTTP 409 · The approval preview is no longer current. Refreshing the latest task state. 请检查最新操作。');
                 } else { agentError(error.message + '；请先刷新任务状态，确认操作结果。'); }
-            } finally { agentState.decisionBusy = false; agentState.decisionAction = null; updateAgentControls(); }
+            } finally { if (isCurrentAgentRequest(context)) { agentState.decisionBusy = false; agentState.decisionAction = null; updateAgentControls(); } }
         }
         async function copyPackagePath() {
             if (!agentState.report?.package_path) return;
