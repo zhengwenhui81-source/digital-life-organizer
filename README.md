@@ -2,6 +2,9 @@
 
 Task-driven local AI file agent for intelligent organization, version analysis, conflict detection, and task-oriented package generation.
 
+For Windows/Linux Agent development, offline tests, service startup and optional
+real LLM configuration, see the [local Agent run guide](docs/local-agent-development.md).
+
 ## Document reading (current scope)
 
 `fileforge.document.read_document(path)` returns the shared `Document` /

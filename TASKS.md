@@ -316,9 +316,45 @@ Current staged delivery decision:
 Phase 1 must not be described as satisfying the full generalized matching requirement. Phase 2 remains part of the planned product scope.
 
 ### Phase D4 — Package Builder
+
+Architecture and Package schema merged in PR #29; implementation pending under
+[API_CONTRACT.md](API_CONTRACT.md#plan_package--build_package--package-contract-not-implemented).
+Use the team-required plan_id/selected_files/missing/unresolved/operations/report
+structure with a separate content digest, not parallel files/issues arrays.
+Separate read-only planning from approved actual execution; freeze full report
+bytes before approval and keep runtime outcomes in Snapshot/ToolResult. The
+proposed accept_incomplete increment, restricted report write and child-result
+correlation are not implemented. PR #27 Agent matching integration is merged in
+dev (c74308d), alongside frontend matching and C DOCX/validation updates; none
+implements Package execution. No Package completion/acceptance is claimed here; Phase 2 matching
+remains required. Planning selected_files are proposals, confirmed with mappings/report in the
+same preview approval; accept_incomplete only additionally accepts its risks.
+Any upstream failure ends the current Task; no Package recovery or historical
+result import is supplied. The fixed proposed cleanup rule is fail-closed:
+remove only safely bound, exclusively-created failed fragments; otherwise retain
+and disclose. Current A unlink-by-path is insufficient. The four-field
+cleanup_results shape and fail-closed recording policy are confirmed but not
+implemented; Package execution integration remains pending.
+Before plan_package, A must reread every analysis-dependent source, compare the
+complete Document and check pre/post raw-byte SHA-256. Before an executable
+preview, A must compare D's selected snapshot digests with its checked digests;
+after approval it must recheck approved sources and targets. This is current
+consistency revalidation, not proof of historical analysis bytes or removal of
+all read races. See the handoff in API_CONTRACT.md.
+Package FinalReport mapping must bind the current successful verified execution:
+actual package_path and successful write results, frozen missing and unresolved,
+and current conflict evidence are mandatory. Team-confirmed package_unresolved
+retains frozen ordered risks and plan identity; implementation is pending. It is
+required on successful verified Package reports and omitted (never null/{}) for
+non-Package reports, superseding the earlier null suggestion. accept_incomplete
+does not erase risks. Tasks requiring Package cannot fall back to ordinary
+success reports when execution/verification is missing or fails; Snapshot keeps
+actual results and report returns 409.
+
 - [ ] Implement package selection/generation logic under `src/fileforge/package/**`
-- [ ] Use only resolved / selected files; do not silently convert multiple candidates or `newest_candidate=null` into a final choice
-- [ ] Decide with A/B whether an incomplete package may be generated when `missing` remains, and how that status appears in report/UI
+- [ ] Use explicit proposed file mappings at planning and obtain same-preview file/report approval before execution; do not present candidates or `newest_candidate` as a user choice.
+- [x] Architecture: allow incomplete packages only with explicit acceptance of the specific frozen missing/undecided risks in the same approval.
+- [ ] Finalize A/B schema, accept_incomplete request/409 behavior and report/UI implementation; architecture agreement is not integration acceptance.
 - [ ] Default to copy, not move
 - [ ] Never silently overwrite user files
 - [ ] Generate task-neutral `PACKAGE_REPORT.md`
@@ -662,3 +698,16 @@ Reading table structure does not interpret or calculate scores.
 5. Four-developer Real Mode integration and safety acceptance. Keep the original task-driven material-packaging workflow working in parallel.
 
 **Acceptance distinction:** filename/extension classification is *not* semantic material-purpose understanding; users must be told when the system cannot establish a reliable category. Neither demo convenience nor a successful Mock Mode render counts as proof of a complete Real Mode workflow.
+
+## Package cross-module testing delegation — 2026-10-20
+
+**Ownership update:** A still implements Agent/TaskService/Approval/Execution/Verification and D still implements Package planning. C is additionally assigned **independent tests/fixtures/evidence only**, not A/D production changes. See [AGENTS.md](AGENTS.md#8-package-validation-delegation-2026-10-20).
+
+- [ ] **C-P1 / immediate:** Add nonduplicative temporary-file tests for A's merged `package_evidence.py` covering complete Document strict identity, metadata/extra types, changed bytes with restored size/mtime, modifications during reread, failed reads, unsafe paths, contradictory sources, and D selected snapshot mismatch. The helper cannot prove that A supplied **all** analysis-dependent read results; test that rule when A's authoritative TaskService integration exists.
+- [ ] **C-P2 / prepare now:** Define frozen Package Snapshot/ToolResult/FinalReport tests for partial copy failures, cleanup_results states and unknown ownership, report GET 409, package_unresolved preservation, old success not masking current failure, and omission of package_unresolved on non-Package reports. Do not count tests of not-yet-implemented APIs as passed.
+- [ ] **C-P3 / after A and D integration:** Run controlled public-interface Document/Version -> D plan_package -> A preflight/approval/execution/result acceptance without DeepSeek or B's personal Workspace; verify version recommendation never authorizes a file choice and no partial success is presented as a verified final Package.
+- [ ] **A:** Provide C authoritative input/result association, approval/error/409 contracts and callable integration seams. Keep all Agent production behavior, mutation/cleanup and final report implementation A-owned.
+- [ ] **D:** Provide C public planner inputs and frozen source snapshot semantics; keep planner production implementation D-owned.
+- [ ] **B:** Continue real Windows browser/DeepSeek cross-module acceptance; coordinate full-service startup verification using the merged `docs/local-agent-development.md`.
+
+**Current factual baseline:** PR #36, #37 and #38 are merged; A's Package evidence helper and B's Package Fixture are not connected to a real executable Package flow. D `plan_package` PR #35 remains Draft as of this allocation. These checkboxes are not completed by existing unit tests or documentation alone. This allocation adds no API shape and does not change the already-confirmed Package contract.

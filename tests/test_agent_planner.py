@@ -343,3 +343,80 @@ def test_upstream_error_is_safe(tmp_path: Path, monkeypatch, status: int) -> Non
         )
     assert "Bad Gateway" not in str(error.value)
     assert "secret" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "error_kind,expected",
+    [
+        ("connection", "connection failed"),
+        ("timeout", "request timed out"),
+        ("status", "HTTP 429"),
+        ("other", "API error"),
+    ],
+)
+def test_planner_sdk_error_category_is_safe(
+    tmp_path: Path, monkeypatch, error_kind: str, expected: str
+) -> None:
+    class APIError(Exception):
+        pass
+
+    class APIConnectionError(APIError):
+        pass
+
+    class APITimeoutError(APIConnectionError):
+        pass
+
+    class APIStatusError(APIError):
+        status_code = 429
+
+    errors = {
+        "connection": APIConnectionError,
+        "timeout": APITimeoutError,
+        "status": APIStatusError,
+        "other": APIError,
+    }
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.fail))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def fail(self, **kwargs):
+            raise errors[error_kind]("Authorization: secret; document body")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(
+            OpenAI=FakeClient,
+            APIError=APIError,
+            APIConnectionError=APIConnectionError,
+            APITimeoutError=APITimeoutError,
+            APIStatusError=APIStatusError,
+        ),
+    )
+
+    def planner(task_id: str, goal: str, workspace: str) -> dict:
+        return plan_task(
+            task_id,
+            goal,
+            workspace,
+            base_url="https://example.test/v1?token=secret",
+        )
+
+    service = TaskService(planner=planner)
+    task_id = service.create("scan files", str(tmp_path))["task_id"]
+    service.run(task_id)
+    snapshot = service.snapshot(task_id)
+    assert snapshot["task"]["status"] == "failed"
+    assert expected in snapshot["error"]
+    assert "secret" not in snapshot["error"]
+    assert "Authorization" not in snapshot["error"]
+    assert "document body" not in snapshot["error"]
+    with pytest.raises(TaskConflict, match="Report is not available"):
+        service.report(task_id)
