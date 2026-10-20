@@ -173,9 +173,15 @@
             return base;
         }
         const result=snapshot.results[resultIndex],current={...base,resultIndex};
+        if(result?.success===true&&!obj(result.data))return {...current,state:'invalid',issues:['当前 plan_package.data 缺失或不是对象；不使用历史成功']};
         if(!resultRecord(result))return {...current,state:'invalid',issues:['当前 plan_package ToolResult 格式异常；不使用历史成功']};
         if(snapshot.task.status==='failed'||!result.success||snapshot.results.some(item=>item?.success===false))return {...current,state:'failed',issues:['当前任务或工具执行失败；不使用历史成功规划补齐预览',snapshot.error,result.error].filter(str)};
-        const plan=result.data.plan;
+        const data=result.data;
+        // Validate the Package envelope locally before reading or rendering its plan.
+        // These are display prerequisites, not digest verification or authorization.
+        if(!obj(data)||Object.keys(data).length!==2||!Object.hasOwn(data,'plan')||!obj(data.plan)||!Object.hasOwn(data,'plan_sha256')||typeof data.plan_sha256!=='string'||!/^sha256:[a-f0-9]{64}$/.test(data.plan_sha256))return {...current,state:'invalid',issues:['当前 plan_package.data 的 plan/plan_sha256 缺失或格式异常；不展示文件映射，不使用历史成功']};
+        const plan=data.plan;
+        if(typeof plan.plan_id!=='string'||!/^package_plan_[a-f0-9]{32}$/.test(plan.plan_id))return {...current,state:'invalid',issues:['当前 plan.plan_id 缺失或格式异常；无法确认方案归属，不展示文件映射']};
         if(!obj(plan)||!obj(plan.task)||taskKeys.some(k=>plan.task[k]!==expectedTask[k]))return {...current,state:'invalid',issues:['规划结果与当前任务归属不一致或 plan/task 缺失；不展示跨任务方案']};
         if(snapshot.results.slice(resultIndex+1).some(item=>slots.includes(item?.tool)||item?.tool==='read_document'))return {...current,state:'invalid',issues:['规划之后存在新的分析或文档读取结果，冻结证据可能已过期；不回退展示旧方案']};
         const input={planResult:result,snapshot},issues=[...inspect(input).errors];

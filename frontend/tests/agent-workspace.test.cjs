@@ -252,3 +252,27 @@ test('production Package preview rejects stale evidence and task context polluti
     s.results.push({...s.results[3]});await h.c.pollAgent();assert.match(h.el('agentPackagePreview').innerHTML,/过期/);
     assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/具体文件映射/);
 });
+
+test('malformed current Package ToolResult cannot interrupt task rendering or enable approval',async()=>{
+    const changes=[
+        ...[null,[], 'bad',42,true].map(value=>r=>r.data=value),
+        r=>delete r.data,r=>r.data={},r=>delete r.data.plan,
+        ...[null,[], 'bad',42].map(value=>r=>r.data.plan=value),
+        ...[null,[],{},42,'bad'].map(value=>r=>r.data.plan_sha256=value),
+        r=>delete r.data.plan_sha256,r=>r.data.plan.plan_id=null,r=>r.data.plan.task=null
+    ];
+    for(const change of changes){
+        const h=harness(),s=packageHttpSnapshot(),latest=structuredClone(s.results[4]);change(latest);s.results.push(latest);
+        const before=structuredClone(s);
+        h.c.respond=url=>url==='/api/agent/tasks'?response({...s.task,status:'created'},202):response(s);
+        await h.c.runAgent();await assert.doesNotReject(()=>h.c.pollAgent());
+        assert.equal(h.state.task.status,'awaiting_approval');assert.equal(h.state.pollInFlight,false);
+        assert.match(h.el('agentTaskStatus').textContent,/awaiting_approval.*Real Mode/);
+        assert.match(h.el('agentPackagePreview').innerHTML,/格式异常|归属不一致|不是对象/);
+        assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/结题报告.txt|具体文件映射|文件验证：通过/);
+        assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.el('rejectAgent').disabled,false);
+        assert.match(h.el('agentActions').innerHTML,/server preview/);
+        assert.equal(h.calls.length,2);await h.c.decideAgent(true);assert.equal(h.calls.length,2);
+        assert.equal(h.state.report,null);assert.deepEqual(s,before);
+    }
+});

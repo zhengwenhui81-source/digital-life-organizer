@@ -330,3 +330,34 @@ test('Snapshot adapter binds the displayed identity and preview to the latest pl
     assert.match(html,/new-server-preview/);assert.ok(html.includes(next.data.plan.plan_id));
     assert.ok(html.includes(next.data.plan_sha256));assert.ok(!html.includes(s.results[4].data.plan.plan_id));
 });
+
+test('malformed latest Package data is invalid without throwing, mutating or exposing historical mappings',()=>{
+    const badData=[undefined,null,[],[{}],'bad',42,true,{},
+        {plan:null,plan_sha256:'sha256:'+'a'.repeat(64)},
+        {plan:[],plan_sha256:'sha256:'+'a'.repeat(64)},
+        {plan:'bad',plan_sha256:'sha256:'+'a'.repeat(64)}];
+    for(const data of badData){
+        const s=planningSnapshot();s.results.push({tool:'plan_package',success:true,data,message:'malformed current result',error:null});
+        const before=structuredClone(s);let model,html;
+        assert.doesNotThrow(()=>{model=view.inspectSnapshot(s);html=view.renderSnapshot(s);});
+        assert.equal(model.state,'invalid');assert.equal(model.resultIndex,5);assert.equal(model.input,null);
+        assert.match(html,/data|ToolResult/);assert.match(html,/不使用历史成功/);
+        assert.doesNotMatch(html,/提议文件 1|结题报告.txt|文件操作执行成功|文件验证：通过/);assert.deepEqual(s,before);
+    }
+});
+
+test('invalid manifest and digest identities never enter detailed Snapshot rendering',()=>{
+    const changes=[
+        d=>delete d.plan,d=>delete d.plan_sha256,
+        ...[undefined,null,[],{},42,true,'','bad'].map(value=>d=>d.plan_sha256=value),
+        ...[undefined,null,[],42,true,'bad'].map(value=>d=>d.plan=value),
+        ...[undefined,null,[],42,true,'bad'].map(value=>d=>d.plan.plan_id=value),
+        d=>d.plan.task=null,d=>d.extra='unexpected'
+    ];
+    for(const change of changes){
+        const s=planningSnapshot(),latest=structuredClone(s.results[4]);change(latest.data);s.results.push(latest);
+        const before=structuredClone(s),m=view.inspectSnapshot(s),html=view.renderSnapshot(s);
+        assert.equal(m.state,'invalid');assert.equal(m.input,null);assert.equal(m.resultIndex,5);
+        assert.doesNotMatch(html,/结题报告.txt|具体文件映射|文件验证：通过/);assert.deepEqual(s,before);
+    }
+});
