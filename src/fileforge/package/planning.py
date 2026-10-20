@@ -84,7 +84,9 @@ def plan_package(task, selected_files, destination, analysis):
     No source/target changes, approval credential, tool registration or build.
     Reads cannot eliminate later races; A must recheck frozen bytes at execution.
     Planning hashes observe current sources, not the bytes underlying old
-    analysis. That binding is absent from the current input/reader contract.
+    analysis. A owns the confirmed v1 reread/hash handoff before this call and
+    cross-checks returned snapshots before preview; no historical-byte proof
+    or approval verdict is supplied through this input.
     """
     try:
         selected = validate(task, selected_files, analysis, destination)

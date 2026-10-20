@@ -1,7 +1,9 @@
 """D-only observations, not acceptance of stale evidence at A's preview gate.
 
 A integration tests must reject uncertified/stale evidence before executable
-preview. This suite invokes no A adapter, approval or execution entry point.
+preview under the PR #36 v1 handoff. These direct D calls deliberately bypass
+A's mandatory prerevalidation to inspect D's boundary; they are not a valid
+server task flow. This suite invokes no A adapter, approval or execution entry.
 """
 
 import copy
@@ -53,7 +55,9 @@ def test_d_only_observes_current_bytes_without_certifying_old_analysis(
     result = plan_package(**request_data)
     # D can render a read-only proposal but cannot certify its analysis freshness.
     # Success here MUST NOT be used as permission for A's executable preview.
-    # A's no-preview behavior belongs in A integration acceptance tests.
+    # With the confirmed v1 handoff, A must reject these changed Documents
+    # before invoking D. That no-preview behavior is A integration acceptance,
+    # not a capability exercised by this deliberate direct call.
     assert result["success"], result
     plan = result["data"]["plan"]
     snapshot = plan["selected_files"][0]["snapshot"]

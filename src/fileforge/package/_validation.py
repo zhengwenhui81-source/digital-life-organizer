@@ -2,7 +2,8 @@
 
 Equality of supplied references/Documents is not evidence freshness. No input
 binds those analysis results to raw file bytes; current planning hashes cannot
-retroactively supply that missing binding. This module does not read files.
+retroactively supply historical binding. A owns the confirmed v1 current
+consistency handoff; this module does not perform it or read files.
 """
 
 from fileforge.task_intelligence._documents import (

@@ -4,7 +4,9 @@ The following is A-side calling code, not a registered Agent adapter. `task` and
 `snapshot` are A's authoritative current records; `evidence_indices` is A's local
 mapping of the four tool names to their current result indices (or None for a
 not-run tool). A has proposed `document` explicitly from a successful C read;
-this is not an automatic choice from Matching/Version recommendations.
+this is not an automatic choice from Matching/Version recommendations. Before
+this call, A must perform the confirmed v1 revalidation described below. The
+sample assembles only D's input; it does not implement A's preconditions.
 
 ```python
 from fileforge.package import plan_package
@@ -32,7 +34,7 @@ result = plan_package(
 `document` comes from a successful public
 `read_document(path=...)` result's `data.document`. The caller supplies the four
 analysis slots exactly as specified in the repository's
-[Package contract](../../../API_CONTRACT.md#plan_package--build_package--minimal-package-proposal).
+[Package contract](../../../API_CONTRACT.md#plan_package--build_package--package-contract-not-implemented).
 Each slot is `None` (not run) or `{result_index, result}`. Successful planning
 returns standard ToolResult data `{plan, plan_sha256}`; failure returns data null.
 Success certifies only D's described read-only checks and proposal generation.
@@ -109,14 +111,35 @@ A integration tests must separately verify preview blocking; this suite neither
 invokes A nor treats a read-only success as a satisfied A precondition.
 Extracted TXT/PDF/DOCX/XLSX text must not be substituted for a binary-file digest.
 
-A/C/D must first agree a contract for binding read/analysis results to the exact
-bytes parsed, including notices and unselected candidates. A possible internal
-ledger can associate read result indices and original identities with byte
-snapshots; C must ensure the hash and extracted text use the same stable byte
-image. Hashing the path independently before/after parsing is not by itself that
-guarantee. A must bind each analysis result to its actual input reads and verify
-all required bindings before planning/approval. Ledger location, transport,
-unknown/mismatch handling and any rerun policy need team decisions. D can then
-consume an agreed precondition or separately contracted binding input. This
-implementation adds no Document field, public input, freshness verdict, new risk
-kind or new failure policy, and claims no implemented A/C byte-binding service.
+## Confirmed v1 handoff — A implementation still required
+
+[The merged handoff](../../../API_CONTRACT.md#confirmed-v1-analysis-to-source-revalidation-handoff-not-implemented)
+now defines current-consistency revalidation. It does not require a new Document
+field or an extra plan_package argument:
+
+1. **Before calling D**, A rereads every analysis-dependent source through C's
+   public reader, including notices and relevant unselected candidates. It
+   compares the complete original and reread Documents with the shared strict
+   rules (metadata, extra fields, missing/null and exact JSON types included).
+   A also hashes raw bytes before/after that reread; hashes must agree. It keeps
+   the checked digest and source/result association in task-scoped state.
+2. **After D returns and before executable preview**, A checks provenance and
+   compares each selected source reference, size, mtime_ns and D's snapshot SHA-256
+   against its checked state. Missing/contradictory evidence or any mismatch
+   fails the Task without preview. A must not replace D's snapshot or accept the
+   mismatch via accept_incomplete. It binds its associations and frozen plan to
+   the same preview_id.
+3. **After approval**, A checks approved digests and path/target safety before
+   mutation and at use, then verifies created bytes, frozen report and file set.
+   Failure stops further operations, preserves child results and returns report
+   409. These executor/gate capabilities are not implemented by this D module.
+
+V1 accepts the stated race limit: matching reread Documents and pre/post hashes
+checks observable current consistency, not the exact historical bytes originally
+parsed, and cannot exclude adversarial change-and-restore. Stronger historical
+read-time evidence still needs a separate C/A contract. The current C reader and
+A gate do not implement the new Package handoff merely because PR #36 merged
+its documentation. No capability, transport field or historical-byte guarantee
+is introduced here. D-only freshness tests deliberately bypass A's required
+prerevalidation; A integration tests must verify that such stale input never
+reaches an executable preview in the real task flow.
