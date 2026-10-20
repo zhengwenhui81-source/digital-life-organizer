@@ -53,6 +53,28 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         })()`);
         const warnings={null_task:/方案数据不完整/,null_operation:/执行记录不完整\/无效/,unresolved_source:/未决事项来源关联无效/,failed_report:/Package 报告状态无效/,missing_targets:/verification_targets 缺失或无效/,missing_cleanup:/cleanup_results 缺失或无效/,workspace_mismatch:/任务上下文不一致/,unsafe_timestamp:/精度无法确认/};
         for(const item of combinations){assert.equal(item.unchanged,true);assert.equal(item.disabled,true);assert.equal(item.overflow,false);assert.match(item.text,warnings[item.kind]);assert.match(item.text,/文件验证：未确认通过/);assert.doesNotMatch(item.text,/文件验证：通过/);}
+        const snapshotGates=await evaluate(`(()=>{
+            return ['missing_snapshot','stale_before_plan','failed','unavailable'].map(kind=>{
+                const s=PackageFixtures.get('complete').snapshot;
+                s.preview_id='server-preview';s.pending_operations=[{tool:'build_package',step_id:'build',arguments:{}}];
+                const file=s.results[4].data.plan.selected_files[0];
+                const hidden=[file.source.filename,file.source.path,file.target];
+                if(kind==='missing_snapshot')delete file.snapshot;
+                if(kind==='stale_before_plan')s.results.splice(4,0,structuredClone(s.results[3]));
+                if(kind==='failed'){s.task.status='failed';s.error='current task failed';}
+                if(kind==='unavailable')s.results=[];
+                const before=JSON.stringify(s);content.innerHTML=PackagePreview.renderSnapshot(s);
+                return {kind,text:content.innerText,leaks:hidden.some(value=>content.innerText.includes(value)),unchanged:before===JSON.stringify(s),disabled:formalApprove.disabled,overflow:document.documentElement.scrollWidth>innerWidth};
+            });
+        })()`);
+        for(const gate of snapshotGates){
+            assert.equal(gate.leaks,false);assert.equal(gate.unchanged,true);assert.equal(gate.disabled,true);assert.equal(gate.overflow,false);
+            assert.doesNotMatch(gate.text,/提议文件|具体文件映射|文件验证：通过/);
+            assert.match(gate.text,gate.kind==='missing_snapshot'?/快照数据不完整/:gate.kind==='stale_before_plan'?/来源不一致或已过期/:gate.kind==='failed'?/当前失败/:/规划数据尚未提供/);
+        }
+        // The unavailable gate intentionally has no details/pre; restore a valid
+        // Fixture before running the existing detailed-layout assertion.
+        await evaluate("scenario.value='complete';scenario.dispatchEvent(new Event('change'))");
         assert.equal(await evaluate("getComputedStyle(document.querySelector('pre')).whiteSpace==='pre-wrap'"),true);
         assert.equal(await evaluate("(()=>{scenario.value='risks';scenario.dispatchEvent(new Event('change'));riskIntent.click();return PackageDemo.state.accepted})()"),true);
         assert.equal(await evaluate("(()=>{scenario.value='complete';scenario.dispatchEvent(new Event('change'));return riskIntent.checked||PackageDemo.state.accepted})()"),false);
@@ -60,7 +82,7 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         assert.equal(await evaluate('formalApprove.disabled'),true);
         assert.deepEqual(pageErrors,[]);
         assert.deepEqual(network.filter(r=>/^https?:/.test(r.url)),[]);
-        console.log('Validated 18 fixtures × 2 viewports + 8 malformed-input combinations; no HTTP requests; approval disabled.');
+        console.log('Validated 18 fixtures × 2 viewports + 8 malformed-input combinations + 4 Snapshot detail gates; no HTTP requests; approval disabled.');
     }finally{
         if(ws)ws.close();browser.kill();await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));
         // Only remove the exact profile created by this test, outside user Workspace.

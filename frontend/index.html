@@ -584,6 +584,7 @@
                 <div id="agentMatching" aria-live="polite">未执行：尚未收到此工具的结果。</div>
             </section>
             <details class="agent-card"><summary>其他工具执行记录</summary><div id="agentOtherResults">尚无其他工具结果。</div></details>
+            <section class="agent-card" aria-labelledby="agentPackageTitle"><h3 id="agentPackageTitle">Package · 真实规划只读预览</h3><div id="agentPackagePreview" aria-live="polite">真实 Package 规划数据尚未提供。</div></section>
             <div class="agent-card approval-card"><h2>4. Pending Actions · User Approval</h2>
                 <p class="agent-note">Review the source and destination before approving any file operations.</p>
                 <div id="agentActions" class="agent-placeholder">No file operations are waiting for approval.</div>
@@ -707,11 +708,12 @@
     <script src="/static/agent-mock.js"></script>
     <script src="/static/agent-api.js"></script>
     <script src="/static/agent-results.js"></script>
+    <script src="/static/package-preview.js"></script>
     <script src="/static/organization-preview.js"></script>
     <script src="/static/organization-demo.js"></script>
     <script>
         // State
-        const agentState = {task: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null};
+        const agentState = {task: null, taskContext: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null};
         const byId = id => document.getElementById(id);
         const agentArray = value => Array.isArray(value) ? value.filter(item => item != null) : [];
         const agentText = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
@@ -782,6 +784,7 @@
         function resetAgentPresentation() {
             clearTimeout(agentState.copyTimer);
             agentState.report = null;
+            byId('agentPackagePreview').textContent = agentState.mode === 'real' ? '真实 Package 规划数据尚未提供。' : 'Mock Mode：此处不展示真实 Package 规划数据。';
             byId('agentOtherResults').textContent = '尚无其他工具结果。';
             byId('agentMatching').textContent = agentState.mode === 'mock' ? 'Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。' : '未执行：尚未收到此工具的结果。';
             byId('agentPlan').innerHTML = '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
@@ -803,10 +806,12 @@
         }
         function renderAgent(snapshot) {
             validateAgentTask(snapshot?.task);
+            const packageTask = agentState.taskContext || agentState.task || snapshot.task;
             agentState.task = snapshot.task;
             agentState.snapshot = snapshot;
             agentState.approvalValid = snapshot.task.status === 'awaiting_approval';
             const mock = agentState.mode === 'mock';
+            byId('agentPackagePreview').innerHTML = mock ? '<p>Mock Mode：此处不展示真实 Package 规划数据。</p>' : PackagePreview.renderSnapshot(snapshot, packageTask);
             byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (mock ? 'Mock Mode' : 'Real Mode');
             const symbols = {pending:'○',running:'●',completed:'✓',failed:'✕',awaiting_approval:'⚠',skipped:'－'};
             byId('agentPlan').innerHTML = agentArray(snapshot.plan?.steps).map(step => '<div class="agent-step" data-status="' + agentEscape(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + agentEscape(step.description) + '<small>' + agentEscape(step.tool) + ' · ' + agentEscape(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + agentEscape(step.risk) + '</span></div>').join('') || '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
@@ -918,7 +923,7 @@
             if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             if (!byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim()) { agentError('请填写 Workspace 和 Goal。'); return; }
             stopAgentPolling(); agentState.generation++;
-            Object.assign(agentState, {busy: true, task: null, snapshot: null, report: null, userRejected: false, approvalValid: false, mode: byId('agentMode').value});
+            Object.assign(agentState, {busy: true, task: null, taskContext: null, snapshot: null, report: null, userRejected: false, approvalValid: false, mode: byId('agentMode').value});
             agentError('');
             resetAgentPresentation();
             byId('agentPlan').textContent = '正在创建任务…'; updateAgentControls();
@@ -926,6 +931,7 @@
                 AgentAPI.setMode(agentState.mode);
                 const task = await AgentAPI.createTask(byId('agentGoal').value.trim(), byId('agentWorkspacePath').value.trim(), byId('agentScenario').value);
                 validateAgentTask(task); agentState.task = task;
+                agentState.taskContext = {task_id:task.task_id,user_goal:task.user_goal,workspace:task.workspace};
                 byId('agentTaskStatus').textContent = task.status + ' · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
                 scheduleAgentPolling();
             } catch (error) {
@@ -974,7 +980,7 @@
             // Mode is locked during active work; clear only the idle view.
             if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             stopAgentPolling(); agentState.generation++;
-            Object.assign(agentState, {task: null, snapshot: null, report: null, approvalValid: false, userRejected: false, mode: byId('agentMode').value});
+            Object.assign(agentState, {task: null, taskContext: null, snapshot: null, report: null, approvalValid: false, userRejected: false, mode: byId('agentMode').value});
             AgentAPI.setMode(agentState.mode);
             resetAgentPresentation();
             byId('agentTaskStatus').textContent = 'Ready · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
