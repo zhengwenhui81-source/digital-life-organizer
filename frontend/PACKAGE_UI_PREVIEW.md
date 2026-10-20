@@ -96,3 +96,16 @@ Agent 页识别 Snapshot 中显式的 Package 工具/执行记录后禁用批准
 以实际代码为准：D 的只读 plan_package 已通过 PR #35 合并；PR #40 已有 accept_incomplete 解析和执行不可用防护。仍待 A 完成默认工具路由/TaskService 规划接入，当前 task/plan/digest/preview 的权威绑定，受批准约束的复合执行、按序追加子结果与唯一 final_result_index、每次已尝试复制的 cleanup_results、批准源摘要/冻结报告/精确文件集的实际验证，以及成功 FinalReport 映射和失败报告 GET 409。前端不补造任何接口或事实。
 
 本轮不接通这些真实接口；未来只传入 A 的原始 Snapshot 与报告即可复用展示。实际文件验证、无损纳秒整数传输和真实 HTTP/Package 验收仍待后续工作，当前合成测试通过不能替代它们。
+# PR #45 执行证据修复
+
+有效子操作首次失败后，后续子结果仅保留为“失败后异常记录，不可作为有效执行证据”。
+它们不进入 boundOperations、writes 或 verification；异常成功 build_package 不进入 build。
+合法的最终失败 build_package 仍保留原始错误。逐步展示以 evidenceValid 区分原始诊断和有效执行记录，不能将异常 success=true 标为文件操作执行成功。
+异常复制的 cleanup_results 原样保留但不确认其关联或清理成功；前端不推断实际文件状态，也不执行清理。
+最终成功还要求完整、按序、有效且全部成功的子链、当前验证、任务和 FinalReport。
+
+本轮回归：四文件 Node 回归 86 通过、0 失败（exit 0）；Chrome 沙箱内首次启动超时，
+该次未完成、不计通过。获准在沙箱外重跑本地浏览器后 1 通过、0 失败（exit 0），
+覆盖 22 Fixture × 两种宽度、8 组异常输入和 2 条失败执行链；零 HTTP、正式审批禁用。
+新增四组 Node 回归直接断言可信集合、逐步 evidenceValid、原始错误、异常验证/构建隔离、
+cleanup 诊断、输入不可变及完整合法成功链。上述仅为合成展示测试，不是实际 Package 执行验收。

@@ -339,3 +339,63 @@ test('stale terminal results, replaced planning records and cross-task data cann
     const polluted=fixtures.get('stale_success');assert.equal(view.inspect(polluted).packageSucceeded,false);
     assert.match(view.render(polluted),/部分操作成功，Package 任务失败/);
 });
+
+test('a failed directory excludes later successful copy, verify and build evidence but preserves diagnostics',()=>{
+    const d=fixtures.get('success');d.snapshot.task.status='failed';d.report=null;
+    d.snapshot.results[5]={tool:'create_folder',success:false,data:null,message:'mkdir failed',error:'exclusive directory failed'};
+    const before=structuredClone(d),m=view.inspect(d),html=view.render(d);
+    assert.deepEqual(m.boundOperations.map(row=>row.result_index),[5]);
+    assert.deepEqual(m.writes.map(row=>row.result),[d.snapshot.results[5]]);
+    assert.equal(m.verification,null);assert.equal(m.build,null);
+    assert.deepEqual(m.anomalousResults.map(row=>row.result_index),[6,7,8,9]);
+    assert.equal(m.boundOperations[0].result.error,'exclusive directory failed');
+    assert.ok(m.operationRows.slice(1).every(row=>!row.evidenceValid&&row.result.success===true&&row.label==='失败后异常记录，不可作为有效执行证据'));
+    assert.doesNotMatch(html,/文件操作执行成功|文件验证：通过/);
+    assert.match(html,/exclusive directory failed/);assert.match(html,/copy_file/);assert.match(html,/build_package/);
+    assert.ok(m.cleanupRows.every(row=>row.label==='清理记录不完整/关联无效'));
+    assert.equal(m.packageSucceeded,false);assert.equal(m.formalApprovalEnabled,false);assert.deepEqual(d,before);
+});
+
+test('first copy failure excludes a later successful copy and its cleanup claim without losing the failure',()=>{
+    const d=fixtures.get('partial'),second=d.planResult.data.plan.selected_files[1];
+    d.snapshot.results[6]={tool:'copy_file',success:false,data:null,message:'first copy failed',error:'first copy source failure'};
+    d.snapshot.results[7]={tool:'copy_file',success:true,data:{source:second.source.path,destination:second.target},message:'unexpected second copy success',error:null};
+    d.snapshot.package_execution.cleanup_results[0]={step_id:'package_002',status:'not_attempted',reason:'source failure',residual_state:'absent'};
+    d.snapshot.package_execution.cleanup_results[1]={step_id:'package_003',status:'succeeded',reason:'untrusted cleanup',residual_state:'absent'};
+    const before=structuredClone(d),m=view.inspect(d);
+    assert.deepEqual(m.boundOperations.map(row=>row.result_index),[5,6]);
+    assert.deepEqual(m.writes.filter(row=>row.result.success).map(row=>row.result.tool),['create_folder']);
+    assert.equal(m.operationRows[1].evidenceValid,true);assert.equal(m.operationRows[1].result.error,'first copy source failure');
+    assert.equal(m.operationRows[2].evidenceValid,false);assert.equal(m.operationRows[2].result,d.snapshot.results[7]);
+    assert.match(m.operationRows[2].label,/失败后异常记录/);assert.doesNotMatch(m.operationRows[2].label,/成功/);
+    assert.equal(m.cleanupRows[1].label,'清理记录不完整/关联无效');assert.equal(m.cleanupRows[1].record.status,'succeeded');
+    assert.equal(m.verification,null);assert.equal(m.build.success,false);assert.equal(m.packageSucceeded,false);
+    const html=view.render(d);assert.match(html,/first copy source failure/);assert.match(html,/unexpected second copy success/);
+    assert.deepEqual(d,before);
+});
+
+test('copy failure blocks later verify success and terminal build success independently',()=>{
+    for(const terminalSuccess of [false,true]){
+        const d=fixtures.get('success');d.snapshot.task.status='failed';d.report=null;
+        d.snapshot.results[6]={tool:'copy_file',success:false,data:null,message:'copy failed',error:'copy failure evidence'};
+        if(!terminalSuccess)d.snapshot.results[9]={tool:'build_package',success:false,data:null,message:'failed',error:'original failure retained'};
+        const m=view.inspect(d),html=view.render(d);
+        assert.deepEqual(m.boundOperations.map(row=>row.result_index),[5,6]);
+        assert.equal(m.writes.filter(row=>row.result.success).length,1);
+        assert.equal(m.verification,null);assert.equal(m.operationRows[3].evidenceValid,false);
+        assert.equal(m.operationRows[3].result,d.snapshot.results[8]);
+        assert.ok(m.anomalousResults.some(row=>row.result===d.snapshot.results[8]));
+        if(terminalSuccess){assert.equal(m.build,null);assert.ok(m.anomalousResults.some(row=>row.result===d.snapshot.results[9]));}
+        else assert.equal(m.build,d.snapshot.results[9]);
+        assert.equal(m.packageSucceeded,false);assert.doesNotMatch(html,/文件验证：通过|Package 执行与文件验证成功/);
+        assert.match(html,/copy failure evidence/);assert.equal(m.formalApprovalEnabled,false);
+    }
+});
+
+test('valid complete chain still exposes only bound successful operations and confirms the report',()=>{
+    const m=view.inspect(fixtures.get('success'));
+    assert.deepEqual(m.boundOperations.map(row=>row.result_index),[5,6,7,8]);
+    assert.equal(m.anomalousResults.length,0);assert.equal(m.writes.length,3);
+    assert.ok(m.operationRows.every(row=>row.evidenceValid));
+    assert.equal(m.verification.success,true);assert.equal(m.build.success,true);assert.equal(m.packageSucceeded,true);
+});

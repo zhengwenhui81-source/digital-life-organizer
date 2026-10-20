@@ -57,6 +57,27 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         })()`);
         const warnings={null_task:/方案数据不完整/,null_operation:/执行记录不完整\/无效/,unresolved_source:/未决事项来源关联无效/,failed_report:/Package 报告状态无效/,missing_targets:/verification_targets 缺失或无效/,missing_cleanup:/cleanup_results 缺失或无效/,workspace_mismatch:/任务上下文不一致/,unsafe_timestamp:/精度无法确认/};
         for(const item of combinations){assert.equal(item.unchanged,true);assert.equal(item.disabled,true);assert.equal(item.overflow,false);assert.match(item.text,warnings[item.kind]);assert.match(item.text,/文件验证：未确认通过/);assert.doesNotMatch(item.text,/文件验证：通过/);}
+        const failedChains=await evaluate(`(()=>{
+            return [5,6].map(index=>{
+                const d=PackageFixtures.get('success');d.snapshot.task.status='failed';d.report=null;
+                d.snapshot.results[index]={tool:index===5?'create_folder':'copy_file',success:false,data:null,message:'injected failure',error:'original failure retained'};
+                const before=JSON.stringify(d),m=PackagePreview.inspect(d);content.innerHTML=PackagePreview.render(d);
+                return {index,bound:m.boundOperations.map(row=>row.result_index),writes:m.writes.filter(row=>row.result.success).length,
+                    verification:m.verification,build:m.build,packageSucceeded:m.packageSucceeded,
+                    anomalous:m.anomalousResults.map(row=>row.result_index),rows:m.operationRows.map(row=>({valid:row.evidenceValid,label:row.label})),
+                    text:content.innerText,disabled:formalApprove.disabled,unchanged:before===JSON.stringify(d),overflow:document.documentElement.scrollWidth>innerWidth};
+            });
+        })()`);
+        for(const item of failedChains){
+            assert.deepEqual(item.bound,item.index===5?[5]:[5,6]);assert.equal(item.writes,item.index===5?0:1);
+            assert.equal(item.verification,null);assert.equal(item.build,null);assert.equal(item.packageSucceeded,false);
+            assert.deepEqual(item.anomalous,item.index===5?[6,7,8,9]:[7,8,9]);
+            assert.ok(item.rows.slice(item.index-4).every(row=>!row.valid&&row.label==='失败后异常记录，不可作为有效执行证据'));
+            assert.match(item.text,/original failure retained/);assert.match(item.text,/失败后异常记录/);
+            if(item.index===5)assert.doesNotMatch(item.text,/文件操作执行成功/);
+            assert.doesNotMatch(item.text,/文件验证：通过|Package 执行与文件验证成功/);
+            assert.equal(item.disabled,true);assert.equal(item.unchanged,true);assert.equal(item.overflow,false);
+        }
         assert.equal(await evaluate("getComputedStyle(document.querySelector('pre')).whiteSpace==='pre-wrap'"),true);
         assert.equal(await evaluate("(()=>{scenario.value='risks';scenario.dispatchEvent(new Event('change'));riskIntent.click();return PackageDemo.state.accepted})()"),true);
         assert.equal(await evaluate("(()=>{scenario.value='complete';scenario.dispatchEvent(new Event('change'));return riskIntent.checked||PackageDemo.state.accepted})()"),false);
@@ -64,7 +85,7 @@ test('Package Fixture browser: scenarios, confirmation, disabled approval, escap
         assert.equal(await evaluate('formalApprove.disabled'),true);
         assert.deepEqual(pageErrors,[]);
         assert.deepEqual(network.filter(r=>/^https?:/.test(r.url)),[]);
-        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations; no HTTP requests; approval disabled.');
+        console.log('Validated 22 fixtures × 2 viewports + 8 malformed-input combinations + 2 failed execution chains; no HTTP requests; approval disabled.');
     }finally{
         if(ws)ws.close();browser.kill();await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));
         // Only remove the exact profile created by this test, outside user Workspace.
