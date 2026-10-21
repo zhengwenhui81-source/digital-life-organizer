@@ -25,6 +25,7 @@ from fileforge.agent.package_evidence import (
     current_package_analysis,
     revalidate_documents,
 )
+from fileforge.agent.package_preview import freeze_package_preview
 from fileforge.agent.planner import plan_task
 
 _READABLE_EXTENSIONS = frozenset({".txt", ".pdf", ".docx", ".xlsx"})
@@ -120,6 +121,154 @@ class TaskService:
                 entry["package_approval"] = None
                 raise
             return {"analysis": analysis, "checked": checked}
+
+    def prepare_package(
+        self,
+        task_id: str,
+        selected_files: list[dict[str, Any]],
+        destination: str,
+    ) -> dict[str, Any]:
+        """Plan a Package from this Task's authenticated analysis, without writes.
+
+        This internal orchestration entry is for the next Package adapter stage;
+        it does not add a post-analysis HTTP selection endpoint. Approval still
+        cannot execute Package writes until the composite builder is installed.
+        """
+        from fileforge.package import plan_package
+
+        evidence = self._package_preflight(task_id)
+        with self._lock:
+            entry = self._entry(task_id)
+            task = deepcopy(entry["task"])
+            task.pop("status")
+            state = entry["execution"]
+            if entry["task"]["status"] != "completed":
+                raise TaskConflict("Package analysis is no longer current")
+            try:
+                result = plan_package(
+                    task=task,
+                    selected_files=selected_files,
+                    destination=destination,
+                    analysis=evidence["analysis"],
+                )
+            except Exception as exc:
+                result = {
+                    "success": False,
+                    "tool": "plan_package",
+                    "data": None,
+                    "message": "Package planning failed",
+                    "error": str(exc) or type(exc).__name__,
+                }
+            try:
+                plan, bindings, operations = freeze_package_preview(
+                    task, evidence["analysis"], evidence["checked"], result
+                )
+            except Exception as exc:
+                failure = (
+                    result
+                    if (
+                        type(result) is dict
+                        and result.get("tool") == "plan_package"
+                        and result.get("success") is False
+                        and result.get("data") is None
+                        and type(result.get("message")) is str
+                        and type(result.get("error")) is str
+                    )
+                    else {
+                        "success": False,
+                        "tool": "plan_package",
+                        "data": None,
+                        "message": "Package preview validation failed",
+                        "error": str(exc) or type(exc).__name__,
+                    }
+                )
+                self._record_package_plan(
+                    state,
+                    task,
+                    selected_files,
+                    destination,
+                    evidence["analysis"],
+                    failure,
+                )
+                state["status"] = "failed"
+                entry["task"]["status"] = "failed"
+                entry["error"] = failure["error"]
+                entry["report"] = None
+                entry["preview_id"] = None
+                return self.snapshot(task_id)
+            self._record_package_plan(
+                state, task, selected_files, destination, evidence["analysis"], result
+            )
+            payload = json.dumps(
+                {
+                    "task_id": task_id,
+                    "plan_id": plan["plan_id"],
+                    "plan_sha256": result["data"]["plan_sha256"],
+                    "plan": plan,
+                    "operations": operations,
+                    "approval_state": "awaiting_approval",
+                    "nonce": secrets.token_hex(16),
+                },
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            preview_id = "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            entry["package_approval"] = {
+                "preview_id": preview_id,
+                "plan_id": plan["plan_id"],
+                "plan_sha256": result["data"]["plan_sha256"],
+                "plan": plan,
+                "checked": deepcopy(evidence["checked"]),
+                "bindings": bindings,
+                "missing": deepcopy(plan["missing"]),
+                "unresolved": deepcopy(plan["unresolved"]),
+            }
+            state["status"] = "awaiting_approval"
+            state["pending_operations"] = operations
+            entry["task"]["status"] = "awaiting_approval"
+            entry["preview_id"] = preview_id
+            entry["error"] = None
+            entry["report"] = None
+            return self.snapshot(task_id)
+
+    @staticmethod
+    def _record_package_plan(
+        state: dict[str, Any],
+        task: dict[str, Any],
+        selected_files: list[dict[str, Any]],
+        destination: str,
+        analysis: dict[str, Any],
+        result: dict[str, Any],
+    ) -> None:
+        """Append one low-risk D result with its actual task-scoped call inputs."""
+        step_id = f"step_{len(state['plan']['steps']) + 1:03d}"
+        state["plan"]["steps"].append(
+            {
+                "step_id": step_id,
+                "tool": "plan_package",
+                "description": "Prepare a read-only Package preview",
+                "risk": "low",
+                "status": "completed" if result["success"] else "failed",
+                "arguments": {},
+            }
+        )
+        result_index = len(state["results"])
+        state["results"].append(deepcopy(result))
+        state["result_calls"].append(
+            {
+                "result_index": result_index,
+                "step_id": step_id,
+                "tool": "plan_package",
+                "arguments": {
+                    "task": deepcopy(task),
+                    "selected_files": deepcopy(selected_files),
+                    "destination": destination,
+                    "analysis": deepcopy(analysis),
+                },
+            }
+        )
 
     def run(self, task_id: str) -> None:
         with self._lock:
