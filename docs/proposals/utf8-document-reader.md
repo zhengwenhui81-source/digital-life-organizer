@@ -21,8 +21,10 @@ remains TXT, PDF, DOCX and XLSX. No existing format behavior changes in this PR.
    Other source suffixes, Markdown, Python, images and XLSM remain outside this
    increment; no MIME sniffing or automatic fallback to arbitrary binary files.
 2. For these new suffixes only, decode strict UTF-8, accepting and removing one
-   leading UTF-8 BOM. Reject malformed/truncated UTF-8, UTF-16/32 and legacy
-   encodings rather than replacing bytes or guessing. Reject embedded NUL.
+   leading UTF-8 BOM. Reject malformed/truncated UTF-8 and embedded NUL; never
+   fall back to UTF-16/32 or legacy decoding. Common non-UTF-8 byte sequences
+   fail, but bytes valid in multiple encodings cannot reveal the author's intended
+   encoding. This is strict UTF-8 interpretation, not an encoding detector.
    Valid Unicode U+FFFD explicitly encoded by the author remains valid text.
 3. Preserve decoded characters, whitespace, CRLF/LF and CSV quote/record order.
    Empty or whitespace-only content fails. No 2,000-character snippet or silent
