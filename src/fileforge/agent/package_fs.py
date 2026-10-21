@@ -218,7 +218,10 @@ def _win_relative(
             raise FileNotFoundError(f"Package path not found: {name}")
         if code in (5, 32):
             raise PermissionError(f"Package object not accessible: {name}")
-        raise OSError(f"NtCreateFile failed on {name}: {code} (NTSTATUS {status & 0xFFFFFFFF:#x})")
+        raise OSError(
+            f"NtCreateFile failed on {name}: {code} "
+            f"(NTSTATUS {status & 0xFFFFFFFF:#x})"
+        )
     handle = out.value
     try:
         _win_check(handle, directory=directory)
