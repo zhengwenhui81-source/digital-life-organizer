@@ -1,10 +1,9 @@
 """Workspace-anchored, exclusive Package file operations.
 
-POSIX opens each ancestor relative to its held directory descriptor. Windows
-holds every ancestor directory without FILE_SHARE_DELETE and opens final files
-with FILE_FLAG_OPEN_REPARSE_POINT; a concurrent rename/reparse replacement
-cannot redirect a path while its ancestor locks are held. A concurrent move
-after a handle is released remains an observable filesystem race (v1 limit).
+POSIX opens each ancestor relative to a held directory descriptor. Windows
+opens child objects and enumerates directory entries relative to native handles,
+rejecting reparse objects instead of re-resolving mutable path strings.
+A concurrent move after handles are released remains an observable v1 race.
 """
 
 from __future__ import annotations
