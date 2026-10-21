@@ -366,9 +366,7 @@ def _windows_entries(handle: int) -> set[str]:
         while True:
             if offset + 12 > size:
                 raise ValueError("Package directory entry is truncated")
-            next_offset, _, name_bytes = struct.unpack_from(
-                "<III", buffer.raw, offset
-            )
+            next_offset, _, name_bytes = struct.unpack_from("<III", buffer.raw, offset)
             start = offset + 12
             end = start + name_bytes
             if name_bytes % 2 or end > size:
