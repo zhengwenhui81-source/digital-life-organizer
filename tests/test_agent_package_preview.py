@@ -745,18 +745,33 @@ def test_posix_parent_retarget_cannot_redirect_anchored_file(
     assert not (outside / "protected.txt").exists()
 
 
-def test_windows_parent_handle_blocks_rename(tmp_path: Path):
+def test_windows_relative_handle_cannot_follow_parent_retarget(tmp_path: Path):
+    import msvcrt
     import os
 
-    from fileforge.agent.package_fs import _parent
+    from fileforge.agent.package_fs import _parent, _win_relative
 
     if os.name != "nt":
-        pytest.skip("Windows directory sharing test")
+        pytest.skip("Windows native handle test")
     root = tmp_path / "workspace"
     root.mkdir()
     parent = root / "parent"
     parent.mkdir()
-    with _parent(parent / "new.txt", root):
-        with pytest.raises(OSError):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    with _parent(parent / "new.txt", root, writing=True) as pinned:
+        try:
             parent.rename(root / "moved")
-    assert parent.is_dir()
+            parent.symlink_to(outside, target_is_directory=True)
+        except OSError:
+            pytest.skip("Windows does not allow parent replacement in this environment")
+        handle = _win_relative(
+            pinned, "new.txt", directory=False, create=True
+        )
+        fd = msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY)
+        try:
+            os.write(fd, b"anchored")
+        finally:
+            os.close(fd)
+    assert (root / "moved" / "new.txt").read_bytes() == b"anchored"
+    assert not (outside / "new.txt").exists()
