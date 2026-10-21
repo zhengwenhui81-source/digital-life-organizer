@@ -214,9 +214,9 @@ def test_ordinary_names_are_not_rejected_for_single_characters(tmp_path, name):
 @pytest.mark.parametrize(
     "assertion",
     [
-        "提交限获奖者提供的资格证明",
-        "提交限具备资格的申请人办理的证明",
-        "提交限指定身份人员提交的证明",
+        "提交材料限获奖者提供的证明",
+        "提交申请材料限具备资格的申请人办理的证明",
+        "需提交材料限指定身份人员提交的证明",
     ],
 )
 def test_audience_limited_assertion_does_not_become_unconditional(tmp_path, assertion):
