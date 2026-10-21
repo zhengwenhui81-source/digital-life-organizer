@@ -224,7 +224,7 @@ def test_audience_limited_assertion_does_not_become_unconditional(
 ):
     doc = read_text(
         tmp_path,
-        "所需材料\\nM1 资格证明：" + assertion + "。\\nM2 研究计划：提交研究计划。",
+        "所需材料\nM1 资格证明：" + assertion + "。\nM2 研究计划：提交研究计划。",
     )
     result = extract_requirements(documents=[doc])
     assert result["success"], result
