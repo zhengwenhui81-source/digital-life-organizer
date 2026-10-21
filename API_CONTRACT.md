@@ -215,6 +215,16 @@ These scope limits apply even to successful Documents. C1 progress and outstandi
 verification are tracked in `TASKS.md`; recognizing four extensions alone does
 not establish complete C1 acceptance.
 
+### Pending UTF-8 reader extension proposal
+
+**Proposed, not confirmed or enabled.** The active reader still supports exactly
+TXT/PDF/DOCX/XLSX. See the [UTF-8 extension proposal](docs/proposals/utf8-document-reader.md)
+for `.cpp`, `.h`, `.hpp`, `.json`, `.csv`, strict UTF-8 decoding and a proposed
+new-format-only raw-file limit of **1,048,576 bytes, inclusive**. This is neither
+a new Document schema nor a change to Version/Matching quotas. A/B/C/D agreement
+and a separately reviewed public implementation must precede enabling formats.
+The existing `ToolResult` rules below remain active and unchanged.
+
 ### ToolResult
 
 Every public tool must return this envelope.
