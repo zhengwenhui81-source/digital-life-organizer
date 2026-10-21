@@ -29,8 +29,23 @@ _NUMBER = re.compile(
 )
 _HEADING = re.compile(
     r"^(?:#{1,6}\s*)?(?:[一二三四五六七八九十]+、)?"
-    r"(?:提交材料|所需材料|必交材料)(?:\s*[:：]\s*(.*))?$"
+    r"(?:正式)?(?:提交材料|所需材料|必交材料)(?:清单|要求)?"
+    r"(?:\s*[:：]\s*(.*))?$"
 )
+# Typed item identifiers are recognized only inside an explicit material list.
+_CODE_NUMBER = re.compile(
+    r"^[A-Za-z]{1,12}[-_]?[0-9]+(?:[.-][0-9]+)*[.)、．]?[ \t]+(.+)$"
+)
+_LABELED = re.compile(r"(?P<name>[^：:]+)[：:]\s*(?P<assertion>.+)$")
+_LABEL_ASSERTION = re.compile(
+    r"^(?:请)?(?P<mode>必须提交|须提交|需提交|需要提交|无需提交|不必提交|不需要提交|提交)"
+    r"[：:\s]*(?P<items>.+)$"
+)
+
+# Restrictive qualifiers on a labeled description must not disappear when
+# extracting its short material name. No condition reasoning is attempted.
+_LABEL_RESTRICTION = re.compile(r"仅|限于|[（(][^）)]*(?:条件|者)[^）)]*[）)]")
+
 # Bare Chinese numbering is ambiguous with chapter numbering: terminate scope.
 # Parenthesized Chinese/Arabic and plain Arabic lists remain supported.
 _SECTION = re.compile(
@@ -85,6 +100,26 @@ def _clause_evidence(
     # Keep conditions/alternatives attached before separating explicit assertions.
     if _COMPLEX.search(clause):
         return []
+    # An explicit list label supplies the material name; the right-hand side
+    # must independently require submission. Descriptions/criteria alone cannot
+    # become requirements. Keep conditions/alternatives attached to the clause.
+    label = (
+        _LABELED.fullmatch(clause.strip())
+        if default is not None and not _ASSERTION.fullmatch(clause.strip())
+        else None
+    )
+    if label:
+        assertion = _LABEL_ASSERTION.fullmatch(label["assertion"].strip())
+        if (
+            assertion
+            and not _MODIFIER.search(assertion["items"])
+            and not _LABEL_RESTRICTION.search(assertion["items"])
+        ):
+            required = (
+                assertion["mode"] in _REQUIRED_MODES or assertion["mode"] == "提交"
+            )
+            return _items(label["name"], source, required)
+        return []
     evidence = []
     statements = re.split(
         r"[，,]\s*(?=(?:请)?(?:必须提交|须提交|需提交|需要提交|无需提交|不必提交|不需要提交))",
@@ -127,7 +162,9 @@ def parse_material_evidence(text: str, source: str) -> list[MaterialEvidence]:
                 for clause in _unconditional_sentences(heading[1]):
                     evidence.extend(_clause_evidence(clause, source, True))
             continue
-        numbered = _NUMBER.fullmatch(line)
+        numbered = _NUMBER.fullmatch(line) or (
+            _CODE_NUMBER.fullmatch(line) if in_list else None
+        )
         body = numbered[1] if numbered else line
         if (
             _SECTION.match(line)
