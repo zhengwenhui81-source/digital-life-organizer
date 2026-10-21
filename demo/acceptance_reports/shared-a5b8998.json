@@ -1,0 +1,470 @@
+{
+  "schema": "b-shared-acceptance-run-summary-v1",
+  "status": "blocked",
+  "scope": "Synthetic independent read probes and one 8-file subset; NOT a full 22-file task or LLM acceptance",
+  "source_head": "a5b89985ec24f536b9445823c783a273c672730f",
+  "environment": {
+    "system": "Windows",
+    "python": "3.12.12",
+    "head": "a5b89985ec24f536b9445823c783a273c672730f",
+    "utc": "2026-10-21T11:40:46.216964+00:00"
+  },
+  "dataset": {
+    "status": "prepared_not_tested",
+    "package": 22,
+    "classification": 20,
+    "synthetic": true,
+    "legacy_22_template": "unchanged_pending",
+    "gold_sha256": "19d9d8506a6ab666bbdc361fab27302c7c50c898757e5ac58e493c030d9a1a53"
+  },
+  "layers": {
+    "independent_tool_tests": {
+      "status": "passed",
+      "passed": 53,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "controlled_taskservice": {
+      "status": "observed_read_only",
+      "tasks": 24,
+      "task_outcomes": {
+        "failed": 7,
+        "completed": 16,
+        "awaiting_approval": 1
+      }
+    },
+    "full_22_file_same_task": {
+      "status": "blocked",
+      "task_id": "task_83b61029866d4863a54b9d75f3d5eaf5",
+      "error": "Document batch exceeds 10 candidates",
+      "executed_tools": [
+        "list_files"
+      ]
+    },
+    "windows_browser": {
+      "status": "not_run"
+    },
+    "deepseek_e2e": {
+      "status": "not_run",
+      "provider_attestation": "unverifiable",
+      "reason": "No model called; a Snapshot does not authenticate a provider"
+    },
+    "real_classification": {
+      "status": "blocked",
+      "purpose_accuracy": null,
+      "purpose_coverage": null,
+      "reason": "No frozen classify_files adapter or real decisions"
+    },
+    "package_execution": {
+      "status": "not_run",
+      "approvals_sent": 0
+    }
+  },
+  "single_file_tasks": {
+    "scope": "Independent tasks; do not combine into complete task coverage",
+    "passed_read": 16,
+    "failed_read": 6
+  },
+  "analysis_subset": {
+    "status": "awaiting_approval",
+    "task_id": "task_be4ec63ccf8f422da651dea6aaa47393",
+    "files_read": 8,
+    "tools": [
+      {
+        "tool": "detect_conflicts",
+        "success": true
+      },
+      {
+        "tool": "extract_requirements",
+        "success": true
+      },
+      {
+        "tool": "compare_versions",
+        "success": true
+      },
+      {
+        "tool": "match_requirements",
+        "success": true
+      },
+      {
+        "tool": "plan_package",
+        "success": true
+      }
+    ],
+    "approval_sent": false,
+    "scope": "Only this subset, not all 22"
+  },
+  "coverage_lower_bounds_not_full_task": {
+    "discovered": {
+      "confirmed": 22,
+      "denominator": 22,
+      "meaning": "confirmed lower bound, NOT complete task coverage"
+    },
+    "read_success": {
+      "confirmed": 16,
+      "denominator": 22,
+      "meaning": "confirmed lower bound, NOT complete task coverage"
+    },
+    "read_failed": {
+      "confirmed": 6,
+      "denominator": 22,
+      "meaning": "confirmed lower bound, NOT complete task coverage"
+    },
+    "unsupported": {
+      "confirmed": 0,
+      "denominator": 22,
+      "meaning": "confirmed lower bound, NOT complete task coverage"
+    },
+    "not_processed_due_to_limit": {
+      "confirmed": 0,
+      "denominator": 22,
+      "meaning": "confirmed lower bound, NOT complete task coverage"
+    },
+    "analyzed": {
+      "confirmed": 8,
+      "denominator": 22,
+      "meaning": "confirmed lower bound, NOT complete task coverage"
+    },
+    "needs_confirmation": {
+      "confirmed": 8,
+      "denominator": 22,
+      "meaning": "confirmed lower bound, NOT complete task coverage"
+    }
+  },
+  "files": [
+    {
+      "path": "通知_原版.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "confirmed",
+        "needs_confirmation": "confirmed"
+      }
+    },
+    {
+      "path": "通知_补充.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "confirmed",
+        "needs_confirmation": "confirmed"
+      }
+    },
+    {
+      "path": "结题报告_v1.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "confirmed",
+        "needs_confirmation": "confirmed"
+      }
+    },
+    {
+      "path": "实验记录_v1.docx",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "confirmed",
+        "needs_confirmation": "confirmed"
+      }
+    },
+    {
+      "path": "结题报告_v2.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "confirmed",
+        "needs_confirmation": "confirmed"
+      }
+    },
+    {
+      "path": "实验记录_v2.docx",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "confirmed",
+        "needs_confirmation": "confirmed"
+      }
+    },
+    {
+      "path": "费用清单.xlsx",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "confirmed",
+        "needs_confirmation": "confirmed"
+      }
+    },
+    {
+      "path": "费用凭证.pdf",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "课程说明.docx",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "项目总结.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "附件索引.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "预算草稿.xlsx",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "course_notes.pdf",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "personal_schedule.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "合影.png",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "unverifiable",
+        "read_failed": "confirmed",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "图像通知.png",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "unverifiable",
+        "read_failed": "confirmed",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "损坏记录.pdf",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "unverifiable",
+        "read_failed": "confirmed",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "损坏表格.docx",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "unverifiable",
+        "read_failed": "confirmed",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "空材料.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "unverifiable",
+        "read_failed": "confirmed",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "未知数据.bin",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "unverifiable",
+        "read_failed": "confirmed",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "参考资料.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "unverifiable",
+        "needs_confirmation": "unverifiable"
+      }
+    },
+    {
+      "path": "签字页_待确认.txt",
+      "states": {
+        "discovered": "confirmed",
+        "read_success": "confirmed",
+        "read_failed": "unverifiable",
+        "unsupported": "unverifiable",
+        "not_processed_due_to_limit": "unverifiable",
+        "analyzed": "confirmed",
+        "needs_confirmation": "confirmed"
+      }
+    }
+  ],
+  "originals": {
+    "package": {
+      "files": 22,
+      "sha256_unchanged": true,
+      "mtime_and_size_unchanged": true
+    },
+    "classification": {
+      "files": 20,
+      "sha256_unchanged": true,
+      "mtime_and_size_unchanged": true
+    }
+  },
+  "commands": [
+    {
+      "command": "python -B demo/shared_acceptance.py generate --directory <new-dataset>",
+      "exit_code": 0
+    },
+    {
+      "command": "python -B demo/shared_acceptance.py probe --directory <dataset> --output <dataset>/runs/read-only",
+      "exit_code": 0,
+      "meaning": "Records completed/failed/awaiting_approval tasks, not all passed"
+    },
+    {
+      "command": [
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "demo",
+        "-p",
+        "test_*acceptance*.py",
+        "-v"
+      ],
+      "executable": ".venv/Scripts/python.exe",
+      "exit_code": 0,
+      "tests": 53
+    },
+    {
+      "command": "python -B demo/shared_acceptance.py report --directory <dataset> --evidence <observations.json> --tests <test-record.json> --format json",
+      "exit_code": 2
+    },
+    {
+      "command": "python -B demo/shared_acceptance.py report --directory <dataset> --evidence <observations.json> --tests <test-record.json> --format markdown",
+      "exit_code": 2
+    }
+  ],
+  "artifacts": {
+    "observations_sha256": "e708b8548fe9c076de99af04fae40a70d8cd5fdd5a0b866df29d9d08fd64e432",
+    "test_record_sha256": "f1d50d54216a53b0ca333981bf9157945ce4a2f9e8f30f58fc0f4b327f2061ea",
+    "test_log_sha256": "43602bbb333b3e1e321326c1fc5f0ef376ed4fbb57fda1bd1b1b317f50266eb3",
+    "report_json_sha256": "cc8289a9c9dcf4b2394466dde16f3ec69a6f065f9d07b048db140156c45b00fe",
+    "report_markdown_sha256": "fb2e264c9be198c0d866c177eb78c21083ee31f68dd2f8caae333a07ba6c0cf6",
+    "tested_code_sha256": {
+      "demo/acceptance_datasets.py": "aac189d623ef7acbb77caba03a52549ae4b43249b90da6a9dc4f5b7bc750a29a",
+      "demo/organization_acceptance.py": "52fcc70c9b5d1f9bbfb4479c12ee0460a3fa01c80ba05fc6a03077fd3609d217",
+      "demo/package_acceptance_prep.py": "6d90663ae8b058a179687be069bf4b3e33cff14c239f80d27c2e26b3e6dec539",
+      "demo/shared_acceptance.py": "06fbb5d0c4e28fcdba9b254fd1231789b5d933aa077374b8eac6ce1a758e061a",
+      "demo/test_organization_acceptance.py": "a6df9e093b214066a4599def109505d01f42fdd267f0ff088930dd8dfe33281e",
+      "demo/test_package_acceptance_prep.py": "93f8848b5286ca601367f075cad4cb69e80f7608268b13e7ebb90b8bc239b4d3",
+      "demo/test_shared_acceptance.py": "8463fc3cedf0dbfd449b9b17617cd68104dfb066978cea83b854e5f74f1259ba"
+    }
+  },
+  "limitations": [
+    "Raw artifacts remain local and include absolute paths and text; not committed",
+    "Summary is local recorded evidence, not remote/provider attestation",
+    "Package byte observation is not approval authentication",
+    "No production code, labels, 22-file template or limits changed"
+  ]
+}
