@@ -203,7 +203,7 @@ def _check_path(path: Path, workspace: Path) -> None:
             raise ValueError("Package evidence path contains a link")
 
 
-def _digest(path: Path, workspace: Path) -> tuple[str, int, int]:
+def _digest(path: Path, workspace: Path) -> tuple[str, int, int, int, int]:
     _check_path(path, workspace)
     before = path.lstat()
     if not stat.S_ISREG(before.st_mode):
@@ -231,7 +231,13 @@ def _digest(path: Path, workspace: Path) -> tuple[str, int, int]:
             raise ValueError("Package evidence source changed while hashing")
         if size != before.st_size:
             raise ValueError("Package evidence source size changed while hashing")
-        return digest.hexdigest(), size, before.st_mtime_ns
+        return (
+            digest.hexdigest(),
+            size,
+            before.st_mtime_ns,
+            before.st_dev,
+            before.st_ino,
+        )
     finally:
         os.close(fd)
 
@@ -284,7 +290,7 @@ def revalidate_documents(
     if not pending:
         raise ValueError("Package evidence has no successful Document reads")
     for index, original, path, path_text, file_id in pending:
-        before, size, mtime_ns = _digest(path, root)
+        before, size, mtime_ns, device, inode = _digest(path, root)
         current = reader(path=str(path))
         if (
             type(current) is not dict
@@ -297,8 +303,8 @@ def revalidate_documents(
         reread = current["data"]["document"]
         if not _json_shape(reread) or not _same_document(original, reread):
             raise ValueError("Package Document changed since analysis")
-        after, after_size, after_mtime_ns = _digest(path, root)
-        if (before, size, mtime_ns) != (after, after_size, after_mtime_ns):
+        observed = _digest(path, root)
+        if (before, size, mtime_ns, device, inode) != observed:
             raise ValueError("Package source bytes changed during reread")
         checked[index] = {
             "file_id": file_id,
@@ -307,6 +313,8 @@ def revalidate_documents(
             "size": size,
             "mtime_ns": mtime_ns,
             "sha256": before,
+            "device": device,
+            "inode": inode,
         }
     return checked
 
@@ -380,12 +388,20 @@ def recheck_approved_source_bytes(
             or type(evidence.get("size")) is not int
             or evidence["size"] < 0
             or type(evidence.get("mtime_ns")) is not int
+            or type(evidence.get("device")) is not int
+            or type(evidence.get("inode")) is not int
             or type(evidence.get("sha256")) is not str
             or len(evidence["sha256"]) != 64
             or any(char not in "0123456789abcdef" for char in evidence["sha256"])
         ):
             raise ValueError("Approved Package source evidence is invalid")
         current = _digest(Path(evidence["path"]), root)
-        expected = (evidence["sha256"], evidence["size"], evidence["mtime_ns"])
+        expected = (
+            evidence["sha256"],
+            evidence["size"],
+            evidence["mtime_ns"],
+            evidence["device"],
+            evidence["inode"],
+        )
         if current != expected:
             raise ValueError("Approved Package source differs from frozen preview")

@@ -25,6 +25,8 @@ from fileforge.agent.package_evidence import (
     current_package_analysis,
     revalidate_documents,
 )
+from fileforge.agent.package_execution import execute_package
+from fileforge.agent.package_preview import freeze_package_preview
 from fileforge.agent.planner import plan_task
 
 _READABLE_EXTENSIONS = frozenset({".txt", ".pdf", ".docx", ".xlsx"})
@@ -71,6 +73,7 @@ class TaskService:
                 "report": None,
                 "approved_operations_verified": False,
                 "package_approval": None,
+                "package_execution": None,
             }
         return deepcopy(task)
 
@@ -92,6 +95,7 @@ class TaskService:
                     "pending_operations": state["pending_operations"] if state else [],
                     "preview_id": entry["preview_id"],
                     "error": entry["error"],
+                    "package_execution": entry["package_execution"],
                 }
             )
 
@@ -104,6 +108,8 @@ class TaskService:
                 entry["task"]["status"] != "completed"
                 or state is None
                 or state["status"] != "completed"
+                or entry["package_approval"] is not None
+                or entry["package_execution"] is not None
             ):
                 raise TaskConflict("Package analysis is not completed")
             try:
@@ -121,6 +127,154 @@ class TaskService:
                 raise
             return {"analysis": analysis, "checked": checked}
 
+    def prepare_package(
+        self,
+        task_id: str,
+        selected_files: list[dict[str, Any]],
+        destination: str,
+    ) -> dict[str, Any]:
+        """Plan a Package from this Task's authenticated analysis, without writes.
+
+        This remains an internal orchestration entry; it does not add a
+        post-analysis HTTP selection endpoint. The same preview is required
+        before the composite builder can execute any Package writes.
+        """
+        from fileforge.package import plan_package
+
+        evidence = self._package_preflight(task_id)
+        with self._lock:
+            entry = self._entry(task_id)
+            task = deepcopy(entry["task"])
+            task.pop("status")
+            state = entry["execution"]
+            if entry["task"]["status"] != "completed":
+                raise TaskConflict("Package analysis is no longer current")
+            try:
+                result = plan_package(
+                    task=task,
+                    selected_files=selected_files,
+                    destination=destination,
+                    analysis=evidence["analysis"],
+                )
+            except Exception as exc:
+                result = {
+                    "success": False,
+                    "tool": "plan_package",
+                    "data": None,
+                    "message": "Package planning failed",
+                    "error": str(exc) or type(exc).__name__,
+                }
+            try:
+                plan, bindings, operations = freeze_package_preview(
+                    task, evidence["analysis"], evidence["checked"], result
+                )
+            except Exception as exc:
+                failure = (
+                    result
+                    if (
+                        type(result) is dict
+                        and result.get("tool") == "plan_package"
+                        and result.get("success") is False
+                        and result.get("data") is None
+                        and type(result.get("message")) is str
+                        and type(result.get("error")) is str
+                    )
+                    else {
+                        "success": False,
+                        "tool": "plan_package",
+                        "data": None,
+                        "message": "Package preview validation failed",
+                        "error": str(exc) or type(exc).__name__,
+                    }
+                )
+                self._record_package_plan(
+                    state,
+                    task,
+                    selected_files,
+                    destination,
+                    evidence["analysis"],
+                    failure,
+                )
+                state["status"] = "failed"
+                entry["task"]["status"] = "failed"
+                entry["error"] = failure["error"]
+                entry["report"] = None
+                entry["preview_id"] = None
+                return self.snapshot(task_id)
+            self._record_package_plan(
+                state, task, selected_files, destination, evidence["analysis"], result
+            )
+            payload = json.dumps(
+                {
+                    "task_id": task_id,
+                    "plan_id": plan["plan_id"],
+                    "plan_sha256": result["data"]["plan_sha256"],
+                    "plan": plan,
+                    "operations": operations,
+                    "approval_state": "awaiting_approval",
+                    "nonce": secrets.token_hex(16),
+                },
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            preview_id = "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            entry["package_approval"] = {
+                "preview_id": preview_id,
+                "plan_id": plan["plan_id"],
+                "plan_sha256": result["data"]["plan_sha256"],
+                "plan": plan,
+                "checked": deepcopy(evidence["checked"]),
+                "bindings": bindings,
+                "missing": deepcopy(plan["missing"]),
+                "unresolved": deepcopy(plan["unresolved"]),
+            }
+            state["status"] = "awaiting_approval"
+            state["pending_operations"] = operations
+            entry["task"]["status"] = "awaiting_approval"
+            entry["preview_id"] = preview_id
+            entry["error"] = None
+            entry["report"] = None
+            return self.snapshot(task_id)
+
+    @staticmethod
+    def _record_package_plan(
+        state: dict[str, Any],
+        task: dict[str, Any],
+        selected_files: list[dict[str, Any]],
+        destination: str,
+        analysis: dict[str, Any],
+        result: dict[str, Any],
+    ) -> None:
+        """Append one low-risk D result with its actual task-scoped call inputs."""
+        step_id = f"step_{len(state['plan']['steps']) + 1:03d}"
+        state["plan"]["steps"].append(
+            {
+                "step_id": step_id,
+                "tool": "plan_package",
+                "description": "Prepare a read-only Package preview",
+                "risk": "low",
+                "status": "completed" if result["success"] else "failed",
+                "arguments": {},
+            }
+        )
+        result_index = len(state["results"])
+        state["results"].append(deepcopy(result))
+        state["result_calls"].append(
+            {
+                "result_index": result_index,
+                "step_id": step_id,
+                "tool": "plan_package",
+                "arguments": {
+                    "task": deepcopy(task),
+                    "selected_files": deepcopy(selected_files),
+                    "destination": destination,
+                    "analysis": deepcopy(analysis),
+                },
+            }
+        )
+
     def run(self, task_id: str) -> None:
         with self._lock:
             entry = self._entry(task_id)
@@ -130,6 +284,24 @@ class TaskService:
             task = deepcopy(entry["task"])
         try:
             plan = self._planner(task["task_id"], task["user_goal"], task["workspace"])
+            package_steps = [
+                index
+                for index, step in enumerate(plan["steps"])
+                if step["tool"] == "build_package"
+            ]
+            wants_package = bool(package_steps)
+            if wants_package:
+                if (
+                    package_steps != [len(plan["steps"]) - 1]
+                    or len(plan["steps"]) < 2
+                    or plan["steps"][-1]["arguments"] != {}
+                    or any(step["risk"] != "low" for step in plan["steps"][:-1])
+                ):
+                    raise ValueError(
+                        "Package request must follow completed read-only analysis"
+                    )
+                plan = deepcopy(plan)
+                plan["steps"].pop()
             self._check_plan_paths(plan, Path(task["workspace"]))
             state = create_execution(plan)
             with self._lock:
@@ -143,6 +315,9 @@ class TaskService:
                 ),
             )
             self._finish(entry)
+            if wants_package and entry["task"]["status"] == "completed":
+                selected, destination = self._propose_package(task_id)
+                self.prepare_package(task_id, selected, destination)
         except Exception as exc:
             with self._lock:
                 entry["task"]["status"] = "failed"
@@ -155,6 +330,76 @@ class TaskService:
                             break
                     entry["execution"]["pending_operations"] = []
                 entry["preview_id"] = None
+                entry["report"] = None
+
+    def _propose_package(self, task_id: str) -> tuple[list[dict], str]:
+        """Suggest only unique filename candidates from this Task's matching."""
+        with self._lock:
+            entry = self._entry(task_id)
+            if entry["task"]["status"] != "completed":
+                raise TaskConflict("Package analysis is not completed")
+            matches = [
+                result
+                for result in entry["execution"]["results"]
+                if result.get("tool") == "match_requirements"
+            ]
+            if not matches or matches[-1].get("success") is not True:
+                raise ValueError(
+                    "Package needs successful current requirement matching"
+                )
+            data = matches[-1].get("data")
+            groups = data.get("matched") if type(data) is dict else None
+            if type(groups) is not list:
+                raise ValueError("Package matching returned invalid candidates")
+            selected: list[dict] = []
+            by_id: dict[str, dict] = {}
+            for group in groups:
+                if type(group) is not dict or type(group.get("documents")) is not list:
+                    raise ValueError("Package matching returned invalid candidates")
+                documents = group["documents"]
+                if len(documents) != 1:
+                    continue  # Ambiguous candidates are never chosen silently.
+                requirement = group.get("requirement")
+                source = documents[0]
+                if (
+                    type(requirement) is not str
+                    or not requirement.strip()
+                    or type(source) is not dict
+                    or any(
+                        type(source.get(key)) is not str or not source[key]
+                        for key in ("file_id", "path", "filename")
+                    )
+                ):
+                    raise ValueError(
+                        "Package matching returned invalid source references"
+                    )
+                file_id = source["file_id"]
+                reference = {
+                    key: source[key] for key in ("file_id", "path", "filename")
+                }
+                prior = by_id.get(file_id)
+                if prior is not None:
+                    if prior["source"] != reference:
+                        raise ValueError(
+                            "Package matching has contradictory file identity"
+                        )
+                    if requirement not in prior["requirements"]:
+                        prior["requirements"].append(requirement)
+                    continue
+                proposed = {
+                    "source": reference,
+                    "requirements": [requirement],
+                    "reason": "当前任务的唯一文件名候选；仍待用户在预览中确认",
+                }
+                selected.append(proposed)
+                by_id[file_id] = proposed
+            if not selected:
+                raise ValueError(
+                    "No unambiguous material candidate can be proposed for Package"
+                )
+            root = Path(entry["task"]["workspace"])
+            destination = str(root / f"package_{task_id}")
+            return selected, destination
 
     @staticmethod
     def _check_plan_paths(plan: dict[str, Any], root: Path) -> None:
@@ -630,6 +875,7 @@ class TaskService:
         approve: bool,
         accept_incomplete: bool = False,
     ) -> dict[str, Any]:
+        package_execution = None
         with self._lock:
             entry = self._entry(task_id)
             if (
@@ -664,9 +910,44 @@ class TaskService:
                         "Package has missing or unresolved items; accept this "
                         "preview's specific risks before approval"
                     )
-                # A's composite builder is not registered yet. Never let a
-                # Package marker fall through to ordinary file-tool execution.
-                raise TaskConflict("Package execution is not available")
+                if (
+                    type(package.get("plan")) is not dict
+                    or type(package.get("checked")) is not dict
+                ):
+                    raise TaskConflict("Package execution is not available")
+                results = entry["execution"]["results"]
+                plan_result = results[-1] if results else None
+                plan_data = (
+                    plan_result.get("data") if type(plan_result) is dict else None
+                )
+                plan = package["plan"]
+                canonical = json.dumps(
+                    {key: value for key, value in plan.items() if key != "plan_id"},
+                    sort_keys=True,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                current_digest = (
+                    "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                )
+                if (
+                    type(plan_data) is not dict
+                    or plan_result.get("tool") != "plan_package"
+                    or plan_result.get("success") is not True
+                    or plan_data.get("plan_sha256") != package["plan_sha256"]
+                    or not _same_document(plan_data.get("plan"), plan)
+                    or plan.get("plan_id") != package["plan_id"]
+                    or current_digest != package["plan_sha256"]
+                    or not _same_document(plan.get("missing"), package["missing"])
+                    or not _same_document(plan.get("unresolved"), package["unresolved"])
+                    or not _same_document(
+                        self._package_steps(package),
+                        entry["execution"]["pending_operations"],
+                    )
+                ):
+                    raise TaskConflict("Package plan is not bound to this preview")
+                package_execution = deepcopy(package)
             entry["preview_id"] = None  # consume before running any file operation
             entry["task"]["status"] = "executing" if approve else "failed"
             state = entry["execution"]
@@ -674,6 +955,18 @@ class TaskService:
                 reject(state)
                 entry["error"] = "User rejected pending operations"
                 return self.snapshot(task_id)
+            if package_execution is not None:
+                state["status"] = "executing"
+                state["pending_operations"] = []
+                entry["package_execution"] = {
+                    "plan_id": package_execution["plan_id"],
+                    "plan_sha256": package_execution["plan_sha256"],
+                    "operation_results": [],
+                    "cleanup_results": [],
+                    "final_result_index": None,
+                }
+        if package_execution is not None:
+            return self._run_package(task_id, package_execution)
         try:
             self._validate_preview(entry)
             approved_operations = deepcopy(state["pending_operations"])
@@ -693,6 +986,261 @@ class TaskService:
                 entry["task"]["status"] = "failed"
                 entry["error"] = str(exc) or type(exc).__name__
         return self.snapshot(task_id)
+
+    def _run_package(self, task_id: str, frozen: dict[str, Any]) -> dict[str, Any]:
+        """Commit one approved composite Package and retain every child result."""
+        with self._lock:
+            entry = self._entry(task_id)
+            state = entry["execution"]
+            preview = {step["step_id"]: step for step in self._package_steps(frozen)}
+
+        def append(step_id: str, result: dict[str, Any]) -> int:
+            with self._lock:
+                step = deepcopy(preview[step_id])
+                step["status"] = "completed" if result["success"] else "failed"
+                state["plan"]["steps"].append(step)
+                index = len(state["results"])
+                state["results"].append(deepcopy(result))
+                state["result_calls"].append(
+                    {
+                        "result_index": index,
+                        "step_id": step_id,
+                        "tool": result["tool"],
+                        "arguments": deepcopy(step["arguments"]),
+                    }
+                )
+                entry["package_execution"]["operation_results"].append(
+                    {"step_id": step_id, "result_index": index}
+                )
+                return index
+
+        try:
+            final, cleanup = execute_package(
+                frozen["plan"],
+                frozen["plan_sha256"],
+                frozen["checked"],
+                frozen["bindings"],
+                append,
+            )
+        except Exception as exc:
+            final, cleanup = (
+                {
+                    "success": False,
+                    "tool": "build_package",
+                    "data": None,
+                    "message": "build_package failed",
+                    "error": str(exc) or type(exc).__name__,
+                },
+                [],
+            )
+        with self._lock:
+            entry = self._entry(task_id)
+            state = entry["execution"]
+            entry["package_execution"]["cleanup_results"] = cleanup
+            final_index = len(state["results"])
+            state["results"].append(final)
+            build_step = {
+                "step_id": f"step_{len(state['plan']['steps']) + 1:03d}",
+                "tool": "build_package",
+                "description": "Execute the approved frozen Package",
+                "risk": "medium",
+                "status": "completed" if final["success"] else "failed",
+                "arguments": {
+                    "task_id": task_id,
+                    "plan_id": frozen["plan_id"],
+                    "plan_sha256": frozen["plan_sha256"],
+                },
+            }
+            state["plan"]["steps"].append(build_step)
+            state["result_calls"].append(
+                {
+                    "result_index": final_index,
+                    "step_id": build_step["step_id"],
+                    "tool": "build_package",
+                    "arguments": deepcopy(build_step["arguments"]),
+                }
+            )
+            entry["package_execution"]["final_result_index"] = final_index
+            state["status"] = "completed" if final["success"] else "failed"
+            entry["task"]["status"] = state["status"]
+            if final["success"]:
+                try:
+                    entry["report"] = self._package_report(entry, frozen)
+                    entry["error"] = None
+                except Exception as exc:
+                    failure = {
+                        "success": False,
+                        "tool": "build_package",
+                        "data": None,
+                        "message": "build_package failed",
+                        "error": str(exc) or type(exc).__name__,
+                    }
+                    state["results"][final_index] = failure
+                    build_step["status"] = "failed"
+                    state["status"] = "failed"
+                    entry["task"]["status"] = "failed"
+                    entry["error"] = failure["error"]
+                    entry["report"] = None
+            else:
+                entry["error"] = final["error"]
+                entry["report"] = None
+            return self.snapshot(task_id)
+
+    @staticmethod
+    def _package_steps(frozen: dict[str, Any]) -> list[dict[str, Any]]:
+        plan = frozen["plan"]
+        steps = []
+        for index, descriptor in enumerate(plan["operations"]):
+            kind = descriptor["kind"]
+            if kind == "create_directory":
+                tool, args, risk = (
+                    "create_folder",
+                    {"path": plan["destination"]},
+                    "medium",
+                )
+            elif kind == "copy":
+                item = plan["selected_files"][descriptor["selected_file_index"]]
+                tool = "copy_file"
+                args = {"source": item["source"]["path"], "destination": item["target"]}
+                risk = "medium"
+            elif kind == "write_report":
+                tool = "write_package_report"
+                args = {
+                    "task_id": plan["task"]["task_id"],
+                    "plan_id": plan["plan_id"],
+                    "plan_sha256": frozen["plan_sha256"],
+                }
+                risk = "medium"
+            else:
+                tool = "verify_result"
+                args = {
+                    "task_id": plan["task"]["task_id"],
+                    "workspace": plan["task"]["workspace"],
+                    "expected": plan["verification_targets"],
+                }
+                risk = "low"
+            steps.append(
+                {
+                    "step_id": descriptor["step_id"],
+                    "tool": tool,
+                    "description": f"Package {kind}",
+                    "risk": risk,
+                    "status": "awaiting_approval",
+                    "arguments": args,
+                }
+            )
+        return steps
+
+    def _package_report(
+        self, entry: dict[str, Any], frozen: dict[str, Any]
+    ) -> dict[str, Any]:
+        mapping = entry["package_execution"]
+        state = entry["execution"]
+        plan = frozen["plan"]
+        final_index = mapping["final_result_index"]
+        if (
+            mapping["plan_id"] != plan["plan_id"]
+            or mapping["plan_sha256"] != frozen["plan_sha256"]
+            or type(final_index) is not int
+            or final_index != len(state["results"]) - 1
+        ):
+            raise ValueError("Package report has no bound final result")
+        final = state["results"][final_index]
+        if (
+            not final["success"]
+            or final["tool"] != "build_package"
+            or final["data"]["plan_id"] != plan["plan_id"]
+            or final["data"]["plan_sha256"] != frozen["plan_sha256"]
+            or final["data"]["package_path"] != plan["destination"]
+            or final["data"]["report_path"] != plan["report"]["path"]
+            or final["data"]["generated_files"]
+            != [
+                *(item["target"] for item in plan["selected_files"]),
+                plan["report"]["path"],
+            ]
+        ):
+            raise ValueError("Package report has no verified current execution")
+        verify_index = final["data"]["verification_result_index"]
+        descriptors = plan["operations"]
+        recorded = mapping["operation_results"]
+        if (
+            type(verify_index) is not int
+            or verify_index < 0
+            or verify_index >= final_index
+            or len(recorded) != len(descriptors)
+            or recorded[-1]
+            != {
+                "step_id": descriptors[-1]["step_id"],
+                "result_index": verify_index,
+            }
+            or state["results"][verify_index].get("tool") != "verify_result"
+            or state["results"][verify_index].get("success") is not True
+            or state["results"][verify_index].get("data", {}).get("passed") is not True
+        ):
+            raise ValueError("Package verification is not complete")
+        checks = state["results"][verify_index]["data"].get("checks")
+        expected_checks = [
+            (plan["task"]["workspace"], "source-snapshot"),
+            *((item["target"], "material-digest") for item in plan["selected_files"]),
+            (plan["report"]["path"], "report-digest"),
+            (plan["destination"], "file-set"),
+        ]
+        if (
+            type(checks) is not list
+            or len(checks) != len(expected_checks)
+            or any(
+                type(check) is not dict
+                or check.get("path") != expected_path
+                or check.get("kind") != expected_kind
+                or check.get("passed") is not True
+                for check, (expected_path, expected_kind) in zip(
+                    checks, expected_checks
+                )
+            )
+        ):
+            raise ValueError("Package verification checks are incomplete")
+        writes = []
+        prior_index = -1
+        for descriptor, link in zip(descriptors, recorded):
+            index = link.get("result_index") if type(link) is dict else None
+            expected_tool = {
+                "create_directory": "create_folder",
+                "copy": "copy_file",
+                "write_report": "write_package_report",
+                "verify": "verify_result",
+            }.get(descriptor["kind"])
+            if (
+                type(link) is not dict
+                or link.get("step_id") != descriptor["step_id"]
+                or type(index) is not int
+                or index <= prior_index
+                or index >= final_index
+                or state["results"][index].get("tool") != expected_tool
+                or state["results"][index].get("success") is not True
+            ):
+                raise ValueError("Package operation results differ from frozen plan")
+            prior_index = index
+            if descriptor["kind"] != "verify":
+                writes.append(deepcopy(state["results"][index]))
+        report = self._report(entry)
+        report["package_path"] = plan["destination"]
+        report["operations"] = writes
+        report["missing_items"] = deepcopy(plan["missing"])
+        report["package_unresolved"] = {
+            "plan_id": plan["plan_id"],
+            "plan_sha256": frozen["plan_sha256"],
+            "items": deepcopy(plan["unresolved"]),
+        }
+        conflict = plan["analysis"]["detect_conflicts"]
+        report["conflicts"] = (
+            deepcopy(conflict["result"]["data"]["conflicts"]) if conflict else []
+        )
+        report["summary"] = (
+            "打包执行成功，但材料包仍有缺项或未决事项；文件名候选不代表材料审核通过"
+            if plan["missing"] or plan["unresolved"]
+            else "打包执行和文件字节验证成功；文件名候选不代表材料审核通过"
+        )
+        return report
 
     def report(self, task_id: str) -> dict[str, Any]:
         with self._lock:

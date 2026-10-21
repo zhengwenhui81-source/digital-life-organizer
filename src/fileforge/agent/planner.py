@@ -45,6 +45,10 @@ _TOOL_ARGUMENTS = {
     "create_folder": ({"path": str}, {}),
     "copy_file": ({"source": str, "destination": str}, {}),
     "move_file": ({"source": str, "destination": str}, {}),
+    "build_package": (
+        {"task_id": str, "plan_id": str, "plan_sha256": str},
+        {},
+    ),
 }
 
 
@@ -55,6 +59,10 @@ def validate_tool_arguments(
     if tool not in _TOOL_ARGUMENTS:
         return  # Unregistered tools are rejected by ToolRouter.
     required, optional = _TOOL_ARGUMENTS[tool]
+    if planning and tool == "build_package":
+        if arguments:
+            raise ValueError("build_package planning arguments must be empty")
+        return
     unknown = set(arguments) - set(required) - set(optional)
     if unknown:
         raise ValueError(f"{tool} has unknown argument: {sorted(unknown)[0]}")
@@ -113,6 +121,11 @@ find_duplicates(workspace: string); verify_result(task_id: string,
 expected: object, workspace: string); create_folder(path: string);
 copy_file(source: string, destination: string);
 move_file(source: string, destination: string).
+For a material package goal, put build_package with empty arguments as the
+final step after requirement extraction, candidate reads and matching. It only
+requests a read-only frozen proposal; the server will propose unique filename
+candidates and require explicit preview approval before any write. Do not put
+build_package in a scan-only task or invent selected files, IDs, or output paths.
 Use workspace, never path, for list_files and search_files. Use exactly the
 listed argument names; do not invent extra fields.
 Read and analysis steps should precede file changes. Include only steps that
