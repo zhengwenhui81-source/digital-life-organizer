@@ -181,7 +181,7 @@ def _win_relative(
         ctypes.sizeof(Object),
         parent,
         ctypes.pointer(name_struct),
-        0x40 | 0x1000,  # OBJ_CASE_INSENSITIVE | OBJ_DONT_REPARSE
+        0x40,  # OBJ_CASE_INSENSITIVE; opened child reparse is checked by handle
         None,
         None,
     )
@@ -218,7 +218,7 @@ def _win_relative(
             raise FileNotFoundError(f"Package path not found: {name}")
         if code in (5, 32):
             raise PermissionError(f"Package object not accessible: {name}")
-        raise OSError(f"NtCreateFile failed on {name}: {code}")
+        raise OSError(f"NtCreateFile failed on {name}: {code} (NTSTATUS {status & 0xFFFFFFFF:#x})")
     handle = out.value
     try:
         _win_check(handle, directory=directory)
