@@ -101,7 +101,9 @@ def _clause_evidence(
     if _COMPLEX.search(clause):
         return []
     # An explicit list label supplies the material name; the right-hand side
-    # must independently require submission. Descriptions/criteria alone cannot
+    # must independently require submission. Check restrictions on BOTH sides
+    # before a label or comma-separated item can lose its qualifier.
+    # Descriptions/criteria alone cannot
     # become requirements. Keep conditions/alternatives attached to the clause.
     label = (
         _LABELED.fullmatch(clause.strip())
@@ -113,7 +115,7 @@ def _clause_evidence(
         if (
             assertion
             and not _MODIFIER.search(assertion["items"])
-            and not _LABEL_RESTRICTION.search(assertion["items"])
+            and not _LABEL_RESTRICTION.search(clause)
         ):
             required = (
                 assertion["mode"] in _REQUIRED_MODES or assertion["mode"] == "提交"

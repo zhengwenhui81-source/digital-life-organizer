@@ -110,3 +110,48 @@ def test_existing_colon_assertions_are_not_reinterpreted_as_labels(tmp_path):
     conflicts = detect_conflicts(documents=[doc, other])["data"]["conflicts"]
     assert len(conflicts) == 1
     assert {v["value"] for v in conflicts[0]["values"]} == {"required", "not_required"}
+
+
+@pytest.mark.parametrize(
+    "label", ["仅获奖者，资格证明", "仅已交原件者，资格证明", "仅研究生，资格证明"]
+)
+@pytest.mark.parametrize("mode", ["提交", "无需提交"])
+def test_left_label_restriction_does_not_become_unconditional(tmp_path, label, mode):
+    doc = read_text(
+        tmp_path,
+        "正式提交材料清单\nM1 "
+        + label
+        + "："
+        + mode
+        + "证明。\nM2 研究计划：提交研究计划。",
+    )
+    assert extract_requirements(documents=[doc])["data"] == {
+        "required_documents": ["研究计划"]
+    }
+    opposite = "无需提交资格证明" if mode == "提交" else "必须提交资格证明"
+    other = read_text(tmp_path, opposite, "other.docx")
+    assert detect_conflicts(documents=[doc, other])["data"]["conflicts"] == []
+
+
+@pytest.mark.parametrize(
+    "name", ["志愿者证明", "作者授权书", "消费者权益报告", "研究与开发报告"]
+)
+def test_ordinary_label_names_with_person_characters_remain_valid(tmp_path, name):
+    doc = read_text(tmp_path, "正式提交材料清单\nM1 " + name + "：提交材料。")
+    assert extract_requirements(documents=[doc])["data"] == {
+        "required_documents": [name]
+    }
+    other = read_text(tmp_path, "无需提交" + name, "other.docx")
+    conflicts = detect_conflicts(documents=[doc, other])["data"]["conflicts"]
+    assert len(conflicts) == 1
+    assert {v["value"] for v in conflicts[0]["values"]} == {"required", "not_required"}
+
+
+@pytest.mark.parametrize(
+    "label", ["只有获奖者，资格证明", "如获奖，资格证明", "资格证明（仅获奖者）"]
+)
+def test_existing_chain_already_filters_other_left_conditions(tmp_path, label):
+    doc = read_text(tmp_path, "正式提交材料清单\nM1 " + label + "：提交证明。")
+    assert extract_requirements(documents=[doc])["data"] == {"required_documents": []}
+    other = read_text(tmp_path, "无需提交资格证明", "other.docx")
+    assert detect_conflicts(documents=[doc, other])["data"]["conflicts"] == []
