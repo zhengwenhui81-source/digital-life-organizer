@@ -27,10 +27,52 @@ def _scoped(path: Path, root: Path) -> None:
 
 
 def _windows_api():
+    """Load native handle-relative Windows file operations."""
     import ctypes
     from ctypes import wintypes
 
+    class UnicodeString(ctypes.Structure):
+        _fields_ = [
+            ("Length", wintypes.USHORT),
+            ("MaximumLength", wintypes.USHORT),
+            ("Buffer", wintypes.LPWSTR),
+        ]
+
+    class ObjectAttributes(ctypes.Structure):
+        _fields_ = [
+            ("Length", wintypes.ULONG),
+            ("RootDirectory", wintypes.HANDLE),
+            ("ObjectName", ctypes.POINTER(UnicodeString)),
+            ("Attributes", wintypes.ULONG),
+            ("SecurityDescriptor", wintypes.LPVOID),
+            ("SecurityQualityOfService", wintypes.LPVOID),
+        ]
+
+    class IoStatusBlock(ctypes.Structure):
+        _fields_ = [
+            ("Status", ctypes.c_size_t),
+            ("Information", ctypes.c_size_t),
+        ]
+
+    class FileTime(ctypes.Structure):
+        _fields_ = [("low", wintypes.DWORD), ("high", wintypes.DWORD)]
+
+    class ByHandleInfo(ctypes.Structure):
+        _fields_ = [
+            ("attributes", wintypes.DWORD),
+            ("creation", FileTime),
+            ("access", FileTime),
+            ("write", FileTime),
+            ("volume", wintypes.DWORD),
+            ("size_high", wintypes.DWORD),
+            ("size_low", wintypes.DWORD),
+            ("links", wintypes.DWORD),
+            ("index_high", wintypes.DWORD),
+            ("index_low", wintypes.DWORD),
+        ]
+
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    native = ctypes.WinDLL("ntdll", use_last_error=True)
     kernel.CreateFileW.argtypes = (
         wintypes.LPCWSTR,
         wintypes.DWORD,
@@ -43,54 +85,160 @@ def _windows_api():
     kernel.CreateFileW.restype = wintypes.HANDLE
     kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
     kernel.CloseHandle.restype = wintypes.BOOL
-    return ctypes, kernel
+    kernel.GetFileInformationByHandle.argtypes = (
+        wintypes.HANDLE,
+        ctypes.POINTER(ByHandleInfo),
+    )
+    kernel.GetFileInformationByHandle.restype = wintypes.BOOL
+    native.NtCreateFile.argtypes = (
+        ctypes.POINTER(wintypes.HANDLE),
+        wintypes.ULONG,
+        ctypes.POINTER(ObjectAttributes),
+        ctypes.POINTER(IoStatusBlock),
+        wintypes.LPVOID,
+        wintypes.ULONG,
+        wintypes.ULONG,
+        wintypes.ULONG,
+        wintypes.ULONG,
+        wintypes.LPVOID,
+        wintypes.ULONG,
+    )
+    native.NtCreateFile.restype = wintypes.LONG
+    native.RtlNtStatusToDosError.argtypes = (wintypes.LONG,)
+    native.RtlNtStatusToDosError.restype = wintypes.ULONG
+    return (
+        ctypes, wintypes, kernel, native, UnicodeString, ObjectAttributes,
+        IoStatusBlock, ByHandleInfo,
+    )
 
 
-def _win_open(kernel, ctypes, path: Path, access: int, creation: int, attrs: int):
-    # Do not grant FILE_SHARE_DELETE: hold the object at the checked name.
+def _win_check(handle: int, *, directory: bool) -> None:
+    ctypes, _, kernel, _, _, _, _, Info = _windows_api()
+    info = Info()
+    if not kernel.GetFileInformationByHandle(handle, ctypes.byref(info)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    if info.attributes & 0x400:  # FILE_ATTRIBUTE_REPARSE_POINT
+        raise ValueError("Package path contains a link or reparse point")
+    if bool(info.attributes & 0x10) != directory:  # FILE_ATTRIBUTE_DIRECTORY
+        raise ValueError("Package opened object has unexpected file type")
+
+
+def _win_root(path: Path) -> int:
+    ctypes, _, kernel, _, _, _, _, _ = _windows_api()
     handle = kernel.CreateFileW(
-        str(path), access, 0x1 | 0x2, None, creation, attrs, None
+        str(path),
+        0x001000A0,  # SYNCHRONIZE | FILE_READ_ATTRIBUTES | FILE_TRAVERSE
+        0x1 | 0x2,  # no FILE_SHARE_DELETE
+        None,
+        3,  # OPEN_EXISTING
+        0x02000000 | 0x00200000,  # BACKUP_SEMANTICS | OPEN_REPARSE_POINT
+        None,
     )
     if handle == ctypes.c_void_p(-1).value:
         raise ctypes.WinError(ctypes.get_last_error())
-    return handle
+    try:
+        _win_check(handle, directory=True)
+        return handle
+    except BaseException:
+        kernel.CloseHandle(handle)
+        raise
 
 
-def _win_check(path: Path, *, directory: bool) -> None:
-    info = path.lstat()
-    if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
-        raise ValueError("Package path contains a link or reparse point")
-    if directory and not stat.S_ISDIR(info.st_mode):
-        raise ValueError("Package parent is not a directory")
-    if not directory and not stat.S_ISREG(info.st_mode):
-        raise ValueError("Package target is not a regular file")
+def _win_relative(
+    parent: int,
+    name: str,
+    *,
+    directory: bool,
+    create: bool,
+    write_parent: bool = False,
+) -> int:
+    """NtCreateFile relative to an already-open parent, not its mutable name."""
+    (
+        ctypes, wintypes, kernel, native, Unicode, Object, IoStatus, _,
+    ) = _windows_api()
+    if not name or name in {".", ".."} or "\\" in name or "/" in name:
+        raise ValueError("Package child name is invalid")
+    buffer = ctypes.create_unicode_buffer(name)
+    name_struct = Unicode(
+        len(name) * ctypes.sizeof(ctypes.c_wchar),
+        (len(name) + 1) * ctypes.sizeof(ctypes.c_wchar),
+        ctypes.cast(buffer, wintypes.LPWSTR),
+    )
+    obj = Object(
+        ctypes.sizeof(Object),
+        parent,
+        ctypes.pointer(name_struct),
+        0x40 | 0x1000,  # OBJ_CASE_INSENSITIVE | OBJ_DONT_REPARSE
+        None,
+        None,
+    )
+    io = IoStatus()
+    out = wintypes.HANDLE()
+    access = (
+        0x001000A0 | (0x2 | 0x4 if write_parent else 0)
+        if directory
+        else (0x40000000 if create else 0x80000000)
+    )
+    options = (
+        (0x1 if directory else 0x40)  # DIRECTORY_FILE / NON_DIRECTORY_FILE
+        | 0x20  # FILE_SYNCHRONOUS_IO_NONALERT
+        | 0x00200000  # FILE_OPEN_REPARSE_POINT
+    )
+    status = native.NtCreateFile(
+        ctypes.byref(out),
+        access,
+        ctypes.byref(obj),
+        ctypes.byref(io),
+        None,
+        0x10 if directory and create else 0x80,
+        0x1 | 0x2,  # share READ|WRITE; no DELETE
+        2 if create else 1,  # FILE_CREATE / FILE_OPEN
+        options,
+        None,
+        0,
+    )
+    if status < 0:
+        code = native.RtlNtStatusToDosError(status)
+        if code in (80, 183):
+            raise FileExistsError(f"Package target already exists: {name}")
+        if code in (2, 3):
+            raise FileNotFoundError(f"Package path not found: {name}")
+        if code in (5, 32):
+            raise PermissionError(f"Package object not accessible: {name}")
+        raise OSError(f"NtCreateFile failed on {name}: {code}")
+    handle = out.value
+    try:
+        _win_check(handle, directory=directory)
+        return handle
+    except BaseException:
+        kernel.CloseHandle(handle)
+        raise
 
 
 @contextmanager
-def _parent(path: Path, root: Path) -> Iterator[int | None]:
+def _parent(path: Path, root: Path, *, writing: bool = False) -> Iterator[int]:
     """Pin all directory components through path.parent until the operation."""
     _scoped(path, root)
     if os.name == "nt":
-        ctypes, kernel = _windows_api()
+        _, _, kernel, _, _, _, _, _ = _windows_api()
         held = []
         try:
             current = Path(path.anchor)
             if not current.anchor or current.anchor.startswith("\\\\"):
                 raise ValueError("UNC Package path is unsupported")
-            for part in (None, *path.parent.parts[1:]):
-                if part is not None:
-                    current = current / part
-                handle = _win_open(
-                    kernel,
-                    ctypes,
-                    current,
-                    0x80,  # FILE_READ_ATTRIBUTES
-                    3,  # OPEN_EXISTING
-                    0x02000000 | 0x00200000,  # BACKUP_SEMANTICS | OPEN_REPARSE_POINT
+            handle = _win_root(current)
+            held.append(handle)
+            parts = path.parent.parts[1:]
+            for index, part in enumerate(parts):
+                handle = _win_relative(
+                    held[-1],
+                    part,
+                    directory=True,
+                    create=False,
+                    write_parent=(index == len(parts) - 1 and writing),
                 )
                 held.append(handle)
-                _win_check(current, directory=True)
-            yield None
+            yield held[-1]
         finally:
             for handle in reversed(held):
                 kernel.CloseHandle(handle)
@@ -112,30 +260,24 @@ def _parent(path: Path, root: Path) -> Iterator[int | None]:
 
 def anchored_open(path: Path, root: Path, flags: int, mode: int = 0o600) -> int:
     """Return a regular-file descriptor opened within a pinned parent chain."""
-    with _parent(path, root) as parent:
+    with _parent(path, root, writing=bool(flags & os.O_CREAT)) as parent:
         if os.name == "nt":
             import msvcrt
 
-            ctypes, kernel = _windows_api()
+            _, _, kernel, _, _, _, _, _ = _windows_api()
             writing = bool(flags & (os.O_WRONLY | os.O_RDWR))
             exclusive = bool(flags & os.O_CREAT and flags & os.O_EXCL)
             if flags & os.O_CREAT and not exclusive:
                 raise ValueError("Package creates require O_EXCL")
-            handle = _win_open(
-                kernel,
-                ctypes,
-                path,
-                0x40000000 if writing else 0x80000000,  # GENERIC_WRITE / READ
-                1 if exclusive else 3,  # CREATE_NEW / OPEN_EXISTING
-                0x00200000 | 0x80,  # OPEN_REPARSE_POINT | NORMAL
+            handle = _win_relative(
+                parent, path.name, directory=False, create=exclusive
             )
             try:
-                _win_check(path, directory=False)
                 descriptor_flags = getattr(os, "O_BINARY", 0) | (
                     os.O_WRONLY if writing else os.O_RDONLY
                 )
                 fd = msvcrt.open_osfhandle(handle, descriptor_flags)
-                handle = None  # CRT owns the handle after successful conversion
+                handle = None  # CRT owns the handle
             finally:
                 if handle is not None:
                     kernel.CloseHandle(handle)
@@ -151,9 +293,13 @@ def anchored_open(path: Path, root: Path, flags: int, mode: int = 0o600) -> int:
 
 
 def anchored_mkdir(path: Path, root: Path) -> None:
-    with _parent(path, root) as parent:
+    with _parent(path, root, writing=True) as parent:
         if os.name == "nt":
-            os.mkdir(path)
+            _, _, kernel, _, _, _, _, _ = _windows_api()
+            handle = _win_relative(
+                parent, path.name, directory=True, create=True
+            )
+            kernel.CloseHandle(handle)
         else:
             os.mkdir(path.name, dir_fd=parent)
 
