@@ -683,9 +683,36 @@ def test_package_anchored_create_write_and_entries(tmp_path: Path):
     finally:
         os.close(fd)
     assert file.read_bytes() == b"frozen"
-    assert guarded_entries(destination, root) == {"report.txt"}
+    (destination / "中文 文档.txt").write_text("内容", encoding="utf-8")
+    assert guarded_entries(destination, root) == {"report.txt", "中文 文档.txt"}
     with pytest.raises(FileExistsError):
         anchored_open(file, root, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+
+
+def test_windows_directory_listing_does_not_reresolve_path(
+    tmp_path: Path, monkeypatch
+):
+    import os
+
+    if os.name != "nt":
+        pytest.skip("Windows native directory enumeration test")
+
+    from fileforge.agent.package_fs import guarded_entries
+
+    root = tmp_path / "workspace"
+    root.mkdir()
+    directory = root / "bundle"
+    directory.mkdir()
+    (directory / "PACKAGE_REPORT.md").write_bytes(b"frozen")
+    (directory / "材料-一.txt").write_bytes(b"data")
+
+    def forbid_iterdir(_):
+        raise AssertionError("Package verification reopened a mutable path")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "iterdir", forbid_iterdir)
+        names = guarded_entries(directory, root)
+    assert names == {"PACKAGE_REPORT.md", "材料-一.txt"}
 
 
 def test_package_anchored_open_rejects_parent_symlink(tmp_path: Path):
