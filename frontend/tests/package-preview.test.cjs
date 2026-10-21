@@ -36,8 +36,8 @@ test('failed latest analysis cannot be accepted away or replaced by older succes
 test('partial failure preserves successes and exposes failure, never verifies success',()=>{
     const d=fixtures.get('partial'),m=view.inspect(d),html=view.render(d);assert.equal(m.writes.filter(w=>w.result.success).length,2);assert.match(html,/文件操作失败/);assert.match(html,/未确认通过/);assert.equal(m.build.success,false);
 });
-test('cleanup failure and unknown residual are visible as confirmed but unimplemented metadata',()=>{
-    for(const name of ['cleanup_failed','unknown_residual']){const html=view.render(fixtures.get(name));assert.match(html,/后端尚未实现/);assert.match(html,/不等于已回滚/);assert.match(html,name==='cleanup_failed'?/owned_fragment/:/unknown/);}
+test('cleanup failure and unknown residual are visible as backend observations, never rollback proof',()=>{
+    for(const name of ['cleanup_failed','unknown_residual']){const html=view.render(fixtures.get(name));assert.match(html,/后端实际返回记录/);assert.match(html,/不等于已回滚/);assert.match(html,name==='cleanup_failed'?/owned_fragment/:/unknown/);}
 });
 test('incorrect indices and mismatched plan identity fail provenance checks',()=>{
     for(const name of ['bad_index','mismatch'])assert.match(view.inspect(fixtures.get(name)).errors.join(),/不一致/);
@@ -517,7 +517,7 @@ test('Snapshot adapter renders current planning evidence with identity, preview 
     const before=structuredClone(s),m=view.inspectSnapshot(s),html=view.renderSnapshot(s);
     assert.equal(m.state,'provided');assert.equal(m.resultIndex,4);assert.equal(m.input.planResult,s.results[4]);
     for(const value of ['server-preview','fixture_task','package_plan_','plan_sha256','结题报告.txt','多候选证据','选材为提议'])assert.ok(html.includes(value),value);
-    assert.match(html,/权威绑定尚未验收/);assert.deepEqual(s,before);
+    assert.match(html,/批准时由后端复验绑定/);assert.deepEqual(s,before);
     delete s.preview_id;assert.match(view.renderSnapshot(s),/preview_id 尚未提供/);
 });
 test('Snapshot adapter never falls back from latest failure, missing manifest or later upstream failure',()=>{

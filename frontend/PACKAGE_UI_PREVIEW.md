@@ -1,3 +1,5 @@
+> 当前正式 Agent 的接入与实测状态见 [Package Real Mode 集成记录](PACKAGE_REAL_INTEGRATION.md)。下文各阶段的“尚未接通/未实现”是历史基线；独立 Fixture 页面仍始终禁用正式审批，不调用真实 API。
+
 # Package Fixture 前端
 
 独立合成数据验收页，不调用模型、AgentAPI、Package HTTP 或文件操作接口。正式审批始终禁用；风险复选框只记录本地 UI 意向，不生成 preview_id 或服务端批准事实。
