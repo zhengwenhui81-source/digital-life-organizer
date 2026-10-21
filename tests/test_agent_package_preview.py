@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
 
@@ -13,7 +14,9 @@ from fileforge.agent.planner import validate_plan
 from fileforge.agent.service import TaskConflict, TaskService
 
 
-def _planner(notice: Path, material: Path):
+def _planner(
+    notice: Path, material: Path, extra: Path | None = None, *, package: bool = False
+):
     def make(task_id: str, goal: str, workspace: str) -> dict:
         def step(tool: str, arguments: dict) -> dict:
             return {
@@ -22,14 +25,17 @@ def _planner(notice: Path, material: Path):
                 "arguments": arguments,
             }
 
-        payload = {
-            "steps": [
-                step("read_document", {"path": str(notice)}),
-                step("extract_requirements", {}),
-                step("read_document", {"path": str(material)}),
-                step("match_requirements", {}),
-            ]
-        }
+        steps = [
+            step("read_document", {"path": str(notice)}),
+            step("extract_requirements", {}),
+            step("read_document", {"path": str(material)}),
+        ]
+        if extra is not None:
+            steps.append(step("read_document", {"path": str(extra)}))
+        steps.append(step("match_requirements", {}))
+        if package:
+            steps.append(step("build_package", {}))
+        payload = {"steps": steps}
         return validate_plan(payload, task_id, goal)
 
     return make
@@ -101,22 +107,158 @@ def test_read_only_package_preview_binds_current_evidence(package_task):
         preview["results"][-1]["data"]["plan_sha256"]
     )
     assert not destination.exists()
-    with pytest.raises(TaskConflict, match="not available"):
-        service.decide(
-            task_id, preview["preview_id"], approve=True, accept_incomplete=True
-        )
-    assert not destination.exists()
-    with pytest.raises(TaskConflict, match="analysis is not completed"):
-        service.prepare_package(task_id, selected, str(destination))
     with pytest.raises(TaskConflict, match="specific risks"):
         service.decide(task_id, preview["preview_id"], approve=True)
     assert service.snapshot(task_id)["preview_id"] == preview["preview_id"]
-    rejected = service.decide(task_id, preview["preview_id"], approve=False)
-    assert rejected["task"]["status"] == "failed"
-    assert rejected["preview_id"] is None
+    completed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert completed["task"]["status"] == "completed", completed["error"]
+    assert (destination / material.name).read_bytes() == material.read_bytes()
+    assert (destination / "PACKAGE_REPORT.md").is_file()
+    assert (
+        hashlib.sha256((destination / "PACKAGE_REPORT.md").read_bytes()).hexdigest()
+        == plan["report"]["sha256"]
+    )
+    assert completed["package_execution"]["final_result_index"] is not None
+    report = service.report(task_id)
+    assert report["package_path"] == str(destination)
+    assert report["missing_items"] == plan["missing"]
+    assert report["package_unresolved"] == {
+        "plan_id": plan["plan_id"],
+        "plan_sha256": preview["results"][-1]["data"]["plan_sha256"],
+        "items": plan["unresolved"],
+    }
+    assert [item["tool"] for item in report["operations"]] == [
+        "create_folder",
+        "copy_file",
+        "write_package_report",
+    ]
+    with pytest.raises(TaskConflict, match="analysis is not completed"):
+        service.prepare_package(task_id, selected, str(destination))
     with pytest.raises(TaskConflict, match="stale"):
         service.decide(task_id, preview["preview_id"], approve=True)
-    assert not destination.exists()
+    assert destination.is_dir()
+
+
+def test_controlled_package_plan_uses_existing_approval_http_api(package_task):
+    from fastapi.testclient import TestClient
+
+    from fileforge.api import agent
+    from fileforge.api.server import app
+
+    _, _, _, _, material = package_task
+    notice = material.parent / "通知.txt"
+    notice.write_text("所需材料：\n1. 报名表\n2. 学生证", encoding="utf-8")
+    service = TaskService(planner=_planner(notice, material, package=True))
+    task_id = service.create("整理材料并打包", str(material.parent))["task_id"]
+    service.run(task_id)
+    app.dependency_overrides[agent.get_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            preview_response = client.get(f"/api/agent/tasks/{task_id}")
+            assert preview_response.status_code == 200
+            preview = preview_response.json()
+            assert preview["task"]["status"] == "awaiting_approval", preview["error"]
+            assert preview["results"][-1]["tool"] == "plan_package"
+            assert not Path(
+                preview["pending_operations"][0]["arguments"]["path"]
+            ).exists()
+            risk_pending = client.post(
+                f"/api/agent/tasks/{task_id}/approve",
+                json={"preview_id": preview["preview_id"]},
+            )
+            assert risk_pending.status_code == 409
+            assert (
+                client.get(f"/api/agent/tasks/{task_id}").json()["preview_id"]
+                == preview["preview_id"]
+            )
+            approval = client.post(
+                f"/api/agent/tasks/{task_id}/approve",
+                json={"preview_id": preview["preview_id"], "accept_incomplete": True},
+            )
+            assert approval.status_code == 200, approval.text
+            completed = approval.json()
+            assert completed["task"]["status"] == "completed", completed["error"]
+            assert (
+                material.parent / f"package_{task_id}" / material.name
+            ).read_bytes() == material.read_bytes()
+            report = client.get(f"/api/agent/tasks/{task_id}/report")
+            assert report.status_code == 200, report.text
+            assert report.json()["missing_items"] == ["学生证"]
+            assert report.json()["package_path"] == str(
+                material.parent / f"package_{task_id}"
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_ambiguous_filename_candidates_are_not_auto_selected(
+    package_task, tmp_path: Path
+):
+    _, _, _, _, _ = package_task
+    notice = tmp_path / "规则.txt"
+    notice.write_text("所需材料：\n1. 报名表", encoding="utf-8")
+    first = tmp_path / "报名表_v1.txt"
+    second = tmp_path / "报名表_v2.txt"
+    first.write_text("版本一", encoding="utf-8")
+    second.write_text("版本二", encoding="utf-8")
+    service = TaskService(planner=_planner(notice, first, second, package=True))
+    task_id = service.create("打包材料", str(tmp_path))["task_id"]
+    service.run(task_id)
+    snapshot = service.snapshot(task_id)
+    assert snapshot["task"]["status"] == "failed"
+    assert "No unambiguous material candidate" in snapshot["error"]
+    assert snapshot["preview_id"] is None
+    assert not (tmp_path / f"package_{task_id}").exists()
+    with pytest.raises(TaskConflict, match="not available"):
+        service.report(task_id)
+
+
+def test_planner_cannot_supply_package_authority_or_precede_analysis(tmp_path: Path):
+    notice = tmp_path / "规则.txt"
+    notice.write_text("所需材料：\n1. 报名表", encoding="utf-8")
+    material = tmp_path / "报名表.txt"
+    material.write_text("内容", encoding="utf-8")
+    with pytest.raises(ValueError, match="arguments must be empty"):
+        validate_plan(
+            {
+                "steps": [
+                    {
+                        "tool": "build_package",
+                        "description": "未经审批打包",
+                        "arguments": {"task_id": "forged"},
+                    }
+                ]
+            },
+            "task_example",
+            "打包",
+        )
+
+    def unsafe_order(task_id: str, goal: str, workspace: str) -> dict:
+        return validate_plan(
+            {
+                "steps": [
+                    {"tool": "build_package", "description": "打包", "arguments": {}},
+                    {
+                        "tool": "read_document",
+                        "description": "读取",
+                        "arguments": {"path": str(notice)},
+                    },
+                ]
+            },
+            task_id,
+            goal,
+        )
+
+    service = TaskService(planner=unsafe_order)
+    task_id = service.create("打包材料", str(tmp_path))["task_id"]
+    service.run(task_id)
+    snapshot = service.snapshot(task_id)
+    assert snapshot["task"]["status"] == "failed"
+    assert "must follow completed read-only analysis" in snapshot["error"]
+    assert snapshot["results"] == []
+    assert not (tmp_path / f"package_{task_id}").exists()
 
 
 def test_changed_source_fails_before_d_planning(package_task, monkeypatch):
@@ -134,7 +276,267 @@ def test_changed_source_fails_before_d_planning(package_task, monkeypatch):
     assert snapshot["preview_id"] is None
     with pytest.raises(TaskConflict, match="not available"):
         service.report(task_id)
+
+
+def test_source_change_after_preview_fails_without_writes(package_task):
+    service, task_id, selected, destination, material = package_task
+    preview = service.prepare_package(task_id, selected, str(destination))
+    assert preview["task"]["status"] == "awaiting_approval"
+    material.write_text("审批前来源已改变", encoding="utf-8")
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert failed["task"]["status"] == "failed"
+    assert failed["results"][-1]["tool"] == "build_package"
+    assert failed["results"][-1]["data"] is None
+    assert failed["package_execution"]["operation_results"] == []
     assert not destination.exists()
+    with pytest.raises(TaskConflict, match="not available"):
+        service.report(task_id)
+
+
+def test_same_byte_source_replacement_after_preview_fails(package_task):
+    service, task_id, selected, destination, material = package_task
+    preview = service.prepare_package(task_id, selected, str(destination))
+    original = material.stat()
+    replacement = material.with_name("replacement.txt")
+    replacement.write_bytes(material.read_bytes())
+    os.utime(replacement, ns=(original.st_atime_ns, original.st_mtime_ns))
+    os.replace(replacement, material)
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert failed["task"]["status"] == "failed"
+    assert "differs from frozen preview" in failed["error"]
+    assert failed["package_execution"]["operation_results"] == []
+    assert not destination.exists()
+
+
+def test_verification_failure_retains_writes_and_blocks_report(
+    package_task, monkeypatch
+):
+    service, task_id, selected, destination, material = package_task
+    preview = service.prepare_package(task_id, selected, str(destination))
+    from fileforge.agent import package_execution
+
+    monkeypatch.setattr(
+        package_execution,
+        "_verify",
+        lambda *_: {
+            "success": False,
+            "tool": "verify_result",
+            "data": None,
+            "message": "verify_result failed",
+            "error": "injected verification failure",
+        },
+    )
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert failed["task"]["status"] == "failed"
+    assert (destination / material.name).read_bytes() == material.read_bytes()
+    assert (destination / "PACKAGE_REPORT.md").exists()
+    assert failed["results"][-2]["tool"] == "verify_result"
+    assert failed["results"][-1]["tool"] == "build_package"
+    assert failed["results"][-1]["data"] is None
+    assert (
+        failed["package_execution"]["final_result_index"] == len(failed["results"]) - 1
+    )
+    with pytest.raises(TaskConflict, match="not available"):
+        service.report(task_id)
+
+
+def test_changed_pending_preview_cannot_consume_approval(package_task):
+    service, task_id, selected, destination, _ = package_task
+    preview = service.prepare_package(task_id, selected, str(destination))
+    with service._lock:
+        service._tasks[task_id]["execution"]["pending_operations"][1]["arguments"][
+            "destination"
+        ] = str(destination / "different.txt")
+    with pytest.raises(TaskConflict, match="not bound"):
+        service.decide(
+            task_id, preview["preview_id"], approve=True, accept_incomplete=True
+        )
+    assert service.snapshot(task_id)["preview_id"] == preview["preview_id"]
+    assert not destination.exists()
+
+
+def test_report_mapping_failure_marks_build_failed(package_task, monkeypatch):
+    service, task_id, selected, destination, material = package_task
+    preview = service.prepare_package(task_id, selected, str(destination))
+
+    def fail_mapping(*_):
+        raise ValueError("injected report provenance mismatch")
+
+    monkeypatch.setattr(service, "_package_report", fail_mapping)
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert (destination / material.name).read_bytes() == material.read_bytes()
+    assert failed["task"]["status"] == "failed"
+    assert failed["results"][-1]["tool"] == "build_package"
+    assert failed["results"][-1]["data"] is None
+    with pytest.raises(TaskConflict, match="not available"):
+        service.report(task_id)
+
+
+def test_occupied_destination_after_preview_is_preserved(package_task):
+    service, task_id, selected, destination, _ = package_task
+    preview = service.prepare_package(task_id, selected, str(destination))
+    destination.mkdir()
+    occupant = destination / "keep.txt"
+    occupant.write_text("existing", encoding="utf-8")
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert failed["task"]["status"] == "failed"
+    assert failed["results"][-1]["data"] is None
+    assert occupant.read_text(encoding="utf-8") == "existing"
+
+
+def test_partial_copy_failure_retains_actual_results(tmp_path: Path, monkeypatch):
+    notice = tmp_path / "通知.txt"
+    notice.write_text("必须提交报名表。", encoding="utf-8")
+    first = tmp_path / "报名表.txt"
+    first.write_text("报名表内容", encoding="utf-8")
+    second = tmp_path / "补充说明.txt"
+    second.write_text("补充说明内容", encoding="utf-8")
+    service = TaskService(planner=_planner(notice, first, second))
+    task_id = service.create("准备材料包", str(tmp_path))["task_id"]
+    service.run(task_id)
+    assert service.snapshot(task_id)["task"]["status"] == "completed"
+    reads = [
+        r["data"]["document"]
+        for r in service.snapshot(task_id)["results"]
+        if r["tool"] == "read_document"
+    ]
+    selected = [
+        {
+            "source": {key: doc[key] for key in ("file_id", "path", "filename")},
+            "requirements": [],
+            "reason": "待用户确认的附加材料",
+        }
+        for doc in reads[1:]
+    ]
+    from fileforge.package import planning
+
+    def stable_snapshot(path: Path, workspace: Path) -> dict:
+        raw = path.read_bytes()
+        return {
+            "size": len(raw),
+            "mtime_ns": path.stat().st_mtime_ns,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+        }
+
+    monkeypatch.setattr(planning, "snapshot", stable_snapshot)
+    destination = tmp_path / "材料包"
+    preview = service.prepare_package(task_id, selected, str(destination))
+    assert preview["task"]["status"] == "awaiting_approval", preview["error"]
+    from fileforge.agent import package_execution
+
+    real_copy = package_execution._copy_one
+
+    def fail_second(source, target, expected, root, source_identity):
+        if source == second:
+            return (
+                {
+                    "success": False,
+                    "tool": "copy_file",
+                    "data": None,
+                    "message": "copy_file failed",
+                    "error": "injected copy interruption",
+                },
+                {
+                    "status": "not_attempted",
+                    "reason": "ownership_uncertain",
+                    "residual_state": "unknown",
+                },
+            )
+        return real_copy(source, target, expected, root, source_identity)
+
+    monkeypatch.setattr(package_execution, "_copy_one", fail_second)
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert failed["task"]["status"] == "failed"
+    assert (destination / first.name).read_bytes() == first.read_bytes()
+    assert not (destination / second.name).exists()
+    assert not (destination / "PACKAGE_REPORT.md").exists()
+    mapping = failed["package_execution"]
+    assert len(mapping["operation_results"]) == 3
+    assert [item["status"] for item in mapping["cleanup_results"]] == [
+        "not_attempted",
+        "not_attempted",
+    ]
+    assert mapping["cleanup_results"][1]["residual_state"] == "unknown"
+    assert failed["results"][mapping["final_result_index"]]["data"] is None
+    with pytest.raises(TaskConflict, match="not available"):
+        service.report(task_id)
+
+
+def test_failed_copy_retains_owned_unverified_target(package_task, monkeypatch):
+    service, task_id, selected, destination, material = package_task
+    preview = service.prepare_package(task_id, selected, str(destination))
+    from fileforge.agent import package_execution
+
+    actual_digest = package_execution._digest
+
+    def fail_target_check(path: Path, root: Path) -> str:
+        if path == destination / material.name:
+            raise ValueError("injected target verification error")
+        return actual_digest(path, root)
+
+    monkeypatch.setattr(package_execution, "_digest", fail_target_check)
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert failed["task"]["status"] == "failed"
+    assert (destination / material.name).exists()
+    assert not (destination / "PACKAGE_REPORT.md").exists()
+    assert failed["results"][-2]["tool"] == "copy_file"
+    assert failed["results"][-2]["data"] is None
+    assert failed["package_execution"]["cleanup_results"] == [
+        {
+            "step_id": "package_002",
+            "status": "not_attempted",
+            "reason": "Failed copy target retained; conditional unlink is unsafe",
+            "residual_state": "owned_fragment",
+        }
+    ]
+    with pytest.raises(TaskConflict, match="not available"):
+        service.report(task_id)
+
+
+def test_report_write_failure_retains_copy_and_blocks_success(
+    package_task, monkeypatch
+):
+    service, task_id, selected, destination, material = package_task
+    preview = service.prepare_package(task_id, selected, str(destination))
+    from fileforge.agent import package_execution
+
+    actual_open = package_execution.os.open
+
+    def deny_report(path, flags, *args, **kwargs):
+        if Path(path).name == "PACKAGE_REPORT.md":
+            raise PermissionError("injected report write denial")
+        return actual_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(package_execution.os, "open", deny_report)
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert failed["task"]["status"] == "failed"
+    assert (destination / material.name).read_bytes() == material.read_bytes()
+    assert not (destination / "PACKAGE_REPORT.md").exists()
+    assert [item["tool"] for item in failed["results"][-3:]] == [
+        "copy_file",
+        "write_package_report",
+        "build_package",
+    ]
+    assert failed["results"][-2]["data"] is None
+    assert failed["results"][-1]["data"] is None
+    with pytest.raises(TaskConflict, match="not available"):
+        service.report(task_id)
 
 
 def test_d_plan_snapshot_mismatch_fails_closed(package_task, monkeypatch):
