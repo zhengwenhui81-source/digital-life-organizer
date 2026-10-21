@@ -665,6 +665,7 @@ def test_copy_preflight_change_after_first_copy_records_failed_child(
 
 def test_package_anchored_create_write_and_entries(tmp_path: Path):
     import os
+
     from fileforge.agent.package_fs import (
         anchored_mkdir,
         anchored_open,
@@ -689,6 +690,7 @@ def test_package_anchored_create_write_and_entries(tmp_path: Path):
 
 def test_package_anchored_open_rejects_parent_symlink(tmp_path: Path):
     import os
+
     from fileforge.agent.package_fs import anchored_open
 
     root = tmp_path / "workspace"
@@ -710,6 +712,7 @@ def test_posix_parent_retarget_cannot_redirect_anchored_file(
     tmp_path: Path, monkeypatch
 ):
     import os
+
     from fileforge.agent import package_fs
 
     if os.name == "nt":
@@ -744,6 +747,7 @@ def test_posix_parent_retarget_cannot_redirect_anchored_file(
 
 def test_windows_parent_handle_blocks_rename(tmp_path: Path):
     import os
+
     from fileforge.agent.package_fs import _parent
 
     if os.name != "nt":
