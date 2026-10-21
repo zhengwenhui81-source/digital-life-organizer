@@ -168,3 +168,44 @@ def test_restricted_audience_labels_abstain(tmp_path, name, mode):
         tmp_path, ("无需提交" if mode == "提交" else "必须提交") + name, "other.docx"
     )
     assert detect_conflicts(documents=[doc, other])["data"]["conflicts"] == []
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "限获奖者提供的资格证明",
+        "限已交原件者提供的资格证明",
+        "限具备资格的申请人提交的证明",
+        "限指定身份人员办理的证明",
+    ],
+)
+@pytest.mark.parametrize("mode", ["提交", "无需提交"])
+def test_audience_limited_provision_is_not_unconditional(tmp_path, label, mode):
+    doc = read_text(
+        tmp_path,
+        "所需材料\nM1 " + label + "：" + mode + "证明。\nM2 研究计划：提交研究计划。",
+    )
+    result = extract_requirements(documents=[doc])
+    assert result["success"], result
+    assert result["data"] == {"required_documents": ["研究计划"]}
+    opposite = "无需提交" if mode == "提交" else "必须提交"
+    other = read_text(tmp_path, opposite + label, "other.docx")
+    conflicts = detect_conflicts(documents=[doc, other])
+    assert conflicts["success"], conflicts
+    assert conflicts["data"]["conflicts"] == []
+
+
+@pytest.mark.parametrize("name", ["限额证明", "时限说明", "志愿者证明", "作者授权书"])
+def test_ordinary_names_are_not_rejected_for_single_characters(tmp_path, name):
+    doc = read_text(tmp_path, "所需材料\nM1 " + name + "：提交材料。")
+    assert extract_requirements(documents=[doc])["data"] == {
+        "required_documents": [name]
+    }
+    other = read_text(tmp_path, "无需提交" + name, "other.docx")
+    result = detect_conflicts(documents=[doc, other])
+    assert result["success"], result
+    assert len(result["data"]["conflicts"]) == 1
+    assert {v["value"] for v in result["data"]["conflicts"][0]["values"]} == {
+        "required",
+        "not_required",
+    }

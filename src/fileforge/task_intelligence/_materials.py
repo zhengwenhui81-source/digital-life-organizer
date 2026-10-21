@@ -48,6 +48,12 @@ _LABEL_RESTRICTION = re.compile(
     r"仅|限于|专用|专供|适用于|[（(][^）)]*(?:条件|者)[^）)]*[）)]"
 )
 
+# A leading restriction plus a provision/action phrase qualifies the label.
+# Match the grammatical shape rather than particular audiences or single chars.
+_LABEL_AUDIENCE = re.compile(
+    r"(?:^|[，,]\s*)限[^，,：:。；;\n]{1,40}(?:提供|提交|办理|使用|领取|申请)"
+)
+
 # Bare Chinese numbering is ambiguous with chapter numbering: terminate scope.
 # Parenthesized Chinese/Arabic and plain Arabic lists remain supported.
 _SECTION = re.compile(
@@ -118,6 +124,7 @@ def _clause_evidence(
             assertion
             and not _MODIFIER.search(assertion["items"])
             and not _LABEL_RESTRICTION.search(clause)
+            and not _LABEL_AUDIENCE.search(label["name"].strip())
         ):
             required = (
                 assertion["mode"] in _REQUIRED_MODES or assertion["mode"] == "提交"
