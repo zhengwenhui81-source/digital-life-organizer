@@ -219,9 +219,7 @@ def test_ordinary_names_are_not_rejected_for_single_characters(tmp_path, name):
         "提交限指定身份人员提交的证明",
     ],
 )
-def test_audience_limited_assertion_does_not_become_unconditional(
-    tmp_path, assertion
-):
+def test_audience_limited_assertion_does_not_become_unconditional(tmp_path, assertion):
     doc = read_text(
         tmp_path,
         "所需材料\nM1 资格证明：" + assertion + "。\nM2 研究计划：提交研究计划。",
