@@ -209,3 +209,28 @@ def test_ordinary_names_are_not_rejected_for_single_characters(tmp_path, name):
         "required",
         "not_required",
     }
+
+
+@pytest.mark.parametrize(
+    "assertion",
+    [
+        "提交限获奖者提供的资格证明",
+        "提交限具备资格的申请人办理的证明",
+        "提交限指定身份人员提交的证明",
+    ],
+)
+def test_audience_limited_assertion_does_not_become_unconditional(
+    tmp_path, assertion
+):
+    doc = read_text(
+        tmp_path,
+        "所需材料\\nM1 资格证明：" + assertion + "。\\nM2 研究计划：提交研究计划。",
+    )
+    result = extract_requirements(documents=[doc])
+    assert result["success"], result
+    assert result["data"] == {"required_documents": ["研究计划"]}
+
+    other = read_text(tmp_path, "无需提交资格证明", "other.docx")
+    conflicts = detect_conflicts(documents=[doc, other])
+    assert conflicts["success"], conflicts
+    assert conflicts["data"]["conflicts"] == []

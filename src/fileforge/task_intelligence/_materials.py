@@ -125,6 +125,7 @@ def _clause_evidence(
             and not _MODIFIER.search(assertion["items"])
             and not _LABEL_RESTRICTION.search(clause)
             and not _LABEL_AUDIENCE.search(label["name"].strip())
+            and not _LABEL_AUDIENCE.search(assertion["items"].strip())
         ):
             required = (
                 assertion["mode"] in _REQUIRED_MODES or assertion["mode"] == "提交"
