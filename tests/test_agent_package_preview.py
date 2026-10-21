@@ -193,6 +193,45 @@ def test_controlled_package_plan_uses_existing_approval_http_api(package_task):
         app.dependency_overrides.clear()
 
 
+def test_automatic_package_never_publishes_completed_before_preview(package_task):
+    _, _, _, _, material = package_task
+    notice = material.parent / "通知.txt"
+    notice.write_text("所需材料：\n1. 报名表", encoding="utf-8")
+
+    class InspectingService(TaskService):
+        observed_status = None
+        report_was_available = None
+
+        def _propose_package(self, task_id: str, *, expected_task_status: str):
+            self.observed_status = self.snapshot(task_id)["task"]["status"]
+            try:
+                self.report(task_id)
+            except TaskConflict:
+                self.report_was_available = False
+            else:
+                self.report_was_available = True
+            return super()._propose_package(
+                task_id, expected_task_status=expected_task_status
+            )
+
+    service = InspectingService(planner=_planner(notice, material, package=True))
+    task_id = service.create("整理材料并打包", str(material.parent))["task_id"]
+    service.run(task_id)
+
+    snapshot = service.snapshot(task_id)
+    assert service.observed_status == "executing"
+    assert service.report_was_available is False
+    assert snapshot["task"]["status"] == "awaiting_approval", snapshot["error"]
+    assert snapshot["preview_id"].startswith("sha256:")
+    assert snapshot["results"][-1]["tool"] == "plan_package"
+    plan_result = snapshot["results"][-1]["data"]
+    approval = service._tasks[task_id]["package_approval"]
+    assert approval["preview_id"] == snapshot["preview_id"]
+    assert approval["plan_id"] == plan_result["plan"]["plan_id"]
+    assert approval["plan_sha256"] == plan_result["plan_sha256"]
+    assert approval["plan"] == plan_result["plan"]
+
+
 def test_ambiguous_filename_candidates_are_not_auto_selected(
     package_task, tmp_path: Path
 ):

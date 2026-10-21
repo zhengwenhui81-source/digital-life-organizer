@@ -99,13 +99,15 @@ class TaskService:
                 }
             )
 
-    def _package_preflight(self, task_id: str) -> dict[str, Any]:
+    def _package_preflight(
+        self, task_id: str, *, expected_task_status: str = "completed"
+    ) -> dict[str, Any]:
         """Authenticate and revalidate current analysis before Package planning."""
         with self._lock:
             entry = self._entry(task_id)
             state = entry["execution"]
             if (
-                entry["task"]["status"] != "completed"
+                entry["task"]["status"] != expected_task_status
                 or state is None
                 or state["status"] != "completed"
                 or entry["package_approval"] is not None
@@ -139,15 +141,33 @@ class TaskService:
         post-analysis HTTP selection endpoint. The same preview is required
         before the composite builder can execute any Package writes.
         """
+        return self._prepare_package(
+            task_id,
+            selected_files,
+            destination,
+            expected_task_status="completed",
+        )
+
+    def _prepare_package(
+        self,
+        task_id: str,
+        selected_files: list[dict[str, Any]],
+        destination: str,
+        *,
+        expected_task_status: str,
+    ) -> dict[str, Any]:
+        """Freeze one authenticated Package without publishing an interim success."""
         from fileforge.package import plan_package
 
-        evidence = self._package_preflight(task_id)
+        evidence = self._package_preflight(
+            task_id, expected_task_status=expected_task_status
+        )
         with self._lock:
             entry = self._entry(task_id)
             task = deepcopy(entry["task"])
             task.pop("status")
             state = entry["execution"]
-            if entry["task"]["status"] != "completed":
+            if entry["task"]["status"] != expected_task_status:
                 raise TaskConflict("Package analysis is no longer current")
             try:
                 result = plan_package(
@@ -314,10 +334,22 @@ class TaskService:
                     Path(task["workspace"]), state["plan"]["steps"]
                 ),
             )
-            self._finish(entry)
-            if wants_package and entry["task"]["status"] == "completed":
-                selected, destination = self._propose_package(task_id)
-                self.prepare_package(task_id, selected, destination)
+            if wants_package and state["status"] == "completed":
+                # The Task was already published as executing before the read-only
+                # analysis began. Keep that valid in-progress status until the
+                # Package preview is frozen, so API polling cannot mistake an
+                # internal analysis boundary for final completion.
+                selected, destination = self._propose_package(
+                    task_id, expected_task_status="executing"
+                )
+                self._prepare_package(
+                    task_id,
+                    selected,
+                    destination,
+                    expected_task_status="executing",
+                )
+            else:
+                self._finish(entry)
         except Exception as exc:
             with self._lock:
                 entry["task"]["status"] = "failed"
@@ -332,11 +364,13 @@ class TaskService:
                 entry["preview_id"] = None
                 entry["report"] = None
 
-    def _propose_package(self, task_id: str) -> tuple[list[dict], str]:
+    def _propose_package(
+        self, task_id: str, *, expected_task_status: str
+    ) -> tuple[list[dict], str]:
         """Suggest only unique filename candidates from this Task's matching."""
         with self._lock:
             entry = self._entry(task_id)
-            if entry["task"]["status"] != "completed":
+            if entry["task"]["status"] != expected_task_status:
                 raise TaskConflict("Package analysis is not completed")
             matches = [
                 result
