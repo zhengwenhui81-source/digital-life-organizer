@@ -56,6 +56,22 @@ test('Opt-in real Windows HTTP observation (controlled planner, no substituted T
             const item={name,task_id:state.id,rawBefore,initial_status:state.status,error:state.error,source_sha256:originalHash,status:'blocked',copies:[]};evidence.cases.push(item);
             if(state.status==='awaiting_approval'){
                 const preview=await evaluate('agentState.snapshot.preview_id');
+                const before=JSON.parse(rawBefore);
+                const frozen=before.results.filter(r=>r.tool==='plan_package'&&r.success).at(-1).data;
+                item.binding={preview_id:preview,plan_id:frozen.plan.plan_id,plan_sha256:frozen.plan_sha256};
+                for(const operation of before.pending_operations.filter(o=>o.tool==='write_package_report')){
+                    assert.equal(operation.arguments.plan_id,item.binding.plan_id);
+                    assert.equal(operation.arguments.plan_sha256,item.binding.plan_sha256);
+                }
+                const verify=before.pending_operations.find(o=>o.tool==='verify_result');
+                assert.equal(verify.arguments.task_id,state.id);
+                assert.equal(verify.arguments.workspace,workspace);
+                assert.deepEqual(verify.arguments.expected,frozen.plan.verification_targets);
+                // A wrong identity is rejected without consuming the real preview.
+                // This proves identity rejection, not time-based preview expiration.
+                item.wrong_preview_status=await evaluate(`fetch('/api/agent/tasks/'+${JSON.stringify(state.id)}+'/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({preview_id:'preview_not_this_task',accept_incomplete:true})}).then(r=>r.status)`);
+                assert.equal(item.wrong_preview_status,409);
+                assert.equal(await evaluate(`fetch('/api/agent/tasks/'+${JSON.stringify(state.id)}).then(r=>r.json()).then(s=>s.preview_id)`),preview);
                 if(previousPreview){
                     item.cross_task_preview_status=await evaluate(`fetch('/api/agent/tasks/'+${JSON.stringify(state.id)}+'/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({preview_id:${JSON.stringify(previousPreview)},accept_incomplete:true})}).then(r=>r.status)`);
                     assert.equal(item.cross_task_preview_status,409);assert.equal(await evaluate('agentState.snapshot.preview_id'),preview);
@@ -70,6 +86,8 @@ test('Opt-in real Windows HTTP observation (controlled planner, no substituted T
                     // Page refresh: explicitly resume the same service-owned task.
                     await open();await evaluate(`agentResumeTask.value=${JSON.stringify(state.id)};resumeAgentTask()`);
                     assert.equal(await evaluate('agentState.task.task_id'),state.id);
+                    assert.equal(await evaluate('agentState.snapshot.preview_id'),preview);
+                    item.refresh_restored=true;
                     if(name==='changed')await writeFile(path.join(workspace,'报名表.txt'),Buffer.concat([original,Buffer.from('\ncontrolled-source-change')]));
                     if(name==='occupied'){assert.equal(path.dirname(destination),workspace);await mkdir(destination);await writeFile(path.join(destination,'occupied-sentinel.txt'),'must not overwrite',{flag:'wx'});}
                     if(await evaluate('!packageRiskControl.hidden')){
@@ -99,7 +117,17 @@ test('Opt-in real Windows HTTP observation (controlled planner, no substituted T
                     item.duplicate_status=duplicate;assert.equal(duplicate,409);
                     const s=JSON.parse(await evaluate(`fetch('/api/agent/tasks/'+${JSON.stringify(state.id)}).then(r=>r.text())`));
                     item.rawAfter=await evaluate(`fetch('/api/agent/tasks/'+${JSON.stringify(state.id)}).then(r=>r.text())`);
+                    if(s.package_execution){
+                        assert.equal(s.package_execution.plan_id,item.binding.plan_id);
+                        assert.equal(s.package_execution.plan_sha256,item.binding.plan_sha256);
+                    }
                     if(s.task.status==='completed'){
+                        const final=s.results[s.package_execution.final_result_index];
+                        assert.equal(final.tool,'build_package');assert.equal(final.success,true);
+                        assert.equal(final.data.plan_id,item.binding.plan_id);
+                        assert.equal(final.data.plan_sha256,item.binding.plan_sha256);
+                        const verification=s.results[final.data.verification_result_index];
+                        assert.equal(verification.tool,'verify_result');assert.equal(verification.success,true);
                         const p=s.results.filter(r=>r.tool==='plan_package').at(-1).data.plan;
                         for(const selected of p.selected_files){
                             assert.equal(path.dirname(selected.target),p.destination);

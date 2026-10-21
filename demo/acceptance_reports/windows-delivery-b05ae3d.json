@@ -1,0 +1,2794 @@
+{
+  "kind": "B local delivery observation, not public API or server attestation",
+  "source_dev": "b05ae3debec1f94b6e91ecc6b430cb3eda3d5ade",
+  "browser_test_commit": "f408c8f",
+  "date": "2026-10-21",
+  "environment": {
+    "os": "Windows",
+    "python": "3.12.12"
+  },
+  "overall": "blocked",
+  "merged_prs": [
+    51,
+    52,
+    53
+  ],
+  "status_definitions": {
+    "implemented": "code exists",
+    "tested": "specified automated checks passed; not global certification",
+    "controlled_pass": "real HTTP/browser/file operations under fixed Planner in isolated synthetic Workspace",
+    "e2e_pass": "real model plus complete intended workflow; NONE claimed in this run",
+    "blocked": "explicit blocker",
+    "not_implemented": "no production implementation",
+    "unverifiable": "insufficient authoritative evidence"
+  },
+  "capabilities": [
+    {
+      "feature": "Real Package frontend/approval/report",
+      "level": "controlled_pass",
+      "scope": "normal and accept_incomplete; real copies, frozen and actual SHA match"
+    },
+    {
+      "feature": "Real document/requirements/matching/version/conflict tool execution",
+      "level": "controlled_pass",
+      "scope": "small synthetic plans and real HTTP; empty conflict result is not semantic conflict-detection accuracy"
+    },
+    {
+      "feature": "Unknown Workspace dynamic discovery",
+      "level": "tested",
+      "scope": "synthetic 22-file task discovers actual files, no hardcoded read output; arbitrary real-user Workspace/LLM not exercised"
+    },
+    {
+      "feature": "Full 22-file same task",
+      "level": "blocked",
+      "reason": "Document batch exceeds 10 candidates"
+    },
+    {
+      "feature": "Per-file authoritative complete analysis coverage",
+      "level": "unverifiable",
+      "reason": "No authoritative skipped/limit/unsupported coverage fields"
+    },
+    {
+      "feature": "DeepSeek E2E",
+      "level": "blocked",
+      "reason": "No configured model credentials/base/model; presence only checked, no keys or configuration files read, no model called"
+    },
+    {
+      "feature": "Organization Fixture and disabled formal shell",
+      "level": "tested",
+      "scope": "dynamic local demo only; no Agent classification requests or writes"
+    },
+    {
+      "feature": "Organization real classifier/correction/approved copy",
+      "level": "not_implemented",
+      "reason": "API_CONTRACT section 8 not frozen; no registered classify_files"
+    },
+    {
+      "feature": "Real classification >=95% accuracy",
+      "level": "blocked",
+      "reason": "20 gold files generated, zero actual classifier decisions, accuracy/coverage null"
+    },
+    {
+      "feature": "Stale/cross-task/delayed-response/UI integer precision protection",
+      "level": "tested",
+      "scope": "Node controlled regression; no network latency fault injection in browser"
+    },
+    {
+      "feature": "TTL-expired preview",
+      "level": "unverifiable",
+      "reason": "Wrong identity/cross-task/duplicate 409 observed; these do not prove elapsed-time expiry"
+    },
+    {
+      "feature": "Actual interrupted copy / unknown cleanup residual / final byte verification fault",
+      "level": "blocked",
+      "reason": "Existing backend test seams and frontend Fixtures only; no real HTTP fault injection performed"
+    }
+  ],
+  "tests": [
+    {
+      "command": "node --test frontend/tests/*.test.cjs",
+      "passed": 127,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Node state/renderer tests"
+    },
+    {
+      "command": "node --test frontend/tests/package-browser.cjs frontend/tests/organization-browser.cjs",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Installed Windows Chrome, Fixture, 1366/390"
+    },
+    {
+      "command": "PACKAGE_LIVE_MANIFEST=<PACKAGE_RUN>/manifest.json node --test frontend/tests/package-live-browser.cjs",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Installed Windows Chrome, real HTTP, controlled Planner; seven observations, one blocked"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -B -m unittest discover -s demo -p test_*acceptance*.py -q",
+      "passed": 59,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Acceptance unit tests; additionally recorded by check-tools"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -B frontend/tests/matching-public-smoke.py",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Public tool to frontend renderer; no HTTP"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -B frontend/tests/real-results-smoke.py",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Actual HTTP; zero fails/report409 as expected, 1/2 succeed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -B frontend/tests/offline-browser-smoke.py",
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Actual read-only offline HTTP"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -B frontend/tests/offline-startup-smoke.py",
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Port ownership, same socket, startup failure, Ctrl+C cleanup"
+    }
+  ],
+  "backend_package_regression": {
+    "command": ".\\.venv\\Scripts\\python.exe -B -m pytest tests/test_agent_package_approval.py tests/test_agent_package_preview.py tests/test_agent_package_evidence.py tests/test_agent_package_provenance.py tests/test_package_evidence_freshness.py tests/test_document_package_evidence.py tests/test_package_paths.py tests/test_package_planning.py tests/test_package_report.py -q -rs --tb=short",
+    "runs": [
+      {
+        "passed": 122,
+        "failed": 6,
+        "skipped": 9,
+        "exit_code": 1
+      },
+      {
+        "passed": 121,
+        "failed": 7,
+        "skipped": 9,
+        "exit_code": 1
+      }
+    ],
+    "reason": "Intermittent Windows Source changed before reading; unchanged production baseline",
+    "skips": [
+      "7 symlink unavailable",
+      "1 POSIX dir_fd test",
+      "1 native Windows path not applicable"
+    ],
+    "second_run_failed": [
+      "test_d_only_observes_current_bytes_without_certifying_old_analysis[False]",
+      "test_d_only_observes_current_bytes_without_certifying_old_analysis[True]",
+      "test_same_path_different_id_not_identity_error",
+      "test_dedup_and_contradiction",
+      "test_missing_unselected_conflict_and_version",
+      "test_stable_order_with_two_selected_files",
+      "test_real_task_domains[成绩证明-准备奖学金材料]"
+    ],
+    "diagnostic": {
+      "independent_fixtures": 20,
+      "passed": 15,
+      "failed": 5,
+      "error": "Source changed before reading",
+      "method": "Existing tests.test_package_planning.request_data.__wrapped__; plan_package with all analysis None; no production patch"
+    }
+  },
+  "browser_package": {
+    "level": "controlled_pass",
+    "overall": "blocked",
+    "e2e": false,
+    "artifact_sha256": "cb80f82172b22913b2ce135e98b4b3dfaa2cda1576a9756c2ac35f08740acc25",
+    "cases": [
+      {
+        "name": "normal",
+        "task_id": "task_fe3313345ae046b594d721dab91b0738",
+        "initial_status": "awaiting_approval",
+        "error": null,
+        "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+        "status": "controlled_real_execution_passed",
+        "copies": [
+          {
+            "source": "<PACKAGE_RUN>\\normal\\报名表.txt",
+            "target": "<PACKAGE_RUN>\\normal\\package_task_fe3313345ae046b594d721dab91b0738\\报名表.txt",
+            "sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+            "approved_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+            "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418"
+          }
+        ],
+        "binding": {
+          "preview_id": "sha256:2e4291343309b336aa1bd773a7c2c48c85a8d04e2ba68ce5e76fe46e78649240",
+          "plan_id": "package_plan_ca003506a463405b9ca27901b016d62a",
+          "plan_sha256": "sha256:306aa0595b0e609f409c98c8f0431a1b9356b7e3b3dc0306c4ac8329dd0d36aa"
+        },
+        "wrong_preview_status": 409,
+        "frontend_gate": true,
+        "refresh_restored": true,
+        "without_acceptance_status": 409,
+        "final_status": "completed",
+        "ui_success": true,
+        "duplicate_status": 409,
+        "report_sha256": "da9b0e5550694c4574d67527c43b0559651f959083b7d28622be7a03d64c9ac3",
+        "package_path": "<PACKAGE_RUN>\\normal\\package_task_fe3313345ae046b594d721dab91b0738",
+        "source_unchanged": true,
+        "tools_before_approval": [
+          {
+            "tool": "list_files",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "detect_conflicts",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "extract_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "compare_versions",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "match_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "plan_package",
+            "success": true,
+            "error": null
+          }
+        ],
+        "package_execution": {
+          "plan_id": "package_plan_ca003506a463405b9ca27901b016d62a",
+          "plan_sha256": "sha256:306aa0595b0e609f409c98c8f0431a1b9356b7e3b3dc0306c4ac8329dd0d36aa",
+          "operation_results": [
+            {
+              "step_id": "package_001",
+              "result_index": 8
+            },
+            {
+              "step_id": "package_002",
+              "result_index": 9
+            },
+            {
+              "step_id": "package_003",
+              "result_index": 10
+            },
+            {
+              "step_id": "package_004",
+              "result_index": 11
+            }
+          ],
+          "cleanup_results": [
+            {
+              "step_id": "package_002",
+              "status": "not_attempted",
+              "reason": "copy_succeeded",
+              "residual_state": "absent"
+            }
+          ],
+          "final_result_index": 12
+        },
+        "final_tool_result": {
+          "success": true,
+          "tool": "build_package",
+          "data": {
+            "plan_id": "package_plan_ca003506a463405b9ca27901b016d62a",
+            "plan_sha256": "sha256:306aa0595b0e609f409c98c8f0431a1b9356b7e3b3dc0306c4ac8329dd0d36aa",
+            "package_path": "<PACKAGE_RUN>\\normal\\package_task_fe3313345ae046b594d721dab91b0738",
+            "generated_files": [
+              "<PACKAGE_RUN>\\normal\\package_task_fe3313345ae046b594d721dab91b0738\\报名表.txt",
+              "<PACKAGE_RUN>\\normal\\package_task_fe3313345ae046b594d721dab91b0738\\PACKAGE_REPORT.md"
+            ],
+            "report_path": "<PACKAGE_RUN>\\normal\\package_task_fe3313345ae046b594d721dab91b0738\\PACKAGE_REPORT.md",
+            "verification_result_index": 11
+          },
+          "message": "build_package completed",
+          "error": null
+        }
+      },
+      {
+        "name": "missing",
+        "task_id": "task_7a50810f62d849e9b7aeb4e5b281dbeb",
+        "initial_status": "awaiting_approval",
+        "error": null,
+        "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+        "status": "controlled_real_execution_passed",
+        "copies": [
+          {
+            "source": "<PACKAGE_RUN>\\missing\\报名表.txt",
+            "target": "<PACKAGE_RUN>\\missing\\package_task_7a50810f62d849e9b7aeb4e5b281dbeb\\报名表.txt",
+            "sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+            "approved_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+            "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418"
+          }
+        ],
+        "binding": {
+          "preview_id": "sha256:7d90f09da7349a537ff53b600da2a21d0e71022d6efc3f4d575e74d1c9be7a72",
+          "plan_id": "package_plan_63619a529d684e8ebfeedbff2dc9ec80",
+          "plan_sha256": "sha256:4c8929cb2f609d18e5b3faa96b22f22945892c415e518d1f2861e709505a3e10"
+        },
+        "wrong_preview_status": 409,
+        "cross_task_preview_status": 409,
+        "frontend_gate": true,
+        "refresh_restored": true,
+        "without_acceptance_status": 409,
+        "final_status": "completed",
+        "ui_success": true,
+        "duplicate_status": 409,
+        "report_sha256": "6ff06135cfbd06a60073823da47a3965c40d301a8937a4a76026ae7b9504f90e",
+        "package_path": "<PACKAGE_RUN>\\missing\\package_task_7a50810f62d849e9b7aeb4e5b281dbeb",
+        "source_unchanged": true,
+        "tools_before_approval": [
+          {
+            "tool": "list_files",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "detect_conflicts",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "extract_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "compare_versions",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "match_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "plan_package",
+            "success": true,
+            "error": null
+          }
+        ],
+        "package_execution": {
+          "plan_id": "package_plan_63619a529d684e8ebfeedbff2dc9ec80",
+          "plan_sha256": "sha256:4c8929cb2f609d18e5b3faa96b22f22945892c415e518d1f2861e709505a3e10",
+          "operation_results": [
+            {
+              "step_id": "package_001",
+              "result_index": 8
+            },
+            {
+              "step_id": "package_002",
+              "result_index": 9
+            },
+            {
+              "step_id": "package_003",
+              "result_index": 10
+            },
+            {
+              "step_id": "package_004",
+              "result_index": 11
+            }
+          ],
+          "cleanup_results": [
+            {
+              "step_id": "package_002",
+              "status": "not_attempted",
+              "reason": "copy_succeeded",
+              "residual_state": "absent"
+            }
+          ],
+          "final_result_index": 12
+        },
+        "final_tool_result": {
+          "success": true,
+          "tool": "build_package",
+          "data": {
+            "plan_id": "package_plan_63619a529d684e8ebfeedbff2dc9ec80",
+            "plan_sha256": "sha256:4c8929cb2f609d18e5b3faa96b22f22945892c415e518d1f2861e709505a3e10",
+            "package_path": "<PACKAGE_RUN>\\missing\\package_task_7a50810f62d849e9b7aeb4e5b281dbeb",
+            "generated_files": [
+              "<PACKAGE_RUN>\\missing\\package_task_7a50810f62d849e9b7aeb4e5b281dbeb\\报名表.txt",
+              "<PACKAGE_RUN>\\missing\\package_task_7a50810f62d849e9b7aeb4e5b281dbeb\\PACKAGE_REPORT.md"
+            ],
+            "report_path": "<PACKAGE_RUN>\\missing\\package_task_7a50810f62d849e9b7aeb4e5b281dbeb\\PACKAGE_REPORT.md",
+            "verification_result_index": 11
+          },
+          "message": "build_package completed",
+          "error": null
+        }
+      },
+      {
+        "name": "reject",
+        "task_id": "task_0a74a6dcfe654a0abd166af438d34dd3",
+        "initial_status": "awaiting_approval",
+        "error": "User rejected pending operations",
+        "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+        "status": "rejection_passed",
+        "copies": [],
+        "binding": {
+          "preview_id": "sha256:3c1049104e66292a500c91c0f508b6193d1f6c5dfdb27257eb91d88eee2024ca",
+          "plan_id": "package_plan_bc432a07ead344eea07bb84f8078bde8",
+          "plan_sha256": "sha256:4ef07116654030807b469de591944bfa7099f13bef8d4d741c3fb8518e3d3392"
+        },
+        "wrong_preview_status": 409,
+        "cross_task_preview_status": 409,
+        "frontend_gate": true,
+        "refresh_restored": true,
+        "without_acceptance_status": 409,
+        "final_status": "failed",
+        "ui_success": false,
+        "duplicate_status": 409,
+        "failed_report_status": 409,
+        "source_unchanged": true,
+        "tools_before_approval": [
+          {
+            "tool": "list_files",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "detect_conflicts",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "extract_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "compare_versions",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "match_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "plan_package",
+            "success": true,
+            "error": null
+          }
+        ],
+        "package_execution": null
+      },
+      {
+        "name": "changed",
+        "task_id": "task_4abc08a2a20241788e50db893d70a676",
+        "initial_status": "awaiting_approval",
+        "error": "Approved Package source differs from frozen preview",
+        "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+        "status": "safety_rejection_observed",
+        "copies": [],
+        "binding": {
+          "preview_id": "sha256:9006257f14a9f9640216e967c6a417cfbce4cb240c530b0c492c6317cbf43df2",
+          "plan_id": "package_plan_f20340e958fd496bb60e579567f834e7",
+          "plan_sha256": "sha256:3bbdaf9755f337ba26c288a42e6f92bf323b3b02293acb83e11b9150c619c1ea"
+        },
+        "wrong_preview_status": 409,
+        "cross_task_preview_status": 409,
+        "frontend_gate": true,
+        "refresh_restored": true,
+        "without_acceptance_status": 409,
+        "final_status": "failed",
+        "ui_success": false,
+        "duplicate_status": 409,
+        "failed_report_status": 409,
+        "source_unchanged": false,
+        "tools_before_approval": [
+          {
+            "tool": "list_files",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "detect_conflicts",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "extract_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "compare_versions",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "match_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "plan_package",
+            "success": true,
+            "error": null
+          }
+        ],
+        "package_execution": {
+          "plan_id": "package_plan_f20340e958fd496bb60e579567f834e7",
+          "plan_sha256": "sha256:3bbdaf9755f337ba26c288a42e6f92bf323b3b02293acb83e11b9150c619c1ea",
+          "operation_results": [],
+          "cleanup_results": [],
+          "final_result_index": 8
+        },
+        "final_tool_result": {
+          "success": false,
+          "tool": "build_package",
+          "data": null,
+          "message": "build_package failed",
+          "error": "Approved Package source differs from frozen preview"
+        }
+      },
+      {
+        "name": "occupied",
+        "task_id": "task_b54d9e7c90924543a726fd646fbe82d7",
+        "initial_status": "awaiting_approval",
+        "error": "Package destination is occupied or parent changed",
+        "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+        "status": "safety_rejection_observed",
+        "copies": [],
+        "binding": {
+          "preview_id": "sha256:550274c82898909aa48277100fb8a3b77c33fe2e2699deb71fa02165731ce9e5",
+          "plan_id": "package_plan_76c15dc3ff1847029d69a12dbc477827",
+          "plan_sha256": "sha256:ee4ad5a2a71755b0e3817ecd25c1f60d16195040ee8a046440e19e9599387a52"
+        },
+        "wrong_preview_status": 409,
+        "cross_task_preview_status": 409,
+        "frontend_gate": true,
+        "refresh_restored": true,
+        "without_acceptance_status": 409,
+        "final_status": "failed",
+        "ui_success": false,
+        "duplicate_status": 409,
+        "failed_report_status": 409,
+        "source_unchanged": true,
+        "tools_before_approval": [
+          {
+            "tool": "list_files",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "detect_conflicts",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "extract_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "compare_versions",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "match_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "plan_package",
+            "success": true,
+            "error": null
+          }
+        ],
+        "package_execution": {
+          "plan_id": "package_plan_76c15dc3ff1847029d69a12dbc477827",
+          "plan_sha256": "sha256:ee4ad5a2a71755b0e3817ecd25c1f60d16195040ee8a046440e19e9599387a52",
+          "operation_results": [],
+          "cleanup_results": [],
+          "final_result_index": 8
+        },
+        "final_tool_result": {
+          "success": false,
+          "tool": "build_package",
+          "data": null,
+          "message": "build_package failed",
+          "error": "Package destination is occupied or parent changed"
+        }
+      },
+      {
+        "name": "partial_source_changed",
+        "task_id": "task_fd97106cdef04178b815bb8f8b511a56",
+        "initial_status": "awaiting_approval",
+        "error": "Approved Package source differs from frozen preview",
+        "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+        "status": "partial_failure_observed",
+        "copies": [
+          {
+            "source": "<PACKAGE_RUN>\\partial_source_changed\\报名表.txt",
+            "target": "<PACKAGE_RUN>\\partial_source_changed\\package_task_fd97106cdef04178b815bb8f8b511a56\\报名表.txt",
+            "sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418"
+          }
+        ],
+        "binding": {
+          "preview_id": "sha256:92fcacdcfa7e98ec2ed12e4b1f0fe19aa0a28329e241d6b2fb15bdc4f2b94203",
+          "plan_id": "package_plan_1ccb7438c11d4f3cba34fc0a1df8aa11",
+          "plan_sha256": "sha256:d2b83ba00bce840c6a74aab423ceb922bd7a1e2f47b4611b1367ba346ec6729a"
+        },
+        "wrong_preview_status": 409,
+        "cross_task_preview_status": 409,
+        "frontend_gate": true,
+        "refresh_restored": true,
+        "without_acceptance_status": 409,
+        "final_status": "failed",
+        "ui_success": false,
+        "duplicate_status": 409,
+        "failed_report_status": 409,
+        "operation_results": [
+          {
+            "step_id": "package_001",
+            "result_index": 9
+          },
+          {
+            "step_id": "package_002",
+            "result_index": 10
+          },
+          {
+            "step_id": "package_003",
+            "result_index": 11
+          }
+        ],
+        "cleanup_results": [
+          {
+            "step_id": "package_002",
+            "status": "not_attempted",
+            "reason": "copy_succeeded",
+            "residual_state": "absent"
+          },
+          {
+            "step_id": "package_003",
+            "status": "not_attempted",
+            "reason": "Source revalidation failed before target creation",
+            "residual_state": "absent"
+          }
+        ],
+        "source_unchanged": true,
+        "tools_before_approval": [
+          {
+            "tool": "list_files",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "detect_conflicts",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "extract_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "compare_versions",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "match_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "plan_package",
+            "success": true,
+            "error": null
+          }
+        ],
+        "package_execution": {
+          "plan_id": "package_plan_1ccb7438c11d4f3cba34fc0a1df8aa11",
+          "plan_sha256": "sha256:d2b83ba00bce840c6a74aab423ceb922bd7a1e2f47b4611b1367ba346ec6729a",
+          "operation_results": [
+            {
+              "step_id": "package_001",
+              "result_index": 9
+            },
+            {
+              "step_id": "package_002",
+              "result_index": 10
+            },
+            {
+              "step_id": "package_003",
+              "result_index": 11
+            }
+          ],
+          "cleanup_results": [
+            {
+              "step_id": "package_002",
+              "status": "not_attempted",
+              "reason": "copy_succeeded",
+              "residual_state": "absent"
+            },
+            {
+              "step_id": "package_003",
+              "status": "not_attempted",
+              "reason": "Source revalidation failed before target creation",
+              "residual_state": "absent"
+            }
+          ],
+          "final_result_index": 12
+        },
+        "final_tool_result": {
+          "success": false,
+          "tool": "build_package",
+          "data": null,
+          "message": "build_package failed",
+          "error": "Approved Package source differs from frozen preview"
+        }
+      },
+      {
+        "name": "unrecognized_notice",
+        "task_id": "task_4929cca35b8d414dbc0b33302175d303",
+        "initial_status": "failed",
+        "error": "No unambiguous material candidate can be proposed for Package",
+        "source_sha256": "b4a056667a8035313fcff51c12de49e3e03ba1f79e270d8320472e37b726e418",
+        "status": "blocked",
+        "copies": [],
+        "source_unchanged": true,
+        "tools_before_approval": [
+          {
+            "tool": "list_files",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "detect_conflicts",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "extract_requirements",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "read_document",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "compare_versions",
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "match_requirements",
+            "success": true,
+            "error": null
+          }
+        ]
+      }
+    ],
+    "notes": [
+      "All cases use a fixed Plan, not LLM reasoning",
+      "Normal/missing completed; six observations passed and unrecognized notice blocked",
+      "Changed scenario deliberately modifies its synthetic source; partial scenario modifies second synthetic source, not first",
+      "cleanup residual_state absent on successful copy means no failed fragment, NOT rollback of successful target",
+      "All paths below are relative placeholders; raw observations retained locally"
+    ]
+  },
+  "shared_acceptance": {
+    "artifact_sha256": "b3dc5e1a143b0992d17a8e6b64f583ae44929e39fee7be31f2ef7019f5a253ea",
+    "gold_sha256": "bc6c8e9a44bec89cc8ebba3fff6cccc76f02ef7598d415c32c9fd87f655d9978",
+    "observation_sha256": "570218c9eb030b2573b812f3af23e772921d03db2fc25a223b924af52e8cb258",
+    "dataset": {
+      "package": 22,
+      "classification": 20,
+      "synthetic": true,
+      "legacy_22_template": "unchanged_pending"
+    },
+    "layers": {
+      "code_exists": {
+        "status": "observed",
+        "paths": [
+          "src/fileforge/agent/service.py",
+          "src/fileforge/package/planning.py"
+        ]
+      },
+      "automatic_tests": {
+        "status": "passed",
+        "tests": 59,
+        "exit_code": 0,
+        "command": [
+          "<REPO>\\.venv\\Scripts\\python.exe",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "demo",
+          "-p",
+          "test_*acceptance*.py",
+          "-v"
+        ],
+        "environment": {
+          "system": "Windows",
+          "python": "3.12.12",
+          "head": "b05ae3debec1f94b6e91ecc6b430cb3eda3d5ade",
+          "utc": "2026-10-21T12:12:26.320161+00:00"
+        },
+        "record_sha256": "ed06784def48ff45203a67695ab95a2cceaa06759c94d9c3e675f5676eadf09e",
+        "log_sha256": "f9daeadec49d7b2ff0ba83424b56ec41a1b67f862907e35b39f9035aab8f7022",
+        "trust": "Local recorded command, not remote attestation"
+      },
+      "controlled_windows": {
+        "status": "observed_read_only",
+        "evidence_sha256": "570218c9eb030b2573b812f3af23e772921d03db2fc25a223b924af52e8cb258"
+      },
+      "browser_e2e": {
+        "status": "not_run"
+      },
+      "deepseek": {
+        "status": "unverifiable",
+        "reason": "Snapshot has no authoritative model/provider evidence; never infer from success"
+      },
+      "external_blocked": {
+        "status": "blocked",
+        "reasons": [
+          "classify_files schema/adapter not frozen",
+          "Document batch exceeds 10 candidates",
+          "Source changed before reading"
+        ]
+      }
+    },
+    "run_outcomes": [
+      {
+        "tag": "batch",
+        "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+        "status": "failed",
+        "error": "Document batch exceeds 10 candidates",
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:通知_原版.txt",
+        "task_id": "task_e51c08064e084862bd088a67dcf535d8",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:通知_补充.txt",
+        "task_id": "task_49edf00325454727815efb058f91ca10",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:结题报告_v1.txt",
+        "task_id": "task_200e3740375446ff96da134bb2381eb9",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:实验记录_v1.docx",
+        "task_id": "task_daa05ffe29bc4b388a032b7b9a475252",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:结题报告_v2.txt",
+        "task_id": "task_e4ba8709c1fd401ab0aa48bbdc96f0f2",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:实验记录_v2.docx",
+        "task_id": "task_a65b300c03ba4c0bb8ad836425242e82",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:费用清单.xlsx",
+        "task_id": "task_4f71cbc81be14c1682e7f5ccd288872a",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:费用凭证.pdf",
+        "task_id": "task_8f46593b0a814bac9ed3e6b2cff42179",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:课程说明.docx",
+        "task_id": "task_2a020124b1df4ceb9d730777764710c6",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:项目总结.txt",
+        "task_id": "task_7f9e17f7c41d466097017d0e9031b61d",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:附件索引.txt",
+        "task_id": "task_f6c231e88fa3471dbe272809937c51d0",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:预算草稿.xlsx",
+        "task_id": "task_038b04e850084d39a34ccc47a6fd6636",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:course_notes.pdf",
+        "task_id": "task_7bdba71494e445088551fc23ba750b51",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:personal_schedule.txt",
+        "task_id": "task_0ddae054d323490284563ad6d06ffb1a",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:合影.png",
+        "task_id": "task_9f9f9445cbee4ecc87c8cb102b914eab",
+        "status": "failed",
+        "error": "Unsupported document format; supported: TXT, PDF, DOCX, XLSX",
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:图像通知.png",
+        "task_id": "task_3bd6ee747f6c4f10a2747350de467cb0",
+        "status": "failed",
+        "error": "Unsupported document format; supported: TXT, PDF, DOCX, XLSX",
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:损坏记录.pdf",
+        "task_id": "task_ca657f5bcb0e45c5881433cda1b878fc",
+        "status": "failed",
+        "error": "Document parsing failed (PdfminerException): No /Root object! - Is this really a PDF?",
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:损坏表格.docx",
+        "task_id": "task_74d60b791a264b7c8b75ea2bb6127f7a",
+        "status": "failed",
+        "error": "Document parsing failed (PackageNotFoundError): Package not found at '<DATASET>\\package\\损坏表格.docx'",
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:空材料.txt",
+        "task_id": "task_840cda65ca0245f19288f7f2a454f955",
+        "status": "failed",
+        "error": "Document is empty or contains only whitespace",
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:未知数据.bin",
+        "task_id": "task_c8c90617dcb248f2b7756ea9ec79b46e",
+        "status": "failed",
+        "error": "Unsupported document format; supported: TXT, PDF, DOCX, XLSX",
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:参考资料.txt",
+        "task_id": "task_5574957f0883479ea68b96800633dee1",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "read:签字页_待确认.txt",
+        "task_id": "task_6857b7b71bf04b6a882b2d0e9230490f",
+        "status": "completed",
+        "error": null,
+        "final_report": null,
+        "report_http_status": null
+      },
+      {
+        "tag": "analysis_subset",
+        "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+        "status": "failed",
+        "error": "Source changed before reading",
+        "final_report": null,
+        "report_http_status": null
+      }
+    ],
+    "coverage": {
+      "discovered": {
+        "confirmed": 22,
+        "denominator": 22,
+        "meaning": "confirmed lower bound, NOT complete task coverage"
+      },
+      "read_success": {
+        "confirmed": 16,
+        "denominator": 22,
+        "meaning": "confirmed lower bound, NOT complete task coverage"
+      },
+      "read_failed": {
+        "confirmed": 6,
+        "denominator": 22,
+        "meaning": "confirmed lower bound, NOT complete task coverage"
+      },
+      "unsupported": {
+        "confirmed": 0,
+        "denominator": 22,
+        "meaning": "confirmed lower bound, NOT complete task coverage"
+      },
+      "not_processed_due_to_limit": {
+        "confirmed": 0,
+        "denominator": 22,
+        "meaning": "confirmed lower bound, NOT complete task coverage"
+      },
+      "analyzed": {
+        "confirmed": 8,
+        "denominator": 22,
+        "meaning": "confirmed lower bound, NOT complete task coverage"
+      },
+      "needs_confirmation": {
+        "confirmed": 0,
+        "denominator": 22,
+        "meaning": "confirmed lower bound, NOT complete task coverage"
+      }
+    },
+    "files": [
+      {
+        "path": "通知_原版.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_e51c08064e084862bd088a67dcf535d8",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 10,
+                "basis": "explicit compare_versions document membership (not semantic approval)"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "通知_补充.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_49edf00325454727815efb058f91ca10",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 1,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 10,
+                "basis": "explicit compare_versions document membership (not semantic approval)"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "结题报告_v1.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_200e3740375446ff96da134bb2381eb9",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 4,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 10,
+                "basis": "explicit compare_versions document membership (not semantic approval)"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 11,
+                "basis": "explicit match_requirements document membership (not semantic approval)"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "实验记录_v1.docx",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_daa05ffe29bc4b388a032b7b9a475252",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 6,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 10,
+                "basis": "explicit compare_versions document membership (not semantic approval)"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 11,
+                "basis": "explicit match_requirements document membership (not semantic approval)"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "结题报告_v2.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_e4ba8709c1fd401ab0aa48bbdc96f0f2",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 5,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 10,
+                "basis": "explicit compare_versions document membership (not semantic approval)"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 11,
+                "basis": "explicit match_requirements document membership (not semantic approval)"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "实验记录_v2.docx",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a65b300c03ba4c0bb8ad836425242e82",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 7,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 10,
+                "basis": "explicit compare_versions document membership (not semantic approval)"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 11,
+                "basis": "explicit match_requirements document membership (not semantic approval)"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "费用清单.xlsx",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_4f71cbc81be14c1682e7f5ccd288872a",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 8,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 10,
+                "basis": "explicit compare_versions document membership (not semantic approval)"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 11,
+                "basis": "explicit match_requirements document membership (not semantic approval)"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "费用凭证.pdf",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_8f46593b0a814bac9ed3e6b2cff42179",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "课程说明.docx",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_2a020124b1df4ceb9d730777764710c6",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "项目总结.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_7f9e17f7c41d466097017d0e9031b61d",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "附件索引.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_f6c231e88fa3471dbe272809937c51d0",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "预算草稿.xlsx",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_038b04e850084d39a34ccc47a6fd6636",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "course_notes.pdf",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_7bdba71494e445088551fc23ba750b51",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "personal_schedule.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_0ddae054d323490284563ad6d06ffb1a",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "合影.png",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "read_failed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_9f9f9445cbee4ecc87c8cb102b914eab",
+                "result_index": 0,
+                "basis": "single explicit path call and sole failed ToolResult"
+              }
+            ]
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "图像通知.png",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "read_failed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_3bd6ee747f6c4f10a2747350de467cb0",
+                "result_index": 0,
+                "basis": "single explicit path call and sole failed ToolResult"
+              }
+            ]
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "损坏记录.pdf",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "read_failed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_ca657f5bcb0e45c5881433cda1b878fc",
+                "result_index": 0,
+                "basis": "single explicit path call and sole failed ToolResult"
+              }
+            ]
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "损坏表格.docx",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "read_failed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_74d60b791a264b7c8b75ea2bb6127f7a",
+                "result_index": 0,
+                "basis": "single explicit path call and sole failed ToolResult"
+              }
+            ]
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "空材料.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "read_failed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_840cda65ca0245f19288f7f2a454f955",
+                "result_index": 0,
+                "basis": "single explicit path call and sole failed ToolResult"
+              }
+            ]
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "未知数据.bin",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "read_failed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_c8c90617dcb248f2b7756ea9ec79b46e",
+                "result_index": 0,
+                "basis": "single explicit path call and sole failed ToolResult"
+              }
+            ]
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "参考资料.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_5574957f0883479ea68b96800633dee1",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      },
+      {
+        "path": "签字页_待确认.txt",
+        "states": {
+          "discovered": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+                "result_index": 0,
+                "basis": "successful discovery ToolResult path"
+              }
+            ]
+          },
+          "read_success": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_6857b7b71bf04b6a882b2d0e9230490f",
+                "result_index": 0,
+                "basis": "successful Document identity/path"
+              },
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 9,
+                "basis": "successful Document identity/path"
+              }
+            ]
+          },
+          "read_failed": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "unsupported": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "not_processed_due_to_limit": {
+            "state": "unverifiable",
+            "evidence": []
+          },
+          "analyzed": {
+            "state": "confirmed",
+            "evidence": [
+              {
+                "task_id": "task_d383932429ec4ff183c12e2ca61018ee",
+                "result_index": 10,
+                "basis": "explicit compare_versions document membership (not semantic approval)"
+              }
+            ]
+          },
+          "needs_confirmation": {
+            "state": "unverifiable",
+            "evidence": []
+          }
+        }
+      }
+    ],
+    "filesystem": {
+      "package": {
+        "status": "originals_unchanged",
+        "changed_or_missing": [],
+        "unexpected_files": [],
+        "inventory": {
+          "course_notes.pdf": {
+            "size": 659,
+            "sha256": "ff7529113623111e9e39ec8b4259be2548b061f714fce6b26eaa59b86bfb025a",
+            "mtime_ns": "1790086400000000000"
+          },
+          "personal_schedule.txt": {
+            "size": 75,
+            "sha256": "bef6846661019bf5b4b56178d3b7399fdd9f173b0d809a931d9ac50d2c15455c",
+            "mtime_ns": "1790086400000000000"
+          },
+          "参考资料.txt": {
+            "size": 907,
+            "sha256": "1c9ffa830c27564aad66ccdf8e57a5656a2c099a466aa12e5242e22c6f794a84",
+            "mtime_ns": "1790086400000000000"
+          },
+          "合影.png": {
+            "size": 68,
+            "sha256": "6b17ec4eb60d17f2d74eb8dc677a7e30bc94b1720325e817b32c4732e9276e52",
+            "mtime_ns": "1790086400000000000"
+          },
+          "图像通知.png": {
+            "size": 68,
+            "sha256": "6b17ec4eb60d17f2d74eb8dc677a7e30bc94b1720325e817b32c4732e9276e52",
+            "mtime_ns": "1790086400000000000"
+          },
+          "实验记录_v1.docx": {
+            "size": 1944,
+            "sha256": "d2ff6a2719aa0d1bee038cfbfaade8d123135de37452e6bced2a4bee41d45d4c",
+            "mtime_ns": "1790086400000000000"
+          },
+          "实验记录_v2.docx": {
+            "size": 1944,
+            "sha256": "524bd14750d9920db13082437996fe70ebc8820fed4c58b43b947e0c6e975fde",
+            "mtime_ns": "1790172800000000000"
+          },
+          "损坏表格.docx": {
+            "size": 26,
+            "sha256": "295bacb555382ae86edc1e4a034d5c33e23073a1ecc361b4c2757fa9ec585f08",
+            "mtime_ns": "1790086400000000000"
+          },
+          "损坏记录.pdf": {
+            "size": 50,
+            "sha256": "df05db6b47e2febffdc58c0f257d56f255e167bf7f9d149a09ae2d5c49d24687",
+            "mtime_ns": "1790086400000000000"
+          },
+          "未知数据.bin": {
+            "size": 14,
+            "sha256": "acf14db310b593945407d8dbd97c56a3460e53bebe4425407f3cdba16d44cc6b",
+            "mtime_ns": "1790086400000000000"
+          },
+          "空材料.txt": {
+            "size": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mtime_ns": "1790086400000000000"
+          },
+          "签字页_待确认.txt": {
+            "size": 102,
+            "sha256": "3a74e340474759d1f3195bf260674df441bab2f3f0d871b982907de19d6346b4",
+            "mtime_ns": "1790086400000000000"
+          },
+          "结题报告_v1.txt": {
+            "size": 899,
+            "sha256": "d7f73193666e8b7054bf7deb9fe0ad8a90a4484db02135f4209f77b215cc90bf",
+            "mtime_ns": "1790086400000000000"
+          },
+          "结题报告_v2.txt": {
+            "size": 899,
+            "sha256": "ecc18602e72c82ddb049258152d7180523326537a8ea943728e65ad6c537a5ad",
+            "mtime_ns": "1790172800000000000"
+          },
+          "课程说明.docx": {
+            "size": 1146,
+            "sha256": "6bb50914ce08aa29c895a7af74b8ca75316bb8af3aa88507e25fc801854174b1",
+            "mtime_ns": "1790086400000000000"
+          },
+          "费用凭证.pdf": {
+            "size": 648,
+            "sha256": "cc268dd1d138b94d940a07f55d0ebbadae024f88961e57fb814a1e261c4f7cf5",
+            "mtime_ns": "1790086400000000000"
+          },
+          "费用清单.xlsx": {
+            "size": 2255,
+            "sha256": "f1f3353c2f1b395d6b6f4c1e16174d5b20085c72c49e7d1692535d28216517d3",
+            "mtime_ns": "1790086400000000000"
+          },
+          "通知_原版.txt": {
+            "size": 153,
+            "sha256": "547a6fb4b98c1f01909763bd29c7b15c16c707a4811e21c30624448de53824aa",
+            "mtime_ns": "1790086400000000000"
+          },
+          "通知_补充.txt": {
+            "size": 180,
+            "sha256": "30af802a0499c68d3469f88e88f54111c75b7e40084f3804e69bee34563056cf",
+            "mtime_ns": "1790086400000000000"
+          },
+          "附件索引.txt": {
+            "size": 108,
+            "sha256": "4889dcb9427f4c49741ea2c6f0f8520456aa839d3df7121e7430b7a154deb877",
+            "mtime_ns": "1790086400000000000"
+          },
+          "项目总结.txt": {
+            "size": 910,
+            "sha256": "ef53c016677fc82fcf74188c6c792e2b82c952a221e4b86a3fd5a8817c5222e1",
+            "mtime_ns": "1790086400000000000"
+          },
+          "预算草稿.xlsx": {
+            "size": 2074,
+            "sha256": "44f2c8dd80492ca01d48b141bd104b4a9ae2a43fff7cb21c950f34e741beafc5",
+            "mtime_ns": "1790086400000000000"
+          }
+        }
+      },
+      "classification": {
+        "status": "originals_unchanged",
+        "changed_or_missing": [],
+        "unexpected_files": [],
+        "inventory": {
+          "ambiguous/计划.txt": {
+            "size": 45,
+            "sha256": "8b3dba9f87e368093d33db44e6aa4615b144679c87238290b14300db9901404c",
+            "mtime_ns": "1790086400000000000"
+          },
+          "binary/data.bin": {
+            "size": 3,
+            "sha256": "30839c5ca1457fbfcc1eb092105577319fe48cb01ba11aee56736d17f2d2d406",
+            "mtime_ns": "1790086400000000000"
+          },
+          "broken/record.docx": {
+            "size": 13,
+            "sha256": "af71e0d996cf4a5613b4abfafdd8a560816318a9b0b27337f1fd3893a6dd51fb",
+            "mtime_ns": "1790086400000000000"
+          },
+          "broken/record.pdf": {
+            "size": 11,
+            "sha256": "804e0d9bc9ac5d0f1aeb6e54278b97daf8f7b7906a270ac68166037b9e482707",
+            "mtime_ns": "1790086400000000000"
+          },
+          "finance/claim.pdf": {
+            "size": 654,
+            "sha256": "ef2b2c1c9efb025e00bad28bdc75b228289cc6d8e1209ae65562ae86ca3a2769",
+            "mtime_ns": "1790086400000000000"
+          },
+          "finance/receipt.docx": {
+            "size": 1098,
+            "sha256": "b364e2c641ff14e52f61ddf1b47833057c36cb7e38dd221b0e264b2853f1b805",
+            "mtime_ns": "1790086400000000000"
+          },
+          "health/appointment.txt": {
+            "size": 93,
+            "sha256": "0ee27650b445a8993fcd5ac70e60f2bd6c0d05d1ccc5f1a75cf20f2997be2799",
+            "mtime_ns": "1790086400000000000"
+          },
+          "home/notes.txt": {
+            "size": 75,
+            "sha256": "a4533946abd69e4276ce533114094469c78ab48769cc0dd6ff036a7911715ff5",
+            "mtime_ns": "1790086400000000000"
+          },
+          "housing/lease.txt": {
+            "size": 73,
+            "sha256": "c0154c51daa3ec564f9a29b4b7bbb07b7aa0cc3214f90277814ac4365216e004",
+            "mtime_ns": "1790086400000000000"
+          },
+          "image/receipt.png": {
+            "size": 68,
+            "sha256": "6b17ec4eb60d17f2d74eb8dc677a7e30bc94b1720325e817b32c4732e9276e52",
+            "mtime_ns": "1790086400000000000"
+          },
+          "misleading/holiday_plan.txt": {
+            "size": 74,
+            "sha256": "765eba8f955cad201efc7a1546b3509f7af50e525625e25f9a1a22924b5f2421",
+            "mtime_ns": "1790086400000000000"
+          },
+          "misleading/invoice.txt": {
+            "size": 76,
+            "sha256": "4ea49b92157773c58e15ab523895cf9f07c92cc790af48c58a85d5becbbf545e",
+            "mtime_ns": "1790086400000000000"
+          },
+          "personal/diary.txt": {
+            "size": 63,
+            "sha256": "3f08f2626871de20a3b94e5244688111cba185ae44a7da5cd6e8d5dcef5ba4ea",
+            "mtime_ns": "1790086400000000000"
+          },
+          "table/expenses.xlsx": {
+            "size": 2090,
+            "sha256": "4e11cb7482dc3aafd533c2651bcbed1d818cea00c9928c3343df09e788b4b44f",
+            "mtime_ns": "1790086400000000000"
+          },
+          "travel/notes.txt": {
+            "size": 72,
+            "sha256": "fea1830d5ffaab2eb210b28f04efe3be4fe7e442a66ea192871e84917a96d3b0",
+            "mtime_ns": "1790086400000000000"
+          },
+          "unknown/blank.txt": {
+            "size": 4,
+            "sha256": "6a60074f6bbb8bf4be7b6784eff960fa7949e7ecaf4e72806a9acda738d30be8",
+            "mtime_ns": "1790086400000000000"
+          },
+          "unknown/empty.txt": {
+            "size": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mtime_ns": "1790086400000000000"
+          },
+          "work/meeting.txt": {
+            "size": 90,
+            "sha256": "6080cc9f9aac71bc9b04c9161f9e42099bbacf4a6c98632a5831470a6cd2c587",
+            "mtime_ns": "1790086400000000000"
+          },
+          "中文/清单.txt": {
+            "size": 69,
+            "sha256": "204f9f20e5713be2d52def85842fbb3217d45672fc288d1deb8f225f46933cdc",
+            "mtime_ns": "1790086400000000000"
+          },
+          "财务/报销说明.txt": {
+            "size": 80,
+            "sha256": "c420685d337b07074b0d2e27b3e56258e3631f182647f698437cd1eb348594a6",
+            "mtime_ns": "1790086400000000000"
+          }
+        }
+      }
+    },
+    "classification": {
+      "status": "blocked",
+      "purpose_accuracy": null,
+      "purpose_coverage": null,
+      "reason": "classify_files contract/adapter not frozen; no actual decisions"
+    },
+    "task_outcomes": {
+      "failed": 8,
+      "completed": 16
+    },
+    "same_task_batch_evidence": {
+      "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+      "status": "failed",
+      "error": "Document batch exceeds 10 candidates",
+      "plan": {
+        "task_id": "task_a090d29d44c94a0c85c446975445bbb5",
+        "goal": "准备课程结题材料包，比较版本和通知冲突，保留缺项，文件操作前确认。",
+        "steps": [
+          {
+            "step_id": "step_001",
+            "tool": "list_files",
+            "description": "Controlled read-only acceptance",
+            "risk": "low",
+            "status": "completed",
+            "arguments": {
+              "workspace": "<DATASET>\\package",
+              "recursive": false
+            }
+          },
+          {
+            "step_id": "step_002",
+            "tool": "read_document",
+            "description": "Controlled read-only acceptance",
+            "risk": "low",
+            "status": "failed",
+            "arguments": {}
+          },
+          {
+            "step_id": "step_003",
+            "tool": "compare_versions",
+            "description": "Controlled read-only acceptance",
+            "risk": "low",
+            "status": "pending",
+            "arguments": {}
+          },
+          {
+            "step_id": "step_004",
+            "tool": "extract_requirements",
+            "description": "Controlled read-only acceptance",
+            "risk": "low",
+            "status": "pending",
+            "arguments": {}
+          }
+        ]
+      },
+      "results": [
+        {
+          "success": true,
+          "tool": "list_files",
+          "data": {
+            "files": [
+              {
+                "path": "<DATASET>\\package\\course_notes.pdf",
+                "filename": "course_notes.pdf",
+                "extension": ".pdf",
+                "size": 659,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\personal_schedule.txt",
+                "filename": "personal_schedule.txt",
+                "extension": ".txt",
+                "size": 75,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\参考资料.txt",
+                "filename": "参考资料.txt",
+                "extension": ".txt",
+                "size": 907,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\合影.png",
+                "filename": "合影.png",
+                "extension": ".png",
+                "size": 68,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\图像通知.png",
+                "filename": "图像通知.png",
+                "extension": ".png",
+                "size": 68,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\实验记录_v1.docx",
+                "filename": "实验记录_v1.docx",
+                "extension": ".docx",
+                "size": 1944,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\实验记录_v2.docx",
+                "filename": "实验记录_v2.docx",
+                "extension": ".docx",
+                "size": 1944,
+                "modified_time": "2026-09-23T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\损坏表格.docx",
+                "filename": "损坏表格.docx",
+                "extension": ".docx",
+                "size": 26,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\损坏记录.pdf",
+                "filename": "损坏记录.pdf",
+                "extension": ".pdf",
+                "size": 50,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\未知数据.bin",
+                "filename": "未知数据.bin",
+                "extension": ".bin",
+                "size": 14,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\空材料.txt",
+                "filename": "空材料.txt",
+                "extension": ".txt",
+                "size": 0,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\签字页_待确认.txt",
+                "filename": "签字页_待确认.txt",
+                "extension": ".txt",
+                "size": 102,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\结题报告_v1.txt",
+                "filename": "结题报告_v1.txt",
+                "extension": ".txt",
+                "size": 899,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\结题报告_v2.txt",
+                "filename": "结题报告_v2.txt",
+                "extension": ".txt",
+                "size": 899,
+                "modified_time": "2026-09-23T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\课程说明.docx",
+                "filename": "课程说明.docx",
+                "extension": ".docx",
+                "size": 1146,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\费用凭证.pdf",
+                "filename": "费用凭证.pdf",
+                "extension": ".pdf",
+                "size": 648,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\费用清单.xlsx",
+                "filename": "费用清单.xlsx",
+                "extension": ".xlsx",
+                "size": 2255,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\通知_原版.txt",
+                "filename": "通知_原版.txt",
+                "extension": ".txt",
+                "size": 153,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\通知_补充.txt",
+                "filename": "通知_补充.txt",
+                "extension": ".txt",
+                "size": 180,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\附件索引.txt",
+                "filename": "附件索引.txt",
+                "extension": ".txt",
+                "size": 108,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\项目总结.txt",
+                "filename": "项目总结.txt",
+                "extension": ".txt",
+                "size": 910,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              },
+              {
+                "path": "<DATASET>\\package\\预算草稿.xlsx",
+                "filename": "预算草稿.xlsx",
+                "extension": ".xlsx",
+                "size": 2074,
+                "modified_time": "2026-09-22T14:13:20+00:00"
+              }
+            ]
+          },
+          "message": "list_files completed",
+          "error": null
+        }
+      ]
+    }
+  },
+  "limits_and_handoffs": [
+    {
+      "owner": "A",
+      "priority": "P0",
+      "task": "Resolve or explicitly specify full-22 single-task coverage/resource policy, retain limits and authoritative per-file outcomes; B does not bypass max10",
+      "repro": "Generate + probe; batch task fails after list_files with Document batch exceeds 10 candidates; failed read has no fabricated ToolResult"
+    },
+    {
+      "owner": "D",
+      "priority": "P0",
+      "task": "Investigate Windows snapshot false changes; repeat existing Package tests without mutating sources; some calls fail Source changed before reading",
+      "repro": "Existing test_unknown_and_failed_analysis; 20 independent fixture calls yielded 15 pass / 5 fail; root signature race is suspected, not proven by this run"
+    },
+    {
+      "owner": "A",
+      "priority": "P1",
+      "task": "Review terminal state visibility during ordinary finish then Package preview, task persistence/expiry semantics, provide safe existing fault seam for real HTTP copy interruption/cleanup/final digest failure"
+    },
+    {
+      "owner": "D",
+      "priority": "P1",
+      "task": "Confirm conservative requirement grammar for 报名时必须提交报名表。; current browser task has no unambiguous Package candidate"
+    },
+    {
+      "owner": "C",
+      "priority": "P1",
+      "task": "Independent Package validation, Windows byte/fault evidence and agreed organization planning/components seams; do not treat B frontend Fixtures as backend acceptance"
+    },
+    {
+      "owner": "A/B/C/D",
+      "priority": "P0 for Workflow2",
+      "task": "Freeze classification, correction, source/target planning, collisions, preview identity, approval, execution/cleanup/verification interfaces before strict consumers"
+    },
+    {
+      "owner": "Environment",
+      "priority": "P1",
+      "task": "Configure approved real model locally for DeepSeek run; never include key in artifacts"
+    }
+  ],
+  "attempt_history": [
+    "First original live observer: pass, six controlled observations + one blocked",
+    "Enhanced observer first run: failed because B incorrectly expected plan_id on verify_result arguments; corrected to actual task/workspace/expected contract",
+    "Enhanced observer final fresh run: pass; wrong preview 409, restore same preview, plan/execution/final identity assertions pass",
+    "No production changes; old artifacts and artificial gold preserved"
+  ],
+  "safety": {
+    "public_contract_changed": false,
+    "production_modules_changed": false,
+    "real_model_calls": 0,
+    "private_workspace_used": false,
+    "classification_requests": 0,
+    "raw_text_or_personal_absolute_paths_committed": false
+  },
+  "checks": {
+    "python_ast": {
+      "passed_files": 15,
+      "failed": 0,
+      "exit_code": 0
+    },
+    "javascript_syntax": {
+      "passed_files": 10,
+      "inline_scripts": "passed",
+      "failed": 0,
+      "exit_code": 0
+    },
+    "report_json": {
+      "passed": true,
+      "per_file_rows": 22,
+      "personal_absolute_paths": false
+    },
+    "git_diff_check": {
+      "exit_code": 0
+    }
+  }
+}
