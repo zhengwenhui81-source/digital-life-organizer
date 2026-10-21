@@ -689,9 +689,7 @@ def test_package_anchored_create_write_and_entries(tmp_path: Path):
         anchored_open(file, root, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
 
 
-def test_windows_directory_listing_does_not_reresolve_path(
-    tmp_path: Path, monkeypatch
-):
+def test_windows_directory_listing_does_not_reresolve_path(tmp_path: Path, monkeypatch):
     import os
 
     if os.name != "nt":
