@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import threading
 import uuid
@@ -20,6 +21,8 @@ from fileforge.agent.executor import (
     reject,
 )
 from fileforge.agent.package_evidence import (
+    _ANALYSIS_DOCUMENT_ARGUMENTS,
+    _json_shape,
     _same_document,
     collect_package_read_results,
     current_package_analysis,
@@ -31,6 +34,9 @@ from fileforge.agent.planner import plan_task
 
 _READABLE_EXTENSIONS = frozenset({".txt", ".pdf", ".docx", ".xlsx"})
 _MAX_CANDIDATE_READS = 10
+_MAX_TASK_CANDIDATES = 100
+_MAX_SOURCE_BYTES = 10 * 1024 * 1024
+_MAX_TASK_SOURCE_BYTES = 50 * 1024 * 1024
 
 
 class TaskConflict(Exception):
@@ -311,9 +317,10 @@ class TaskService:
                 state,
                 self._router,
                 resolver=self._scoped_resolver(
-                    Path(task["workspace"]), state["plan"]["steps"]
+                    Path(task["workspace"]), state["plan"]["steps"], state
                 ),
             )
+            self._reconcile_candidate_ledger(state)
             self._finish(entry)
             if wants_package and entry["task"]["status"] == "completed":
                 selected, destination = self._propose_package(task_id)
@@ -324,6 +331,7 @@ class TaskService:
                 entry["error"] = str(exc) or type(exc).__name__
                 if entry["execution"]:
                     entry["execution"]["status"] = "failed"
+                    self._reconcile_candidate_ledger(entry["execution"])
                     for step in entry["execution"]["plan"]["steps"]:
                         if step["status"] in {"pending", "running"}:
                             step["status"] = "failed"
@@ -425,12 +433,187 @@ class TaskService:
                 if not resolved.is_relative_to(root):
                     raise ValueError(f"Tool path escapes workspace: {key}")
 
+    @staticmethod
+    def _candidate_batches(
+        candidates: list[Any],
+        root: Path,
+        state: dict[str, Any],
+        step_id: str,
+        scan_result_index: int,
+    ) -> list[list[dict[str, str]]]:
+        """Freeze one scan's candidates before making bounded read calls.
+
+        This is an internal task ledger. ToolResult and TaskSnapshot shapes stay
+        unchanged; each successful or failed read still has its own result index.
+        """
+        ledger = state.setdefault("candidate_ledger", [])
+        raw_count = state.get("candidate_raw_count", 0)
+        if raw_count + len(candidates) > _MAX_TASK_CANDIDATES:
+            raise ValueError(
+                f"Task candidate count exceeds {_MAX_TASK_CANDIDATES}; "
+                "no candidate was silently dropped"
+            )
+        current: list[dict[str, Any]] = []
+        by_path: dict[str, dict[str, Any]] = {}
+        for item_index, candidate in enumerate(candidates):
+            if (
+                type(candidate) is not dict
+                or not _json_shape(candidate)
+                or type(candidate.get("path")) is not str
+                or not candidate["path"].strip()
+            ):
+                raise ValueError("Candidate collection contains an invalid path")
+            resolved = Path(candidate["path"]).expanduser().resolve()
+            if not resolved.is_relative_to(root):
+                raise ValueError("Tool path escapes workspace: candidate path")
+            identity = os.path.normcase(str(resolved))
+            prior = by_path.get(identity)
+            if prior is not None:
+                if not _same_document(prior["scan_snapshot"], candidate):
+                    raise ValueError(
+                        "Candidate collection has contradictory snapshots "
+                        "for one resolved path"
+                    )
+                prior["scan_item_indices"].append(item_index)
+                continue
+            readable = resolved.suffix.casefold() in _READABLE_EXTENSIONS
+            item = {
+                "step_id": step_id,
+                "scan_result_index": scan_result_index,
+                "scan_item_indices": [item_index],
+                "scan_snapshot": deepcopy(candidate),
+                "resolved_path": str(resolved),
+                "status": "pending_read" if readable else "unsupported_format",
+                "batch_index": None,
+                "batch_item_index": None,
+                "read_result_index": None,
+                "error": None,
+                "analysis_status": "not_run",
+                "analysis_results": [],
+            }
+            by_path[identity] = item
+            current.append(item)
+        readable_items = [item for item in current if item["status"] == "pending_read"]
+        previous_reads = sum(item["batch_index"] is not None for item in ledger)
+        if previous_reads + len(readable_items) > _MAX_TASK_CANDIDATES:
+            ledger.extend(current)
+            raise ValueError(
+                f"Task read count exceeds {_MAX_TASK_CANDIDATES}; "
+                "no candidate was silently dropped"
+            )
+        total_bytes = state.get("candidate_source_bytes", 0)
+        for item in readable_items:
+            try:
+                size = Path(item["resolved_path"]).stat().st_size
+            except OSError as exc:
+                item["status"] = "source_unavailable"
+                item["error"] = str(exc) or type(exc).__name__
+                ledger.extend(current)
+                raise ValueError(
+                    "Candidate source is unavailable before reading"
+                ) from exc
+            if size > _MAX_SOURCE_BYTES:
+                item["status"] = "blocked_by_limit"
+                ledger.extend(current)
+                raise ValueError(f"Candidate source exceeds {_MAX_SOURCE_BYTES} bytes")
+            total_bytes += size
+            if total_bytes > _MAX_TASK_SOURCE_BYTES:
+                item["status"] = "blocked_by_limit"
+                ledger.extend(current)
+                raise ValueError(
+                    f"Task candidate bytes exceed {_MAX_TASK_SOURCE_BYTES}"
+                )
+        batches = []
+        for offset in range(0, len(readable_items), _MAX_CANDIDATE_READS):
+            batch_index = offset // _MAX_CANDIDATE_READS
+            batch = []
+            for batch_item_index, item in enumerate(
+                readable_items[offset : offset + _MAX_CANDIDATE_READS]
+            ):
+                item["batch_index"] = batch_index
+                item["batch_item_index"] = batch_item_index
+                batch.append({"path": item["resolved_path"]})
+            batches.append(batch)
+        state["candidate_source_bytes"] = total_bytes
+        state["candidate_raw_count"] = raw_count + len(candidates)
+        ledger.extend(current)
+        return batches
+
+    @staticmethod
+    def _reconcile_candidate_ledger(state: dict[str, Any]) -> None:
+        """Link each read result to its frozen scan item and batch position."""
+        ledger = state.get("candidate_ledger", [])
+        by_call = {
+            (item["step_id"], item["batch_index"], item["batch_item_index"]): item
+            for item in ledger
+            if item["batch_index"] is not None
+        }
+        for call in state.get("result_calls", []):
+            if "batch_index" not in call:
+                continue
+            item = by_call.get(
+                (call["step_id"], call["batch_index"], call["batch_item_index"])
+            )
+            if item is None:
+                raise ValueError("Document batch result has no candidate source")
+            result_index = call["result_index"]
+            result = state["results"][result_index]
+            item["read_result_index"] = result_index
+            item["status"] = "read_succeeded" if result["success"] else "read_failed"
+            item["error"] = None if result["success"] else result.get("error")
+        for item in ledger:
+            item["analysis_status"] = "not_run"
+            item["analysis_results"] = []
+            read_index = item["read_result_index"]
+            if item["status"] != "read_succeeded" or read_index is None:
+                continue
+            read_data = state["results"][read_index].get("data")
+            document = read_data.get("document") if type(read_data) is dict else None
+            if type(document) is not dict:
+                continue
+            for call in state.get("result_calls", []):
+                field = _ANALYSIS_DOCUMENT_ARGUMENTS.get(call["tool"])
+                if field is None:
+                    continue
+                supplied = call["arguments"].get(field)
+                if type(supplied) is not list or not any(
+                    _same_document(document, candidate) for candidate in supplied
+                ):
+                    continue
+                result_index = call["result_index"]
+                result = state["results"][result_index]
+                item["analysis_results"].append(
+                    {
+                        "result_index": result_index,
+                        "tool": call["tool"],
+                        "success": result["success"],
+                        "error": result.get("error"),
+                    }
+                )
+            if item["analysis_results"]:
+                item["analysis_status"] = (
+                    "failed"
+                    if any(not result["success"] for result in item["analysis_results"])
+                    else "completed"
+                )
+        if state["status"] == "failed":
+            for item in ledger:
+                if item["status"] == "pending_read":
+                    item["status"] = "not_read_after_failure"
+        elif state["status"] == "completed" and any(
+            item["status"] == "pending_read" for item in ledger
+        ):
+            raise ValueError("Document batch completed without all candidate reads")
+
     def _scoped_resolver(
-        self, root: Path, plan_steps: list[dict[str, Any]]
+        self,
+        root: Path,
+        plan_steps: list[dict[str, Any]],
+        state: dict[str, Any] | None = None,
     ) -> Resolver:
         def resolve(
             step: dict[str, Any], results: list[dict[str, Any]]
-        ) -> dict[str, Any] | list[dict[str, Any]]:
+        ) -> dict[str, Any] | list[dict[str, Any]] | list[list[dict[str, Any]]]:
             arguments = (
                 self._resolver(step, results)
                 if self._resolver is not None
@@ -461,24 +644,12 @@ class TaskService:
                     raise ValueError(
                         "read_document path is unresolved; collect candidates first"
                     )
-                paths = []
-                for candidate in candidates:
-                    if (
-                        not isinstance(candidate, dict)
-                        or not isinstance(candidate.get("path"), str)
-                        or not candidate["path"].strip()
-                    ):
-                        raise ValueError(
-                            "Candidate collection contains an invalid path"
-                        )
-                    path = candidate["path"]
-                    if Path(path).suffix.casefold() in _READABLE_EXTENSIONS:
-                        paths.append(path)
-                if len(paths) > _MAX_CANDIDATE_READS:
-                    raise ValueError(
-                        f"Document batch exceeds {_MAX_CANDIDATE_READS} candidates"
-                    )
-                if not paths:
+                if state is None:
+                    raise ValueError("Document batching needs current task state")
+                batches = self._candidate_batches(
+                    candidates, root, state, step["step_id"], collection_index
+                )
+                if not batches:
                     if not candidates:
                         position = next(
                             index
@@ -505,10 +676,7 @@ class TaskService:
                         "No readable document found among the collected candidates; "
                         "read_document was not called and analysis was not performed"
                     )
-                calls = [{"path": path} for path in paths]
-                for call in calls:
-                    self._check_plan_paths({"steps": [{"arguments": call}]}, root)
-                return calls
+                return batches
             if any(
                 result.get("tool") == "read_document" and not result.get("success")
                 for result in results
@@ -557,6 +725,14 @@ class TaskService:
                         "or establish an empty candidate collection first"
                     )
                 arguments = {**arguments, "documents": read_documents}
+            if (
+                step["tool"] == "compare_versions"
+                and len(arguments.get("documents", [])) > _MAX_CANDIDATE_READS
+            ):
+                raise ValueError(
+                    "compare_versions supports at most 10 Documents; "
+                    "cross-batch version grouping is unavailable"
+                )
             if step["tool"] == "match_requirements":
                 extraction_index = next(
                     (

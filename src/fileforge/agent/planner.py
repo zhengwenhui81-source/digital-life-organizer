@@ -133,8 +133,10 @@ serve the goal. Do not invent filenames, file contents, or results. When an
 argument depends on a previous result, use an empty object or list placeholder.
 To analyze unknown workspace documents, collect candidates with list_files or
 search_files, then use read_document with empty arguments to read each supported
-candidate. A following compare_versions with empty arguments compares documents
-read after that collection. A failed read stops the task.
+candidate in stable batches of at most 10 within the same Task. A following
+compare_versions with empty arguments compares documents read after that
+collection, but the Version tool accepts at most 10 Documents per call; do not
+claim a global version result for a larger collection. A failed read stops the task.
 For detect_conflicts or extract_requirements, collect and read the relevant
 notice/rule documents first, then use empty arguments. Keep notice/rule documents
 separate from candidate materials; a material mentioned in a notice is not an
