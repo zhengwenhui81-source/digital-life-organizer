@@ -647,7 +647,9 @@ def test_copy_preflight_change_after_first_copy_records_failed_child(
     assert failed["task"]["status"] == "failed"
     records = failed["package_execution"]["operation_results"]
     assert [failed["results"][r["result_index"]]["tool"] for r in records] == [
-        "create_folder", "copy_file", "copy_file",
+        "create_folder",
+        "copy_file",
+        "copy_file",
     ]
     assert failed["results"][records[-1]["result_index"]]["success"] is False
     cleanup = failed["package_execution"]["cleanup_results"]
@@ -731,9 +733,7 @@ def test_posix_parent_retarget_cannot_redirect_anchored_file(
         return real_open(path, flags, mode, dir_fd=dir_fd)
 
     monkeypatch.setattr(package_fs.os, "open", swap_during_open)
-    fd = package_fs.anchored_open(
-        target, root, os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    )
+    fd = package_fs.anchored_open(target, root, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
     try:
         os.write(fd, b"anchored")
     finally:
