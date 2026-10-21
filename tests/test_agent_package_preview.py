@@ -590,7 +590,9 @@ def test_d_planning_failure_stops_without_preview(package_task):
         service.report(task_id)
 
 
-def test_copy_preflight_change_after_first_copy_records_failed_child(tmp_path: Path, monkeypatch):
+def test_copy_preflight_change_after_first_copy_records_failed_child(
+    tmp_path: Path, monkeypatch
+):
     notice = tmp_path / "notice.txt"
     notice.write_text("需要报名表和说明。", encoding="utf-8")
     first = tmp_path / "报名表.txt"
@@ -601,7 +603,11 @@ def test_copy_preflight_change_after_first_copy_records_failed_child(tmp_path: P
     task_id = service.create("打包两份文件", str(tmp_path))["task_id"]
     service.run(task_id)
     snapshot = service.snapshot(task_id)
-    reads = [r["data"]["document"] for r in snapshot["results"] if r["tool"] == "read_document"]
+    reads = [
+        r["data"]["document"]
+        for r in snapshot["results"]
+        if r["tool"] == "read_document"
+    ]
     selected = [
         {
             "source": {key: doc[key] for key in ("file_id", "path", "filename")},
@@ -657,7 +663,11 @@ def test_copy_preflight_change_after_first_copy_records_failed_child(tmp_path: P
 
 def test_package_anchored_create_write_and_entries(tmp_path: Path):
     import os
-    from fileforge.agent.package_fs import anchored_mkdir, anchored_open, guarded_entries
+    from fileforge.agent.package_fs import (
+        anchored_mkdir,
+        anchored_open,
+        guarded_entries,
+    )
 
     root = tmp_path / "workspace"
     root.mkdir()
@@ -692,3 +702,57 @@ def test_package_anchored_open_rejects_parent_symlink(tmp_path: Path):
     with pytest.raises((OSError, ValueError)):
         anchored_open(link / "outside.txt", root, os.O_RDONLY)
     assert (other / "outside.txt").read_text(encoding="utf-8") == "safe"
+
+
+def test_posix_parent_retarget_cannot_redirect_anchored_file(
+    tmp_path: Path, monkeypatch
+):
+    import os
+    from fileforge.agent import package_fs
+
+    if os.name == "nt":
+        pytest.skip("POSIX dir_fd test")
+    root = tmp_path / "workspace"
+    root.mkdir()
+    parent = root / "parent"
+    parent.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    target = parent / "protected.txt"
+    real_open = os.open
+    changed = False
+
+    def swap_during_open(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal changed
+        if path == "protected.txt" and dir_fd is not None and not changed:
+            changed = True
+            parent.rename(root / "retired")
+            parent.symlink_to(outside, target_is_directory=True)
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(package_fs.os, "open", swap_during_open)
+    fd = package_fs.anchored_open(
+        target, root, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    )
+    try:
+        os.write(fd, b"anchored")
+    finally:
+        os.close(fd)
+    assert (root / "retired" / "protected.txt").read_bytes() == b"anchored"
+    assert not (outside / "protected.txt").exists()
+
+
+def test_windows_parent_handle_blocks_rename(tmp_path: Path):
+    import os
+    from fileforge.agent.package_fs import _parent
+
+    if os.name != "nt":
+        pytest.skip("Windows directory sharing test")
+    root = tmp_path / "workspace"
+    root.mkdir()
+    parent = root / "parent"
+    parent.mkdir()
+    with _parent(parent / "new.txt", root):
+        with pytest.raises(OSError):
+            parent.rename(root / "moved")
+    assert parent.is_dir()
