@@ -746,13 +746,14 @@ def test_posix_parent_retarget_cannot_redirect_anchored_file(
 
 
 def test_windows_relative_handle_cannot_follow_parent_retarget(tmp_path: Path):
-    import msvcrt
     import os
-
-    from fileforge.agent.package_fs import _parent, _win_relative
 
     if os.name != "nt":
         pytest.skip("Windows native handle test")
+
+    import msvcrt
+
+    from fileforge.agent.package_fs import _parent, _win_relative
     root = tmp_path / "workspace"
     root.mkdir()
     parent = root / "parent"
