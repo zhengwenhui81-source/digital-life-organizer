@@ -24,6 +24,18 @@ def _with_ctime(info, ctime_ns):
     )
 
 
+def _with_inode(info, inode):
+    return SimpleNamespace(
+        st_dev=info.st_dev,
+        st_ino=inode,
+        st_mode=info.st_mode,
+        st_size=info.st_size,
+        st_mtime_ns=info.st_mtime_ns,
+        st_ctime_ns=info.st_ctime_ns,
+        st_file_attributes=getattr(info, "st_file_attributes", 0),
+    )
+
+
 def test_windows_allows_cross_api_ctime_skew_but_keeps_identity_hash(
     tmp_path, monkeypatch
 ):
@@ -107,7 +119,34 @@ def test_windows_still_rejects_ctime_change_within_lstat_channel(tmp_path, monke
         _paths.snapshot(source, tmp_path)
 
 
-def test_windows_still_rejects_file_replacement_during_read(
+def test_windows_rejects_path_identity_change_during_read(tmp_path, monkeypatch):
+    source = tmp_path / "source.txt"
+    source.write_bytes(b"stable source bytes")
+    original_lstat = Path.lstat
+    original_read = _paths.os.read
+    path_replaced = False
+
+    def replacing_read(fd, size):
+        nonlocal path_replaced
+        data = original_read(fd, size)
+        path_replaced = True
+        return data
+
+    def replaced_path_lstat(path):
+        info = original_lstat(path)
+        if path == source and path_replaced:
+            return _with_inode(info, info.st_ino + 1)
+        return info
+
+    monkeypatch.setattr(_paths.os, "read", replacing_read)
+    monkeypatch.setattr(Path, "lstat", replaced_path_lstat)
+    monkeypatch.setattr(_paths, "_WINDOWS", True)
+
+    with pytest.raises(ValueError, match="changed while reading"):
+        _paths.snapshot(source, tmp_path)
+
+
+def test_windows_filesystem_replacement_during_read_when_supported(
     request_data, tmp_path, monkeypatch
 ):
     source = Path(request_data["selected_files"][0]["source"]["path"])
@@ -122,7 +161,15 @@ def test_windows_still_rejects_file_replacement_during_read(
         data = original_read(fd, size)
         if not replaced:
             replaced = True
-            replacement.replace(source)
+            try:
+                replacement.replace(source)
+            except PermissionError as exc:
+                if _paths.os.name == "nt" and getattr(exc, "winerror", None) == 5:
+                    pytest.skip(
+                        "Windows denied replacing a file while it is open; "
+                        "the deterministic path identity test covers detection"
+                    )
+                raise
         return data
 
     monkeypatch.setattr(_paths.os, "read", replacing_read)
