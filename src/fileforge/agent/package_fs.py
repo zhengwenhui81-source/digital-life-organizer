@@ -32,8 +32,13 @@ def _windows_api():
 
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel.CreateFileW.argtypes = (
-        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
-        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
     )
     kernel.CreateFileW.restype = wintypes.HANDLE
     kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
@@ -76,9 +81,11 @@ def _parent(path: Path, root: Path) -> Iterator[int | None]:
                 if part is not None:
                     current = current / part
                 handle = _win_open(
-                    kernel, ctypes, current,
+                    kernel,
+                    ctypes,
+                    current,
                     0x80,  # FILE_READ_ATTRIBUTES
-                    3,     # OPEN_EXISTING
+                    3,  # OPEN_EXISTING
                     0x02000000 | 0x00200000,  # BACKUP_SEMANTICS | OPEN_REPARSE_POINT
                 )
                 held.append(handle)
@@ -115,7 +122,9 @@ def anchored_open(path: Path, root: Path, flags: int, mode: int = 0o600) -> int:
             if flags & os.O_CREAT and not exclusive:
                 raise ValueError("Package creates require O_EXCL")
             handle = _win_open(
-                kernel, ctypes, path,
+                kernel,
+                ctypes,
+                path,
                 0x40000000 if writing else 0x80000000,  # GENERIC_WRITE / READ
                 1 if exclusive else 3,  # CREATE_NEW / OPEN_EXISTING
                 0x00200000 | 0x80,  # OPEN_REPARSE_POINT | NORMAL
@@ -131,9 +140,7 @@ def anchored_open(path: Path, root: Path, flags: int, mode: int = 0o600) -> int:
                 if handle is not None:
                     kernel.CloseHandle(handle)
         else:
-            fd = os.open(
-                path.name, flags | os.O_NOFOLLOW, mode, dir_fd=parent
-            )
+            fd = os.open(path.name, flags | os.O_NOFOLLOW, mode, dir_fd=parent)
         try:
             if not stat.S_ISREG(os.fstat(fd).st_mode):
                 raise ValueError("Package file is not regular")
