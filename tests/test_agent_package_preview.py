@@ -786,17 +786,27 @@ def test_windows_relative_handle_cannot_follow_parent_retarget(tmp_path: Path):
     parent.mkdir()
     outside = tmp_path / "outside"
     outside.mkdir()
+    renamed = False
     with _parent(parent / "new.txt", root, writing=True) as pinned:
         try:
             parent.rename(root / "moved")
-            parent.symlink_to(outside, target_is_directory=True)
         except OSError:
-            pytest.skip("Windows does not allow parent replacement in this environment")
+            # A pinned parent that cannot be renamed is already protected.
+            assert parent.is_dir()
+            assert not (root / "moved").exists()
+        else:
+            renamed = True
+            try:
+                parent.symlink_to(outside, target_is_directory=True)
+            except OSError:
+                # Replacement may be forbidden even if a rename is permitted.
+                pass
         handle = _win_relative(pinned, "new.txt", directory=False, create=True)
         fd = msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY)
         try:
             os.write(fd, b"anchored")
         finally:
             os.close(fd)
-    assert (root / "moved" / "new.txt").read_bytes() == b"anchored"
+    expected_parent = root / "moved" if renamed else parent
+    assert (expected_parent / "new.txt").read_bytes() == b"anchored"
     assert not (outside / "new.txt").exists()
