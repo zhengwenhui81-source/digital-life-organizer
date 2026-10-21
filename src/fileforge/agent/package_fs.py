@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import stat
+import struct
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -133,7 +134,7 @@ def _win_root(path: Path) -> int:
     ctypes, _, kernel, _, _, _, _, _ = _windows_api()
     handle = kernel.CreateFileW(
         str(path),
-        0x001000A0,  # SYNCHRONIZE | FILE_READ_ATTRIBUTES | FILE_TRAVERSE
+        0x001000A1,  # SYNCHRONIZE | LIST_DIRECTORY | READ_ATTRIBUTES | TRAVERSE
         0x1 | 0x2,  # no FILE_SHARE_DELETE
         None,
         3,  # OPEN_EXISTING
@@ -188,7 +189,7 @@ def _win_relative(
     io = IoStatus()
     out = wintypes.HANDLE()
     access = (
-        0x001000A0 | (0x2 | 0x4 if write_parent else 0)
+        0x001000A1 | (0x2 | 0x4 if write_parent else 0)
         if directory
         else (0x00100080 | (0x40000000 if create else 0x80000000))
     )
@@ -316,10 +317,79 @@ def anchored_mkdir(path: Path, root: Path) -> None:
             os.mkdir(path.name, dir_fd=parent)
 
 
+def _windows_entries(handle: int) -> set[str]:
+    """Enumerate FILE_NAMES_INFORMATION through the anchored directory handle."""
+    import ctypes
+    from ctypes import wintypes
+
+    _, _, _, native, _, _, IoStatus, _ = _windows_api()
+    native.NtQueryDirectoryFile.argtypes = (
+        wintypes.HANDLE,
+        wintypes.HANDLE,
+        wintypes.LPVOID,
+        wintypes.LPVOID,
+        ctypes.POINTER(IoStatus),
+        wintypes.LPVOID,
+        wintypes.ULONG,
+        wintypes.ULONG,
+        wintypes.BOOLEAN,
+        wintypes.LPVOID,
+        wintypes.BOOLEAN,
+    )
+    native.NtQueryDirectoryFile.restype = wintypes.LONG
+    names: set[str] = set()
+    restart = True
+    while True:
+        buffer = ctypes.create_string_buffer(65536)
+        status_block = IoStatus()
+        status = native.NtQueryDirectoryFile(
+            handle,
+            None,
+            None,
+            None,
+            ctypes.byref(status_block),
+            buffer,
+            len(buffer),
+            12,  # FILE_INFORMATION_CLASS.FileNamesInformation
+            False,
+            None,
+            restart,
+        )
+        code = status & 0xFFFFFFFF
+        if code == 0x80000006:  # STATUS_NO_MORE_FILES
+            break
+        if code != 0:
+            raise OSError(f"NtQueryDirectoryFile failed: NTSTATUS {code:#x}")
+        size = int(status_block.Information)
+        if size < 12 or size > len(buffer):
+            raise ValueError("Package directory listing is invalid")
+        offset = 0
+        while True:
+            if offset + 12 > size:
+                raise ValueError("Package directory entry is truncated")
+            next_offset, _, name_bytes = struct.unpack_from(
+                "<III", buffer.raw, offset
+            )
+            start = offset + 12
+            end = start + name_bytes
+            if name_bytes % 2 or end > size:
+                raise ValueError("Package directory filename is invalid")
+            name = buffer.raw[start:end].decode("utf-16-le", "strict")
+            if name not in (".", ".."):
+                names.add(name)
+            if next_offset == 0:
+                break
+            if next_offset < 12 or offset + next_offset <= offset:
+                raise ValueError("Package directory entry offset is invalid")
+            offset += next_offset
+        restart = False
+    return names
+
+
 def guarded_entries(path: Path, root: Path) -> set[str]:
-    """Read entries without following a late directory reparse replacement."""
+    """Read entries from the pinned directory object, not the path string."""
     with _parent(path / "__package_entry_check__", root) as parent:
         if os.name == "nt":
-            return {entry.name for entry in path.iterdir()}
+            return _windows_entries(parent)
         with os.scandir(parent) as entries:
             return {entry.name for entry in entries}
