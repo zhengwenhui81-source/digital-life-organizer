@@ -230,15 +230,15 @@ test('a wrong-task approval response cannot mark the current task as rejected',a
     assert.equal(h.state.userRejected,false);assert.match(h.el('agentErrorDetail').textContent,/does not match/);
 });
 
-test('unintegrated real Package approval and success presentation stay blocked, rejection remains available',async()=>{
+test('malformed Package approval and success stay blocked, rejection remains available',async()=>{
     const h=harness();seedTask(h,'awaiting_approval');
     h.c.renderAgent(snapshot('awaiting_approval',{preview_id:'package-preview',results:[{tool:'plan_package',success:true,data:{},message:'plan only',error:null}]}));
     assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.el('rejectAgent').disabled,false);
-    assert.match(h.el('agentActions').innerHTML,/accept_incomplete 尚未接通/);
+    assert.match(h.el('agentActions').innerHTML,/后端负责校验授权/);
     await h.c.decideAgent(true);assert.equal(h.calls.length,0);assert.match(h.el('agentErrorDetail').textContent,/不会发送批准请求/);
     h.c.AgentAPI.rejectTask=async(id,preview)=>{assert.equal(id,'task');assert.equal(preview,'package-preview');return snapshot('failed',{error:'Rejected'});};
     await h.c.decideAgent(false);assert.equal(h.state.task.status,'failed');assert.equal(h.state.userRejected,true);
-    seedTask(h);assert.throws(()=>h.c.renderAgentReport({task_id:'task',status:'completed',package_path:'E:/package'}),/Package 报告集成尚未验收/);
+    seedTask(h);h.c.renderAgentReport({task_id:'task',status:'completed',package_path:'E:/package'});assert.match(h.el('agentFinal').innerHTML,/无法验证成功/);
     assert.equal(h.state.report,null);
 });
 
@@ -308,7 +308,7 @@ test('malformed current Package ToolResult cannot interrupt task rendering or en
         assert.match(h.el('agentPackagePreview').innerHTML,/格式异常|归属不一致|不是对象/);
         assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/结题报告.txt|具体文件映射|文件验证：通过/);
         assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.el('rejectAgent').disabled,false);
-        assert.match(h.el('agentActions').innerHTML,/server preview/);
+        assert.match(h.el('agentActions').innerHTML,/关联无效/);assert.doesNotMatch(h.el('agentActions').innerHTML,/server preview/);
         assert.equal(h.calls.length,2);await h.c.decideAgent(true);assert.equal(h.calls.length,2);
         assert.equal(h.state.report,null);assert.deepEqual(s,before);
     }
@@ -363,4 +363,80 @@ test('production Package progress and new failed verification preserve the Snaps
         assert.equal(h.calls.filter(call=>call.url.endsWith('/approve')).length,0);
         assert.equal(h.c.window.PackageFixtures,undefined);assert.deepEqual(s,before);
     }
+});
+
+// This is synthetic contract-shaped HTTP coverage, not Windows acceptance.
+function boundPackage(h,scenario='complete') {
+    const d=require('../package-fixtures.js').get(scenario),s=d.snapshot,p=s.results[4].data.plan;
+    s.task.status='awaiting_approval'; s.task.task_id='task';p.task.task_id='task';
+    s.package_execution=null; s.results=s.results.slice(0,5); s.preview_id='sha256:'+'e'.repeat(64);
+    s.pending_operations=p.operations.map(o=>({step_id:o.step_id,tool:({create_directory:'create_folder',copy:'copy_file',write_report:'write_package_report',verify:'verify_result'})[o.kind],risk:o.kind==='verify'?'low':'medium',status:'awaiting_approval',arguments:o.kind==='create_directory'?{path:p.destination}:o.kind==='copy'?{source:p.selected_files[o.selected_file_index].source.path,destination:p.selected_files[o.selected_file_index].target}:o.kind==='write_report'?{task_id:'task',plan_id:p.plan_id,plan_sha256:d.planResult.data.plan_sha256}:{task_id:'task',workspace:p.task.workspace,expected:p.verification_targets}}));
+    h.state.mode='real';h.c.AgentAPI.setMode('real');const current=h.c.AgentAPI.parseJSON(JSON.stringify(s));h.state.taskContext={...current.task};h.c.renderAgent(current);assert.equal(h.c.PackagePreview.approval(current,h.state.taskContext).ready,true,JSON.stringify(h.c.PackagePreview.approval(current,h.state.taskContext).issues));
+    return {s:current,p:current.results[4].data.plan,d};
+}
+test('real Package uses exact server preview and same-preview risk acceptance, with duplicate protection',async()=>{
+    const h=harness(),{s}=boundPackage(h,'risks');
+    assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.el('packageRiskControl').hidden,false);
+    await h.c.decideAgent(true);assert.equal(h.calls.length,0);
+    h.el('packageRiskIntent').checked=true;h.c.confirmPackageRisk();assert.equal(h.el('approveAgent').disabled,false);
+    const pending=deferred();h.c.respond=(url,options)=>{assert.ok(url.endsWith('/approve'));assert.deepEqual(JSON.parse(options.body),{preview_id:s.preview_id,accept_incomplete:true});return pending.promise;};
+    const first=h.c.decideAgent(true);await h.c.decideAgent(true);assert.equal(h.calls.length,1);assert.equal(h.el('approveAgent').disabled,true);
+    pending.resolve(response({...s,task:{...s.task,status:'executing'},preview_id:null,pending_operations:[]}));await first;
+    assert.equal(h.state.acceptedPackageRisk,null);assert.equal(h.el('approveAgent').disabled,true);
+});
+test('changed preview, plan, selection or risks invalidate local acceptance; invalid pending cannot approve',async()=>{
+    for(const change of [s=>s.preview_id='sha256:'+'f'.repeat(64),s=>s.results[4].data.plan.plan_id='package_plan_'+'2'.repeat(32),s=>s.results[4].data.plan.selected_files[0].reason='changed reason',s=>s.results[4].data.plan.missing.push('extra gap')]){
+        const h=harness(),{s}=boundPackage(h,'risks');h.el('packageRiskIntent').checked=true;h.c.confirmPackageRisk();change(s);h.c.renderAgent(s);
+        assert.equal(h.state.acceptedPackageRisk,null);assert.equal(h.el('packageRiskIntent').checked,false);assert.equal(h.el('approveAgent').disabled,true);
+    }
+    const h=harness(),{s}=boundPackage(h);s.pending_operations[1].arguments.destination='foreign path';h.c.renderAgent(s);
+    await h.c.decideAgent(true);assert.equal(h.calls.length,0);assert.equal(h.el('approveAgent').disabled,true);
+});
+test('Package rejection never sends accept_incomplete and stale approval clears risk intent',async()=>{
+    const h=harness(),{s}=boundPackage(h,'risks');h.el('packageRiskIntent').checked=true;h.c.confirmPackageRisk();
+    h.c.respond=(url,options)=>{assert.ok(url.endsWith('/reject'));assert.deepEqual(JSON.parse(options.body),{preview_id:s.preview_id});return response({...s,task:{...s.task,status:'failed'},preview_id:null,error:'User rejected pending operations'});};
+    await h.c.decideAgent(false);assert.equal(h.calls.length,1);assert.equal(h.state.userRejected,true);assert.equal(h.state.acceptedPackageRisk,null);
+    const stale=harness(),data=boundPackage(stale,'risks');stale.el('packageRiskIntent').checked=true;stale.c.confirmPackageRisk();
+    stale.c.respond=url=>url.endsWith('/approve')?response({detail:'stale'},409):response(data.s);
+    await stale.c.decideAgent(true);assert.equal(stale.calls.filter(c=>c.url.endsWith('/approve')).length,1);assert.equal(stale.el('packageRiskIntent').checked,false);assert.equal(stale.el('approveAgent').disabled,true);
+});
+test('lossless transport preserves distinct nanosecond tokens, escaped strings and primitive types',()=>{
+    const h=harness(),api=h.c.AgentAPI;
+    const parsed=api.parseJSON('{"mtime_ns":1792310400000000001,"second":1792310400000000002,"s":"1792310400000000001","n":null,"x":[true,8,1.5],"__proto__":{"x":1}}');
+    assert.equal(parsed.mtime_ns,1792310400000000001n);assert.notEqual(parsed.mtime_ns,parsed.second);assert.equal(typeof parsed.s,'string');assert.equal(parsed.n,null);assert.equal(parsed.x[1],8);assert.equal(parsed.x[2],1.5);assert.equal(Object.hasOwn(parsed,'__proto__'),true);assert.equal({}.x,undefined);
+    for(const raw of ['[1,]','{"a":1,}','01','null false','"broken'])assert.throws(()=>api.parseJSON(raw));
+    const {s}=boundPackage(h);s.results[4].data.plan.selected_files[0].snapshot.mtime_ns=1792310400000000001n;h.c.renderAgent(s);
+    assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/精度无法确认/);assert.match(h.el('agentPackagePreview').innerHTML,/具体文件映射/);
+});
+test('current full Package report is rendered only after bound execution and verification; failed report never wins',()=>{
+    const h=harness(),d=h.c.AgentAPI.parseJSON(JSON.stringify(require('../package-fixtures.js').get('success')));
+    h.state.mode='real';h.state.taskContext={...d.snapshot.task};h.c.renderAgent(d.snapshot);h.c.renderAgentReport(d.report);
+    assert.ok(h.state.report);assert.equal(h.el('agentFinalCard').dataset.completed,'true');assert.match(h.el('agentFinal').innerHTML,/不代表材料真实性/);
+    h.c.renderAgent({...d.snapshot,task:{...d.snapshot.task,status:'failed'},error:'new failure'});
+    assert.throws(()=>h.c.renderAgentReport(d.report),/Invalid FinalReport/);
+    const bad=h.c.AgentAPI.parseJSON(JSON.stringify(d));bad.report.found_files=h.c.AgentAPI.parseJSON('[{"path":"foreign"}]');h.state.task=null;h.c.renderAgent(bad.snapshot);h.c.renderAgentReport(bad.report);
+    assert.equal(h.state.report,null);assert.equal(h.el('copyPackagePath').hidden,true);assert.match(h.el('agentFinal').innerHTML,/无法验证成功/);
+});
+test('explicit task restore reads state only and is unavailable to organization workflow',async()=>{
+    const h=harness(),d=require('../package-fixtures.js').get('complete');h.el('agentMode').value='real';h.el('agentResumeTask').value=d.snapshot.task.task_id;
+    h.c.respond=url=>{assert.ok(!url.endsWith('/approve'));return response(d.snapshot);};await h.c.resumeAgentTask();
+    assert.equal(h.calls.length,1);assert.equal(h.calls[0].options.method,'GET');assert.equal(h.state.task.task_id,d.snapshot.task.task_id);
+    h.state.busy=false;h.c.switchAgentWorkflow('organization');await h.c.resumeAgentTask();await h.c.decideAgent(true);assert.equal(h.calls.length,1);
+});
+
+test('Package without risks uses the unchanged approval payload and invalid flag types are rejected',async()=>{
+    const h=harness(),{s}=boundPackage(h);
+    s.results[4].data.plan.missing=h.c.AgentAPI.parseJSON('[]');s.results[4].data.plan.unresolved=h.c.AgentAPI.parseJSON('[]');
+    // The complete fixture has every analysis slot; no risk is accepted away.
+    h.c.renderAgent(s);assert.equal(h.el('approveAgent').disabled,false);
+    h.c.respond=(url,options)=>{assert.deepEqual(JSON.parse(options.body),{preview_id:s.preview_id});return response({...s,task:{...s.task,status:'executing'},preview_id:null,pending_operations:[]});};
+    await h.c.decideAgent(true);assert.equal(h.calls.length,1);
+    await assert.rejects(h.c.AgentAPI.approveTask('task',s.preview_id,'true'),/must be boolean/);assert.equal(h.calls.length,1);
+});
+
+test('awaiting Package remains risk-interactive while the task is busy; untrusted pending mappings are withheld',()=>{
+    const h=harness(),{s}=boundPackage(h,'risks');h.state.busy=true;h.c.updateAgentControls();
+    assert.equal(h.el('packageRiskIntent').disabled,false);assert.equal(h.el('approveAgent').disabled,true);
+    s.pending_operations[1].arguments.destination='untrusted-mapping-secret';h.c.renderAgent(s);
+    assert.doesNotMatch(h.el('agentActions').innerHTML,/untrusted-mapping-secret/);assert.equal(h.el('approveAgent').disabled,true);
 });

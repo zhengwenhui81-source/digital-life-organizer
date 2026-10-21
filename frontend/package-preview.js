@@ -1,10 +1,10 @@
-/* Pure presentation of unimplemented Package contracts. No IO or authorization. */
+/* Package presentation and display prerequisites. No IO or authorization. */
 (function(root){
     'use strict';
     const arr=Array.isArray, obj=v=>v!==null&&typeof v==='object'&&!arr(v);
     const str=v=>typeof v==='string'&&v.trim().length>0;
     const esc=v=>String(v??'未提供').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const json=v=>JSON.stringify(v,null,2)??'未提供';
+    const json=v=>JSON.stringify(v,(_,item)=>typeof item==='bigint'?item.toString():item,2)??'未提供';
     const pre=v=>'<pre>'+esc(typeof v==='string'?v:json(v))+'</pre>';
     const section=(title,body)=>'<section><h2>'+esc(title)+'</h2>'+body+'</section>';
     const labels={selection_pending:'选材待确认',version_undecided:'版本未决',conflict:'来源冲突',analysis_not_run:'分析未执行'};
@@ -50,7 +50,7 @@
             for(const key of ['selected_files','missing','unresolved','operations'])if(!arr(p[key]))warn(key+' 不是数组');
             if(!p.selected_files?.length)warn('提议选材为空');
             if(arr(p.selected_files)&&p.selected_files.some(f=>!obj(f)||!str(f.source?.file_id)||!str(f.source?.path)||!str(f.source?.filename)||!str(f.target)||!str(f.reason)||!arr(f.requirements)||!Number.isSafeInteger(f.snapshot?.size)||f.snapshot.size<0||!str(f.snapshot?.sha256)))warn('文件映射或快照数据不完整');
-            if(arr(p.selected_files)&&p.selected_files.some(f=>!Number.isInteger(f?.snapshot?.mtime_ns)||!/^([a-f0-9]{64})$/.test(f?.snapshot?.sha256)))warn('文件快照时间或摘要格式不正确');
+            if(arr(p.selected_files)&&p.selected_files.some(f=>!(Number.isInteger(f?.snapshot?.mtime_ns)||typeof f?.snapshot?.mtime_ns==='bigint')||!/^([a-f0-9]{64})$/.test(f?.snapshot?.sha256)))warn('文件快照时间或摘要格式不正确');
             if(arr(p.selected_files)&&p.selected_files.some(f=>Number.isInteger(f?.snapshot?.mtime_ns)&&!Number.isSafeInteger(f.snapshot.mtime_ns)))warn('纳秒时间戳超出 JavaScript 安全整数范围：精度无法确认，Number 相等不能证明来源快照一致；需 A/D 确认无损接入');
             const targets=p.verification_targets;
             if(!obj(targets)||Object.keys(targets).length!==3||!equalData(targets.selected_file_indices,list(p.selected_files).map((_,i)=>i))||targets.report!==true||targets.exact_directory_entries!==true)warn('verification_targets 缺失或无效：不能确认冻结验证范围');
@@ -233,12 +233,12 @@
         const risk=(missing,unresolved)=>'<h3>missing · 缺少文件名候选</h3>'+pre(missing)+'<h3>未决事项</h3>'+(arr(unresolved)?unresolved.map(u=>'<article><h4>'+esc(u?.kind)+' · '+esc(labels[u?.kind]||'未知风险')+'</h4>'+pre(u)+'</article>').join('')||'<p>未决数组为空，不代表内容审核通过。</p>':pre(unresolved));
         let html='<p class="warning">文件名候选不代表材料内容已经审核通过；版本推荐不代表用户确认选材。材料真实性、完整性及有效性未由本界面核验。</p><p>本界面不确认服务端审批或 accept_incomplete 风险接受已获授权；本地意向不构成授权。</p>';
         html+=section('数据与来源检查',m.errors.length?'<p class="warning">数据不完整或来源待核对；不能确认方案有效及执行验证成功。</p><ul>'+m.errors.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>':'<p>展示所需来源字段一致；不构成服务端授权。</p>');
-        html+=section('1. 冻结方案',pre({goal:p?.task?.user_goal,destination:p?.destination,plan_id:p?.plan_id,plan_sha256:input?.planResult?.data?.plan_sha256})+'<p>计划生成：'+(input?.planResult?.success===true?'工具报告成功（未执行）':'未确认')+'</p><p>服务端任务状态：'+esc(s?.task?.status)+'；等待审批与执行成功是不同状态。</p>');
+        html+=section('1. 冻结方案',pre({goal:p?.task?.user_goal,destination:p?.destination,plan_id:p?.plan_id,plan_sha256:input?.planResult?.data?.plan_sha256})+'<p>计划生成：'+(input?.planResult?.success===true?'工具报告规划成功（不能据此认定已经执行）':'未确认')+'</p><p>服务端任务状态：'+esc(s?.task?.status)+'；等待审批与执行成功是不同状态。</p>');
         html+=section('2. 具体文件映射 · proposed selected_files',arr(p?.selected_files)?p.selected_files.map((f,i)=>'<article><h3>提议文件 '+(i+1)+' · '+esc(f?.source?.filename)+'</h3><p>文件标识</p>'+pre(f?.source?.file_id)+'<p>源路径</p>'+pre(f?.source?.path)+'<p>目标路径</p>'+pre(f?.target)+'<p>选择依据</p>'+pre(f?.reason)+'<p>对应要求</p>'+pre(f?.requirements)+'<p>文件大小（字节） · '+esc(f?.snapshot?.size)+'</p><p>SHA-256（文件字节摘要）</p>'+pre(f?.snapshot?.sha256)+'</article>').join('')||'<p>选材为空；无法确认可执行方案。</p>':'<p>文件映射未提供。</p>');
         html+=section('3. 缺项与风险',risk(p?.missing,p?.unresolved)+'<h3>冻结分析与多候选证据</h3>'+pre(p?.analysis));
         html+=section('4. 操作顺序 · 仅计划',pre(p?.operations));
         html+=section('5. 冻结报告 · 审批前计划记录',pre(p?.report?.path)+pre(p?.report?.sha256)+pre(p?.report?.content));
-        html+=section('执行结果 · 与计划分开',pre({task_status:s?.task?.status,error:s?.error})+'<h3>'+esc(m.executionLabel)+'</h3><p>进度仅统计已关联的工具结果，不推断复制字节进度或逐文件正在执行。以下路径来自冻结映射。</p>'+m.operationRows.map(row=>'<article><h4>'+esc(row.step_id)+' · '+esc(row.kind)+'</h4><p>'+esc(row.label)+'</p>'+(row.evidenceValid&&row.result&&row.kind!=='verify'?'<p>'+(row.result.success?'文件操作执行成功':'文件操作失败')+'</p>':'')+pre({source:row.source,target:row.target,result_index:row.result_index})+(row.result?pre(row.result):'<p>没有此步的有效完成结果，不计为成功。</p>')+'</article>').join('')+(m.anomalousResults.length?'<h3>异常执行记录，不可作为有效执行证据</h3>'+pre(m.anomalousResults):'')+'<h3>verification</h3>'+pre(m.verification)+'<p>文件验证：'+(s?.task?.status!=='failed'&&!m.errors.length&&m.verification?.success===true&&m.verification.data?.passed===true?'通过（仅文件检查）':'未确认通过')+'</p><h3>当前 build_package</h3>'+pre(m.build)+'<h3>cleanup_results · 契约已确认，后端尚未实现</h3>'+pre(s?.package_execution?.cleanup_results)+m.cleanupRows.map(row=>'<article><h4>'+esc(row.record?.step_id)+' · '+esc(row.label)+'</h4><p>'+esc(row.residual)+'</p>'+pre({target:m.operationRows.find(operation=>operation.kind==='copy'&&operation.step_id===row.record?.step_id)?.target})+pre(row.record)+'</article>').join('')+'<p>absent 仅描述失败片段；成功复制的文件仍可能保留。未知残留不等于已回滚；本界面不重试或清理。</p>');
+        html+=section('执行结果 · 与计划分开',pre({task_status:s?.task?.status,error:s?.error})+'<h3>'+esc(m.executionLabel)+'</h3><p>进度仅统计已关联的工具结果，不推断复制字节进度或逐文件正在执行。以下路径来自冻结映射。</p>'+m.operationRows.map(row=>'<article><h4>'+esc(row.step_id)+' · '+esc(row.kind)+'</h4><p>'+esc(row.label)+'</p>'+(row.evidenceValid&&row.result&&row.kind!=='verify'?'<p>'+(row.result.success?'文件操作执行成功':'文件操作失败')+'</p>':'')+pre({source:row.source,target:row.target,result_index:row.result_index})+(row.result?pre(row.result):'<p>没有此步的有效完成结果，不计为成功。</p>')+'</article>').join('')+(m.anomalousResults.length?'<h3>异常执行记录，不可作为有效执行证据</h3>'+pre(m.anomalousResults):'')+'<h3>verification</h3>'+pre(m.verification)+'<p>文件验证：'+(s?.task?.status!=='failed'&&!m.errors.length&&m.verification?.success===true&&m.verification.data?.passed===true?'通过（仅文件检查）':'未确认通过')+'</p><h3>当前 build_package</h3>'+pre(m.build)+'<h3>cleanup_results · 后端实际返回记录</h3>'+pre(s?.package_execution?.cleanup_results)+m.cleanupRows.map(row=>'<article><h4>'+esc(row.record?.step_id)+' · '+esc(row.label)+'</h4><p>'+esc(row.residual)+'</p>'+pre({target:m.operationRows.find(operation=>operation.kind==='copy'&&operation.step_id===row.record?.step_id)?.target})+pre(row.record)+'</article>').join('')+'<p>absent 仅描述失败片段；成功复制的文件仍可能保留。未知残留不等于已回滚；本界面不重试或清理。</p>');
         html+=section('FinalReport · 原始报告事实',report?'<p>'+(!m.isPackage?'非 Package 报告，不要求 package_unresolved。':m.packageSucceeded?'本次报告与关联执行证据一致；仅确认文件操作与验证。':'报告未通过当前执行完整性检查，不确认 Package 成功。')+'</p>'+pre(report):'<p>未提供 FinalReport；失败任务通过 Snapshot 查看，不回退到旧成功报告。</p>');
         if(m.errors.some(e=>e.includes('执行记录不完整/无效')))html+=section('无效执行记录 · 原始数据保留，不能当作成功操作',pre({operations:p?.operations,package_execution:s?.package_execution,results:s?.results}));
         if(report)html+=section('报告中的缺项与未决事项',risk(report.missing_items,report.package_unresolved?.items));
@@ -282,17 +282,41 @@
         if(str(snapshot.preview_id)&&(!arr(snapshot.pending_operations)||!snapshot.pending_operations.length))issues.push('preview_id 缺少对应 pending_operations；不能确认冻结操作关联');
         return {...current,state:issues.length?'invalid':'provided',input:issues.length?null:input,issues};
     }
-    function renderSnapshot(snapshot,expectedTask){
+    function renderSnapshot(snapshot,expectedTask,report){
         const m=inspectSnapshot(snapshot,expectedTask);
-        let html='<p class="warning">真实 TaskSnapshot 只读展示 · Package 批准与执行未接通；不构成服务端授权。</p>';
+        let html='<p class="warning">真实 TaskSnapshot 只读展示 · 审批经现有 Agent 接口提交；本展示不构成服务端授权。</p>';
         if(m.state==='unavailable')return html+'<p>真实 Package 规划数据尚未提供。当前 Agent 可能尚未产生 plan_package ToolResult；不使用 Fixture 补齐。</p>';
         html+=pre({task_id:snapshot?.task?.task_id,plan_id:m.input?.planResult?.data?.plan?.plan_id,plan_sha256:m.input?.planResult?.data?.plan_sha256,preview_id:snapshot?.preview_id,result_index:m.resultIndex});
         if(m.issues.length)html+='<p class="warning">'+(m.state==='failed'?'当前失败，冻结预览不可用。':'数据不完整、格式异常或来源无法确认；不得视为有效当前冻结预览。')+'</p><ul>'+m.issues.map(issue=>'<li>'+esc(issue)+'</li>').join('')+'</ul>';
-        else html+='<p>规划记录来自当前 Snapshot；'+(str(snapshot?.preview_id)?'preview_id 仅按服务端返回展示，权威绑定尚未验收。':'服务端审批预览尚未提供，当前仅为只读规划。')+'</p>';
+        else html+='<p>规划记录来自当前 Snapshot；'+(str(snapshot?.preview_id)?'preview_id 仅按服务端返回展示，批准时由后端复验绑定。':'服务端审批预览尚未提供，当前仅为只读规划。')+'</p>';
         // Only a provided Snapshot may enter detailed rendering. The standalone
         // Fixture render() still retains its separate raw-data diagnostic use.
-        if(m.state==='provided'&&m.input)html+=render(m.input);
+        if(m.state==='provided'&&m.input)html+=render({...m.input,report});
+        if(m.state!=='provided'&&snapshot?.package_execution!=null){
+            html+=section('执行诊断 · 未确认成功，不展示文件映射',pre({task_status:snapshot.task?.status,error:snapshot.error})+
+                list(snapshot.package_execution.operation_results).map(link=>{
+                    const r=Number.isSafeInteger(link?.result_index)&&link.result_index>=0?snapshot.results?.[link.result_index]:null;
+                    return pre({step_id:link?.step_id,result_index:link?.result_index,tool:r?.tool,status:r?.success===false?'执行失败':r?.success===true?'工具报告成功，关联未确认':'无法验证',error:r?.error});
+                }).join('')+pre({cleanup_results:list(snapshot.package_execution.cleanup_results).map(c=>({step_id:c?.step_id,status:c?.status,reason:c?.reason,residual_state:c?.residual_state}))}));
+        }
         return html;
     }
-    const api={inspect,render,inspectSnapshot,renderSnapshot};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PackagePreview=api;
+    // These are display prerequisites only. A validates/consumes preview_id and
+    // rechecks sources on every approval. Never compute a digest or grant authority.
+    function approval(snapshot,expectedTask){
+        const m=inspectSnapshot(snapshot,expectedTask),issues=[...m.issues];
+        const p=m.input?.planResult.data.plan,sha=m.input?.planResult.data.plan_sha256;
+        if(m.state!=='provided'||snapshot?.task?.status!=='awaiting_approval'||snapshot?.package_execution!=null)issues.push('没有当前可审批的冻结方案');
+        if(!/^sha256:[a-f0-9]{64}$/.test(snapshot?.preview_id))issues.push('服务端 preview_id 缺失或无效');
+        const pending=snapshot?.pending_operations;
+        const expected=list(p?.operations).map(o=>{
+            const f=p?.selected_files?.[o?.selected_file_index];
+            const tool={create_directory:'create_folder',copy:'copy_file',write_report:'write_package_report',verify:'verify_result'}[o?.kind];
+            const argumentsValue=o?.kind==='create_directory'?{path:p.destination}:o?.kind==='copy'?{source:f?.source?.path,destination:f?.target}:o?.kind==='write_report'?{task_id:p.task.task_id,plan_id:p.plan_id,plan_sha256:sha}:{task_id:p?.task?.task_id,workspace:p?.task?.workspace,expected:p?.verification_targets};
+            return {step_id:o?.step_id,tool,arguments:argumentsValue,risk:o?.kind==='verify'?'low':'medium'};
+        });
+        if(!arr(pending)||!expected.length||pending.length!==expected.length||expected.some((e,i)=>!obj(pending[i])||pending[i].step_id!==e.step_id||pending[i].tool!==e.tool||pending[i].risk!==e.risk||pending[i].status!=='awaiting_approval'||!equalData(pending[i].arguments,e.arguments)))issues.push('pending_operations 与冻结方案不一致');
+        return {ready:issues.length===0,issues,hasRisks:!!(p?.missing?.length||p?.unresolved?.length),key:issues.length?null:json([snapshot.task.task_id,p.plan_id,sha,snapshot.preview_id,p.selected_files,p.missing,p.unresolved,pending])};
+    }
+    const api={inspect,render,inspectSnapshot,renderSnapshot,approval};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PackagePreview=api;
 })(typeof window==='undefined'?globalThis:window);
