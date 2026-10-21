@@ -195,7 +195,7 @@ def _win_relative(
     options = (
         (0x1 if directory else 0x40)  # DIRECTORY_FILE / NON_DIRECTORY_FILE
         | 0x20  # FILE_SYNCHRONOUS_IO_NONALERT
-        | 0x00200000  # FILE_OPEN_REPARSE_POINT
+        | (0 if create else 0x00200000)  # exclusive creates cannot follow links
     )
     status = native.NtCreateFile(
         ctypes.byref(out),
