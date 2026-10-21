@@ -43,7 +43,9 @@ def _windows_api():
 
 def _win_open(kernel, ctypes, path: Path, access: int, creation: int, attrs: int):
     # Do not grant FILE_SHARE_DELETE: hold the object at the checked name.
-    handle = kernel.CreateFileW(str(path), access, 0x1 | 0x2, None, creation, attrs, None)
+    handle = kernel.CreateFileW(
+        str(path), access, 0x1 | 0x2, None, creation, attrs, None
+    )
     if handle == ctypes.c_void_p(-1).value:
         raise ctypes.WinError(ctypes.get_last_error())
     return handle
