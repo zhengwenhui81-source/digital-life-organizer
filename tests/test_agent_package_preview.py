@@ -514,14 +514,14 @@ def test_report_write_failure_retains_copy_and_blocks_success(
     preview = service.prepare_package(task_id, selected, str(destination))
     from fileforge.agent import package_execution
 
-    actual_open = package_execution.os.open
+    actual_open = package_execution.anchored_open
 
-    def deny_report(path, flags, *args, **kwargs):
+    def deny_report(path, root, flags, *args, **kwargs):
         if Path(path).name == "PACKAGE_REPORT.md":
             raise PermissionError("injected report write denial")
-        return actual_open(path, flags, *args, **kwargs)
+        return actual_open(path, root, flags, *args, **kwargs)
 
-    monkeypatch.setattr(package_execution.os, "open", deny_report)
+    monkeypatch.setattr(package_execution, "anchored_open", deny_report)
     failed = service.decide(
         task_id, preview["preview_id"], approve=True, accept_incomplete=True
     )
@@ -588,3 +588,107 @@ def test_d_planning_failure_stops_without_preview(package_task):
     assert list(destination.iterdir()) == []
     with pytest.raises(TaskConflict, match="not available"):
         service.report(task_id)
+
+
+def test_copy_preflight_change_after_first_copy_records_failed_child(tmp_path: Path, monkeypatch):
+    notice = tmp_path / "notice.txt"
+    notice.write_text("需要报名表和说明。", encoding="utf-8")
+    first = tmp_path / "报名表.txt"
+    first.write_text("报名表", encoding="utf-8")
+    second = tmp_path / "说明.txt"
+    second.write_text("说明", encoding="utf-8")
+    service = TaskService(planner=_planner(notice, first, second))
+    task_id = service.create("打包两份文件", str(tmp_path))["task_id"]
+    service.run(task_id)
+    snapshot = service.snapshot(task_id)
+    reads = [r["data"]["document"] for r in snapshot["results"] if r["tool"] == "read_document"]
+    selected = [
+        {
+            "source": {key: doc[key] for key in ("file_id", "path", "filename")},
+            "requirements": [],
+            "reason": "selected for same-preview approval",
+        }
+        for doc in reads[1:]
+    ]
+    from fileforge.package import planning
+
+    def stable_snapshot(path, workspace):
+        raw = path.read_bytes()
+        return {
+            "size": len(raw),
+            "mtime_ns": path.stat().st_mtime_ns,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+        }
+
+    monkeypatch.setattr(planning, "snapshot", stable_snapshot)
+    destination = tmp_path / "out"
+    preview = service.prepare_package(task_id, selected, str(destination))
+    assert preview["task"]["status"] == "awaiting_approval", preview["error"]
+    from fileforge.agent import package_execution
+
+    original_copy = package_execution._copy_one
+
+    def change_after_first(source, target, expected, root, source_identity):
+        result = original_copy(source, target, expected, root, source_identity)
+        if source == first and result[0]["success"]:
+            second.write_text("已经修改", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(package_execution, "_copy_one", change_after_first)
+    failed = service.decide(
+        task_id, preview["preview_id"], approve=True, accept_incomplete=True
+    )
+    assert failed["task"]["status"] == "failed"
+    records = failed["package_execution"]["operation_results"]
+    assert [failed["results"][r["result_index"]]["tool"] for r in records] == [
+        "create_folder", "copy_file", "copy_file",
+    ]
+    assert failed["results"][records[-1]["result_index"]]["success"] is False
+    cleanup = failed["package_execution"]["cleanup_results"]
+    assert cleanup[-1] == {
+        "step_id": "package_003",
+        "status": "not_attempted",
+        "reason": "Source revalidation failed before target creation",
+        "residual_state": "absent",
+    }
+    assert not (destination / second.name).exists()
+    assert (destination / first.name).exists()
+
+
+def test_package_anchored_create_write_and_entries(tmp_path: Path):
+    import os
+    from fileforge.agent.package_fs import anchored_mkdir, anchored_open, guarded_entries
+
+    root = tmp_path / "workspace"
+    root.mkdir()
+    destination = root / "bundle"
+    anchored_mkdir(destination, root)
+    file = destination / "report.txt"
+    fd = anchored_open(file, root, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+    try:
+        os.write(fd, b"frozen")
+    finally:
+        os.close(fd)
+    assert file.read_bytes() == b"frozen"
+    assert guarded_entries(destination, root) == {"report.txt"}
+    with pytest.raises(FileExistsError):
+        anchored_open(file, root, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+
+
+def test_package_anchored_open_rejects_parent_symlink(tmp_path: Path):
+    import os
+    from fileforge.agent.package_fs import anchored_open
+
+    root = tmp_path / "workspace"
+    root.mkdir()
+    other = tmp_path / "outside"
+    other.mkdir()
+    (other / "outside.txt").write_text("safe", encoding="utf-8")
+    link = root / "link"
+    try:
+        link.symlink_to(other, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Creating directory symlinks is unavailable here")
+    with pytest.raises((OSError, ValueError)):
+        anchored_open(link / "outside.txt", root, os.O_RDONLY)
+    assert (other / "outside.txt").read_text(encoding="utf-8") == "safe"

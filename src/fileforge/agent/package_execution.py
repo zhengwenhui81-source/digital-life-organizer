@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from fileforge.agent.package_evidence import recheck_approved_source_bytes
+from fileforge.agent.package_fs import anchored_mkdir, anchored_open, guarded_entries
 
 
 def _result(
@@ -45,7 +46,7 @@ def _digest(path: Path, root: Path) -> str:
     if not stat.S_ISREG(before.st_mode):
         raise ValueError("Package file is not regular")
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(path, flags)
+    fd = anchored_open(path, root, flags)
     try:
         opened = os.fstat(fd)
         if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
@@ -102,14 +103,14 @@ def _copy_one(
             | getattr(os, "O_BINARY", 0)
             | getattr(os, "O_NOFOLLOW", 0)
         )
-        source_fd = os.open(source, read_flags)
+        source_fd = anchored_open(source, root, read_flags)
         try:
             opened = os.fstat(source_fd)
             if (opened.st_dev, opened.st_ino) != source_identity:
                 raise ValueError("Approved Package source object was replaced")
             if _digest(source, root) != expected:
                 raise ValueError("Approved Package source digest changed")
-            target_fd = os.open(target, write_flags, 0o600)
+            target_fd = anchored_open(target, root, write_flags, 0o600)
             created = True
             try:
                 info = os.fstat(target_fd)
@@ -195,7 +196,7 @@ def _verify(plan: dict, checked: dict[int, dict], root: Path) -> dict:
         checks.append(
             {"path": report["path"], "kind": "report-digest", "passed": passed}
         )
-        actual_names = {entry.name for entry in destination.iterdir()}
+        actual_names = guarded_entries(destination, root)
         checks.append(
             {
                 "path": str(destination),
@@ -236,22 +237,31 @@ def execute_package(
             if kind == "create_directory":
                 try:
                     _safe_path(destination, root, allow_missing=True)
-                    os.mkdir(destination)
+                    anchored_mkdir(destination, root)
                     child = _result("create_folder", {"path": str(destination)})
                 except (OSError, ValueError) as exc:
                     child = _result("create_folder", error=str(exc))
             elif kind == "copy":
-                recheck_approved_source_bytes(str(root), checked)
                 selected_index = descriptor["selected_file_index"]
                 item = plan["selected_files"][selected_index]
-                evidence = checked[bindings[selected_index]]
-                child, record = _copy_one(
-                    Path(item["source"]["path"]),
-                    Path(item["target"]),
-                    item["snapshot"]["sha256"],
-                    root,
-                    (evidence["device"], evidence["inode"]),
-                )
+                try:
+                    recheck_approved_source_bytes(str(root), checked)
+                except (OSError, ValueError) as exc:
+                    child = _result("copy_file", error=str(exc))
+                    record = {
+                        "status": "not_attempted",
+                        "reason": "Source revalidation failed before target creation",
+                        "residual_state": "absent",
+                    }
+                else:
+                    evidence = checked[bindings[selected_index]]
+                    child, record = _copy_one(
+                        Path(item["source"]["path"]),
+                        Path(item["target"]),
+                        item["snapshot"]["sha256"],
+                        root,
+                        (evidence["device"], evidence["inode"]),
+                    )
                 cleanup.append({"step_id": step_id, **record})
                 if child["success"]:
                     generated.append(item["target"])
@@ -270,7 +280,7 @@ def execute_package(
                         | getattr(os, "O_BINARY", 0)
                         | getattr(os, "O_NOFOLLOW", 0)
                     )
-                    fd = os.open(path, flags, 0o600)
+                    fd = anchored_open(path, root, flags, 0o600)
                     try:
                         view = memoryview(data)
                         while view:
