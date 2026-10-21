@@ -266,7 +266,7 @@ def test_runtime_comparison_uses_only_latest_search_candidates(tmp_path: Path) -
     ] == ["candidate.txt"]
 
 
-def test_runtime_candidate_limit_fails_without_partial_reads(tmp_path: Path) -> None:
+def test_runtime_candidates_cross_one_batch_in_same_task(tmp_path: Path) -> None:
     for index in range(11):
         (tmp_path / f"document_{index:02d}.txt").write_text("content", encoding="utf-8")
     service = TaskService(planner=_dynamic_plan("list_files", "read_document"))
@@ -275,9 +275,12 @@ def test_runtime_candidate_limit_fails_without_partial_reads(tmp_path: Path) -> 
     service.run(task["task_id"])
 
     snapshot = service.snapshot(task["task_id"])
-    assert snapshot["task"]["status"] == "failed"
-    assert "exceeds 10 candidates" in snapshot["error"]
-    assert [result["tool"] for result in snapshot["results"]] == ["list_files"]
+    assert snapshot["task"]["status"] == "completed"
+    assert [result["tool"] for result in snapshot["results"]] == [
+        "list_files",
+        *(["read_document"] * 11),
+    ]
+    assert all(result["success"] for result in snapshot["results"])
 
 
 def test_runtime_candidate_path_cannot_escape_workspace(tmp_path: Path) -> None:

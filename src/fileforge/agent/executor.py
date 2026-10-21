@@ -20,8 +20,10 @@ from fileforge.tools import (
 Tool = Callable[..., dict[str, Any]]
 Resolver = Callable[
     [dict[str, Any], list[dict[str, Any]]],
-    dict[str, Any] | list[dict[str, Any]],
+    dict[str, Any] | list[dict[str, Any]] | list[list[dict[str, Any]]],
 ]
+
+_MAX_DOCUMENT_BATCH = 10
 
 
 def _read_document(**arguments: Any) -> dict[str, Any]:
@@ -190,39 +192,52 @@ def execute(
             if step["step_id"] in approved_preview
             else resolver(step, state["results"]) if resolver else step["arguments"]
         )
+        batched = False
         if isinstance(arguments, list):
-            if (
-                name != "read_document"
-                or step["risk"] != "low"
-                or not all(isinstance(item, dict) for item in arguments)
-            ):
+            if name != "read_document" or step["risk"] != "low":
                 raise ValueError("Only read_document can resolve to a document batch")
-            calls = arguments
+            if all(isinstance(item, dict) for item in arguments):
+                batches = [arguments]
+            elif all(isinstance(item, list) for item in arguments):
+                batched = True
+                batches = arguments
+            else:
+                raise ValueError("Document batches contain invalid arguments")
+            if any(
+                len(batch) > _MAX_DOCUMENT_BATCH
+                or not all(isinstance(call, dict) for call in batch)
+                for batch in batches
+            ):
+                raise ValueError("Document batch exceeds 10 candidates")
         elif isinstance(arguments, dict):
-            calls = [arguments]
+            batches = [[arguments]]
         else:
             raise ValueError("Resolver must return tool arguments")
-        if not calls:
+        if not any(batches):
             step["status"] = "skipped"
             continue
         step["status"] = "running"
-        for call in calls:
-            result_index = len(state["results"])
-            call_record = {
-                "result_index": result_index,
-                "step_id": step["step_id"],
-                "tool": name,
-                "arguments": deepcopy(call),
-            }
-            result = router.call(
-                name, call, approved=step["step_id"] in approved_preview
-            )
-            state["results"].append(result)
-            state["result_calls"].append(call_record)
-            if not result["success"]:
-                step["status"] = "failed"
-                state["status"] = "failed"
-                return state
+        for batch_index, batch in enumerate(batches):
+            for batch_item_index, call in enumerate(batch):
+                result_index = len(state["results"])
+                call_record = {
+                    "result_index": result_index,
+                    "step_id": step["step_id"],
+                    "tool": name,
+                    "arguments": deepcopy(call),
+                }
+                if batched:
+                    call_record["batch_index"] = batch_index
+                    call_record["batch_item_index"] = batch_item_index
+                result = router.call(
+                    name, call, approved=step["step_id"] in approved_preview
+                )
+                state["results"].append(result)
+                state["result_calls"].append(call_record)
+                if not result["success"]:
+                    step["status"] = "failed"
+                    state["status"] = "failed"
+                    return state
         step["status"] = "completed"
     state["status"] = "completed"
     return state
