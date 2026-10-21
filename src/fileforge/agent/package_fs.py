@@ -107,8 +107,14 @@ def _windows_api():
     native.RtlNtStatusToDosError.argtypes = (wintypes.LONG,)
     native.RtlNtStatusToDosError.restype = wintypes.ULONG
     return (
-        ctypes, wintypes, kernel, native, UnicodeString, ObjectAttributes,
-        IoStatusBlock, ByHandleInfo,
+        ctypes,
+        wintypes,
+        kernel,
+        native,
+        UnicodeString,
+        ObjectAttributes,
+        IoStatusBlock,
+        ByHandleInfo,
     )
 
 
@@ -154,7 +160,14 @@ def _win_relative(
 ) -> int:
     """NtCreateFile relative to an already-open parent, not its mutable name."""
     (
-        ctypes, wintypes, kernel, native, Unicode, Object, IoStatus, _,
+        ctypes,
+        wintypes,
+        kernel,
+        native,
+        Unicode,
+        Object,
+        IoStatus,
+        _,
     ) = _windows_api()
     if not name or name in {".", ".."} or "\\" in name or "/" in name:
         raise ValueError("Package child name is invalid")
@@ -269,9 +282,7 @@ def anchored_open(path: Path, root: Path, flags: int, mode: int = 0o600) -> int:
             exclusive = bool(flags & os.O_CREAT and flags & os.O_EXCL)
             if flags & os.O_CREAT and not exclusive:
                 raise ValueError("Package creates require O_EXCL")
-            handle = _win_relative(
-                parent, path.name, directory=False, create=exclusive
-            )
+            handle = _win_relative(parent, path.name, directory=False, create=exclusive)
             try:
                 descriptor_flags = getattr(os, "O_BINARY", 0) | (
                     os.O_WRONLY if writing else os.O_RDONLY
@@ -296,9 +307,7 @@ def anchored_mkdir(path: Path, root: Path) -> None:
     with _parent(path, root, writing=True) as parent:
         if os.name == "nt":
             _, _, kernel, _, _, _, _, _ = _windows_api()
-            handle = _win_relative(
-                parent, path.name, directory=True, create=True
-            )
+            handle = _win_relative(parent, path.name, directory=True, create=True)
             kernel.CloseHandle(handle)
         else:
             os.mkdir(path.name, dir_fd=parent)
