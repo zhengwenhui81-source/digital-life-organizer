@@ -765,9 +765,7 @@ def test_windows_relative_handle_cannot_follow_parent_retarget(tmp_path: Path):
             parent.symlink_to(outside, target_is_directory=True)
         except OSError:
             pytest.skip("Windows does not allow parent replacement in this environment")
-        handle = _win_relative(
-            pinned, "new.txt", directory=False, create=True
-        )
+        handle = _win_relative(pinned, "new.txt", directory=False, create=True)
         fd = msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY)
         try:
             os.write(fd, b"anchored")
