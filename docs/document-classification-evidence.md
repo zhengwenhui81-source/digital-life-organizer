@@ -43,6 +43,13 @@ The public reader supports only TXT, PDF, DOCX and XLSX (case-insensitive suffix
 It passes `sys.maxsize` to the existing extractor, avoiding the default
 2,000-character snippet; complete supported text is held in memory, not streamed.
 
+Rechecked at dev `f084b8a18198f61634c82e5bc12ee9bffc44f0f0`: CPP and JSON
+can use the separate upstream snippet dispatcher, but remain unsupported by public
+`read_document` and Agent automatic Document batches. CSV is unsupported by both
+current dispatchers. See the [Demo diagnosis](version-demo-diagnosis.md#public-reader-versus-upstream-snippets)
+for measured format counts and explicit-read failure semantics. File discovery
+must not be presented as content extraction or proof that a file is irrelevant.
+
 | Format / implementation | Actual text produced | Omitted / uncertain evidence |
 | --- | --- | --- |
 | [TXT](../src/fileforge/extractor/text.py) | Read bytes, chardet encoding detection, fallback UTF-8, replacement decoding; decoded text | Replacement characters or incorrect detection may lose meaning; upstream extractor supporting other text suffixes does not expand public support beyond TXT |

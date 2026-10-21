@@ -1,5 +1,12 @@
 # Windows Version validation closeout
 
+Current grouping limitations and the three-report Demo investigation are recorded
+separately in [the version diagnosis](version-demo-diagnosis.md). Fixed-input order
+determinism does not guarantee cross-Workspace partitions, and a candidate is only
+a recommendation within its group. The historical parser scope below belongs to
+its evidence baseline; current extraction support is described in
+[Document evidence](document-classification-evidence.md#text-evidence-and-omissions).
+
 ## Status and evidence provenance
 
 **Fixed-commit Windows Version unit/lifecycle and four-format C public-tool
