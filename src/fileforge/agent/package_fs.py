@@ -190,7 +190,7 @@ def _win_relative(
     access = (
         0x001000A0 | (0x2 | 0x4 if write_parent else 0)
         if directory
-        else (0x00100000 | (0x40000000 if create else 0x80000000))
+        else (0x00100080 | (0x40000000 if create else 0x80000000))
     )
     options = (
         (0x1 if directory else 0x40)  # DIRECTORY_FILE / NON_DIRECTORY_FILE
