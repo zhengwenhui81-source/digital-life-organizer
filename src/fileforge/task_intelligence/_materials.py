@@ -51,7 +51,7 @@ _LABEL_RESTRICTION = re.compile(
 # A leading restriction plus a provision/action phrase qualifies the label.
 # Match the grammatical shape rather than particular audiences or single chars.
 _LABEL_AUDIENCE = re.compile(
-    r"限[^，,：:。；;\\n]{1,40}(?:提供|提交|办理|使用|领取|申请)"
+    r"限[^，,：:。；;\n]{1,40}(?:提供|提交|办理|使用|领取|申请)"
 )
 
 # Bare Chinese numbering is ambiguous with chapter numbering: terminate scope.
