@@ -7,6 +7,8 @@ import stat
 import unicodedata
 from pathlib import Path, PureWindowsPath
 
+_WINDOWS = os.name == "nt"
+
 
 def collision_key(name):
     return unicodedata.normalize("NFC", name).casefold()
@@ -94,6 +96,21 @@ def _signature(info):
     )
 
 
+def _same_signature(left, right, *, compare_ctime=True):
+    left_signature = _signature(left)
+    right_signature = _signature(right)
+    if not compare_ctime:
+        left_signature = left_signature[:-1]
+        right_signature = right_signature[:-1]
+    return left_signature == right_signature
+
+
+def _same_cross_api_signature(left, right):
+    # Windows can report slightly different ctime_ns values for the same file
+    # through lstat() and fstat(). Each API's before/after ctime is still checked.
+    return _same_signature(left, right, compare_ctime=not _WINDOWS)
+
+
 def snapshot(path, workspace):
     scope(path, workspace)
     before = path.lstat()
@@ -108,7 +125,9 @@ def snapshot(path, workspace):
     fd = os.open(path, flags)
     try:
         opened = os.fstat(fd)
-        if _signature(opened) != _signature(before) or not stat.S_ISREG(opened.st_mode):
+        if not _same_cross_api_signature(opened, before) or not stat.S_ISREG(
+            opened.st_mode
+        ):
             raise ValueError("Source changed before reading")
         digest = hashlib.sha256()
         size = 0
@@ -120,8 +139,9 @@ def snapshot(path, workspace):
         observed = path.lstat()
         if (
             size != before.st_size
-            or _signature(before) != _signature(after)
-            or _signature(after) != _signature(observed)
+            or not _same_signature(opened, after)
+            or not _same_signature(before, observed)
+            or not _same_cross_api_signature(after, observed)
         ):
             raise ValueError(f"Source changed while reading: {path}")
         return dict(size=size, mtime_ns=after.st_mtime_ns, sha256=digest.hexdigest())

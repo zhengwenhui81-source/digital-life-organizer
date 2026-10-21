@@ -281,7 +281,7 @@ def test_deep_json_returns_failure_not_recursion_error(request_data):
 
 def test_stable_order_with_two_selected_files(request_data, tmp_path):
     source = tmp_path / "额外附件.txt"
-    source.write_text("附件内容")
+    source.write_text("附件内容", encoding="utf-8")
     d = read_document(str(source))["data"]["document"]
     extra = dict(
         source={k: d[k] for k in ("file_id", "path", "filename")},
