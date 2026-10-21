@@ -155,3 +155,16 @@ def test_existing_chain_already_filters_other_left_conditions(tmp_path, label):
     assert extract_requirements(documents=[doc])["data"] == {"required_documents": []}
     other = read_text(tmp_path, "无需提交资格证明", "other.docx")
     assert detect_conflicts(documents=[doc, other])["data"]["conflicts"] == []
+
+
+@pytest.mark.parametrize(
+    "name", ["获奖者专用资格证明", "研究生专供资格证明", "适用于获奖者的资格证明"]
+)
+@pytest.mark.parametrize("mode", ["提交", "无需提交"])
+def test_restricted_audience_labels_abstain(tmp_path, name, mode):
+    doc = read_text(tmp_path, "所需材料\nM1 " + name + "：" + mode + "证明。")
+    assert extract_requirements(documents=[doc])["data"] == {"required_documents": []}
+    other = read_text(
+        tmp_path, ("无需提交" if mode == "提交" else "必须提交") + name, "other.docx"
+    )
+    assert detect_conflicts(documents=[doc, other])["data"]["conflicts"] == []

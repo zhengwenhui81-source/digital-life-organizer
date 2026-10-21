@@ -44,7 +44,9 @@ _LABEL_ASSERTION = re.compile(
 
 # Restrictive qualifiers on a labeled description must not disappear when
 # extracting its short material name. No condition reasoning is attempted.
-_LABEL_RESTRICTION = re.compile(r"仅|限于|[（(][^）)]*(?:条件|者)[^）)]*[）)]")
+_LABEL_RESTRICTION = re.compile(
+    r"仅|限于|专用|专供|适用于|[（(][^）)]*(?:条件|者)[^）)]*[）)]"
+)
 
 # Bare Chinese numbering is ambiguous with chapter numbering: terminate scope.
 # Parenthesized Chinese/Arabic and plain Arabic lists remain supported.
