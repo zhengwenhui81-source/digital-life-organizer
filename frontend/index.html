@@ -909,7 +909,8 @@
             }
             byId('agentOtherResults').innerHTML = AgentResults.otherResults(results) || '尚无其他工具结果。';
             if (demoData) {
-                byId('agentActions').innerHTML = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('') || 'No file operations are waiting for approval.';
+                const operationCards = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (presentationDemo ? '演示操作' : o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">' + (presentationDemo ? '未执行真实文件操作' : 'Risk: medium') + '</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('');
+                byId('agentActions').innerHTML = (presentationDemo ? '<p class="agent-note">以下为流程展示用的文件映射，不会在工作空间中创建目录或复制文件。</p>' : '') + (operationCards || 'No file operations are waiting for approval.');
             } else {
                 const packagePendingSafe = !hasAgentPackageData(snapshot) || PackagePreview.approval(snapshot, packageTask).ready;
                 const operations = packagePendingSafe ? agentArray(snapshot.pending_operations) : [];
@@ -942,7 +943,7 @@
             const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],...((mock || presentationDemo) ? [['Missing Items',report.missing_items]] : []),['Conflicts',report.conflicts],['Operations',report.operations]];
             const warnings = [...((mock || presentationDemo) ? [['Missing Items',report.missing_items]] : []),['Conflicts',report.conflicts]].filter(([,items]) => agentArray(items).length);
             byId('agentFinal').innerHTML = '<h3 class="result-heading">✓ Task Completed' + (presentationDemo ? ' · 前端演示' : mock ? ' · Mock' : '') + '</h3><p class="result-summary">' + agentEscape(report.summary) + '</p>' +
-                (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">未生成材料包：后端未提供 package_path。</p>') +
+                (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (presentationDemo ? ' · 前端演示' : mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">' + (presentationDemo ? '前端流程展示已结束；未创建真实材料包。' : '未生成材料包：后端未提供 package_path。') + '</p>') +
                 warnings.map(([label,items]) => '<p class="result-warning">⚠ ' + items.length + ' ' + label + ' — review the analysis before submitting materials.</p>').join('') +
                 '<div class="agent-summary">' + counts.filter(([,items]) => Array.isArray(items) && items.length).map(([label,items]) => '<div>' + label + '<strong>' + items.length + '</strong></div>').join('') + '</div>';
             if (!mock && !presentationDemo) {
