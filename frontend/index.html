@@ -538,7 +538,7 @@
                     <label for="agentMode">Mode</label>
                     <select id="agentMode" class="filter-select"><option value="real" selected>Real Mode</option><option value="mock">Mock Mode</option></select>
                     <label id="agentScenarioLabel" for="agentScenario">Scenario</label>
-                    <select id="agentScenario" class="filter-select"><option value="presentation" selected>完整流程演示（仅前端）</option><option value="happy">Happy path（Mock）</option><option value="failed">Analysis failure（Mock）</option></select>
+                    <select id="agentScenario" class="filter-select"><option value="presentation" selected>完整流程</option><option value="happy">Happy path（Mock）</option><option value="failed">Analysis failure（Mock）</option></select>
                     <button id="runAgent" class="btn btn-primary" disabled onclick="runAgent()">Run Agent</button>
                     <button id="refreshAgent" class="btn btn-secondary btn-sm" disabled onclick="pollAgent()">Refresh Task Status</button>
                     <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Real Mode</span>
@@ -723,7 +723,7 @@
     <script src="/static/agent-flow-visualization.js"></script>
     <script>
         // State
-        const agentState = {workflow: 'materials', organizationDemo: false, task: null, taskContext: null, snapshot: null, mode: 'real', presentationDemo: false, busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null, packageRiskKey: null, acceptedPackageRisk: null};
+        const agentState = {workflow: 'materials', organizationDemo: false, task: null, taskContext: null, snapshot: null, mode: 'real', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null, packageRiskKey: null, acceptedPackageRisk: null};
         const byId = id => document.getElementById(id);
         const agentArray = value => Array.isArray(value) ? value.filter(item => item != null) : [];
         const agentText = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value, (_,item) => typeof item === 'bigint' ? item.toString() : item);
@@ -876,19 +876,18 @@
             agentState.snapshot = snapshot;
             agentState.approvalValid = snapshot.task.status === 'awaiting_approval';
             const mock = agentState.mode === 'mock';
-            const presentationDemo = !!agentState.presentationDemo;
-            const demoData = mock || presentationDemo;
+            const demoData = mock;
             syncPackageRisk();
-            byId('agentPackagePreview').innerHTML = demoData ? '<p>' + (presentationDemo ? '前端演示：不调用真实模型，不读取或修改文件。' : 'Mock Mode：此处不展示真实 Package 规划数据。') + '</p>' : PackagePreview.renderSnapshot(snapshot, packageTask);
-            byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (presentationDemo ? 'Real Mode · 前端演示' : mock ? 'Mock Mode' : 'Real Mode');
-            byId('agentFlowVisualization').innerHTML = AgentFlowVisualization.render(snapshot, presentationDemo ? 'presentation' : agentState.mode);
+            byId('agentPackagePreview').innerHTML = mock ? '<p>Mock Mode：此处不展示真实 Package 规划数据。</p>' : PackagePreview.renderSnapshot(snapshot, packageTask);
+            byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (mock ? 'Mock Mode' : 'Real Mode');
+            byId('agentFlowVisualization').innerHTML = AgentFlowVisualization.render(snapshot, agentState.mode);
             const symbols = {pending:'○',running:'●',completed:'✓',failed:'✕',awaiting_approval:'⚠',skipped:'－'};
             byId('agentPlan').innerHTML = agentArray(snapshot.plan?.steps).map(step => '<div class="agent-step" data-status="' + agentEscape(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + agentEscape(step.description) + '<small>' + agentEscape(step.tool) + ' · ' + agentEscape(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + agentEscape(step.risk) + '</span></div>').join('') || '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
             const results = agentArray(snapshot.results);
             const result = tool => AgentResults.latest(results, tool);
             const versions = result('compare_versions'), conflicts = result('detect_conflicts'), materials = result('extract_requirements');
-            byId('agentMatching').innerHTML = demoData ? '<p class="agent-note">' + (presentationDemo ? '前端演示未调用真实匹配工具。' : 'Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。') + '</p>' : AgentResults.matching(result('match_requirements'));
-            if (!demoData) {
+            byId('agentMatching').innerHTML = mock ? '<p class="agent-note">Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。</p>' : AgentResults.matching(result('match_requirements'));
+            if (!mock) {
                 byId('agentVersions').innerHTML = AgentResults.versions(versions);
                 byId('agentConflicts').innerHTML = AgentResults.conflicts(conflicts);
                 byId('agentMaterials').innerHTML = AgentResults.requirements(materials);
@@ -898,19 +897,19 @@
             if (versions) {
                 byId('agentVersions').classList.remove('agent-placeholder');
                 byId('agentVersions').innerHTML = versions.success && Array.isArray(versions.data?.groups) ? agentArray(versions.data.groups).map(group =>
-                    agentArray(group.documents).map(doc => '<div class="agent-item">' + agentEscape(doc.filename) + (demoData && doc.file_id === group.newest_candidate ? ' <span class="badge badge-success">Latest</span>' : '') + '<small style="display:block">' + agentEscape(doc.modified_time) + '</small></div>').join('') +
-                    (demoData ? agentArray(group.changes).map(change => '<p>' + agentEscape(change) + '</p>').join('') : '<p class="agent-note">候选版本与变更结构待确认，显示后端原始详情：</p>' + agentDetails({newest_candidate: group.newest_candidate, changes: group.changes}))
+                    agentArray(group.documents).map(doc => '<div class="agent-item">' + agentEscape(doc.filename) + (mock && doc.file_id === group.newest_candidate ? ' <span class="badge badge-success">Latest</span>' : '') + '<small style="display:block">' + agentEscape(doc.modified_time) + '</small></div>').join('') +
+                    (mock ? agentArray(group.changes).map(change => '<p>' + agentEscape(change) + '</p>').join('') : '<p class="agent-note">候选版本与变更结构待确认，显示后端原始详情：</p>' + agentDetails({newest_candidate: group.newest_candidate, changes: group.changes}))
                 ).join('') || '暂无版本组。' : agentDetails(versions.error || versions.data);
             }
             if (conflicts) byId('agentConflicts').classList.remove('agent-placeholder');
             if (materials) byId('agentMaterials').classList.remove('agent-placeholder');
             if (conflicts) byId('agentConflicts').innerHTML = conflicts.success && Array.isArray(conflicts.data?.conflicts) ? agentArray(conflicts.data.conflicts).map(c => '<p><span class="badge badge-warning">' + agentEscape(c.field) + '</span></p>' + agentArray(c.values).map(v => '<div class="agent-item">' + agentEscape(v.source) + '<br><strong>' + agentEscape(v.value) + '</strong></div>').join('') + '<p>Recommendation: ' + agentEscape(c.recommendation) + '</p>').join('') || '未检测到冲突。' : agentDetails(conflicts.error || conflicts.data);
-            if (materials) byId('agentMaterials').innerHTML = materials.success && Array.isArray(materials.data?.required_documents) ? agentArray(materials.data.required_documents).map(name => '<div class="agent-item">' + (demoData ? (agentArray(snapshot.missing_items).includes(name) ? '⚠ ' + agentEscape(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + agentEscape(name)) : '• ' + agentEscape(name)) + '</div>').join('') + (demoData ? '' : '<p class="agent-note">匹配与缺失结果结构尚未提供。</p>') : agentDetails(materials.error || materials.data);
+            if (materials) byId('agentMaterials').innerHTML = materials.success && Array.isArray(materials.data?.required_documents) ? agentArray(materials.data.required_documents).map(name => '<div class="agent-item">' + (mock ? (agentArray(snapshot.missing_items).includes(name) ? '⚠ ' + agentEscape(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + agentEscape(name)) : '• ' + agentEscape(name)) + '</div>').join('') + (mock ? '' : '<p class="agent-note">匹配与缺失结果结构尚未提供。</p>') : agentDetails(materials.error || materials.data);
             }
             byId('agentOtherResults').innerHTML = AgentResults.otherResults(results) || '尚无其他工具结果。';
-            if (demoData) {
-                const operationCards = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (presentationDemo ? '演示操作' : o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">' + (presentationDemo ? '未执行真实文件操作' : 'Risk: medium') + '</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('');
-                byId('agentActions').innerHTML = (presentationDemo ? '<p class="agent-note">以下为流程展示用的文件映射，不会在工作空间中创建目录或复制文件。</p>' : '') + (operationCards || 'No file operations are waiting for approval.');
+            if (mock) {
+                const operationCards = agentArray(snapshot.operations).map(o => '<div class="agent-item"><span class="badge badge-warning">' + (o.tool === 'move_file' ? 'MOVE / ARCHIVE' : 'COPY') + '</span> <span class="badge badge-warning">Risk: medium</span><p class="agent-path-text">' + agentEscape(o.source) + '<br>→ ' + agentEscape(o.destination) + '</p></div>').join('');
+                byId('agentActions').innerHTML = operationCards || 'No file operations are waiting for approval.';
             } else {
                 const packagePendingSafe = !hasAgentPackageData(snapshot) || PackagePreview.approval(snapshot, packageTask).ready;
                 const operations = packagePendingSafe ? agentArray(snapshot.pending_operations) : [];
@@ -919,7 +918,7 @@
                 if (snapshot.task.status === 'awaiting_approval') byId('agentActions').innerHTML += '<p class="agent-note">' + (typeof snapshot.preview_id === 'string' && snapshot.preview_id ? 'Preview: ' + agentEscape(snapshot.preview_id) : '缺少 preview_id，不能提交审批。请刷新任务状态。') + '</p>';
                 if (hasAgentPackageData(snapshot)) byId('agentActions').innerHTML += '<p class="result-warning">Package 批准仅提交服务端 preview_id；有缺项或未决事项时须明确接受本次风险。后端负责校验授权、过期预览与来源变化。</p>';
             }
-            byId('agentActions').classList.toggle('agent-placeholder', !agentArray(demoData ? snapshot.operations : snapshot.pending_operations).length);
+            byId('agentActions').classList.toggle('agent-placeholder', !agentArray(mock ? snapshot.operations : snapshot.pending_operations).length);
             updateAgentControls();
         }
         function renderAgentReport(report) {
@@ -937,16 +936,15 @@
             }
             agentState.report = report;
             const mock = agentState.mode === 'mock';
-            const presentationDemo = !!agentState.presentationDemo;
             byId('agentFinalCard').dataset.completed = 'true';
             byId('agentFinal').classList.remove('agent-placeholder');
-            const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],...((mock || presentationDemo) ? [['Missing Items',report.missing_items]] : []),['Conflicts',report.conflicts],['Operations',report.operations]];
-            const warnings = [...((mock || presentationDemo) ? [['Missing Items',report.missing_items]] : []),['Conflicts',report.conflicts]].filter(([,items]) => agentArray(items).length);
-            byId('agentFinal').innerHTML = '<h3 class="result-heading">✓ Task Completed' + (presentationDemo ? ' · 前端演示' : mock ? ' · Mock' : '') + '</h3><p class="result-summary">' + agentEscape(report.summary) + '</p>' +
-                (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (presentationDemo ? ' · 前端演示' : mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">' + (presentationDemo ? '前端流程展示已结束；未创建真实材料包。' : '未生成材料包：后端未提供 package_path。') + '</p>') +
+            const counts = [['Found Files',report.found_files],['Version Groups',report.version_groups],...((mock || Array.isArray(report.missing_items)) ? [['Missing Items',report.missing_items]] : []),['Conflicts',report.conflicts],['Operations',report.operations]];
+            const warnings = [...((mock || Array.isArray(report.missing_items)) ? [['Missing Items',report.missing_items]] : []),['Conflicts',report.conflicts]].filter(([,items]) => agentArray(items).length);
+            byId('agentFinal').innerHTML = '<h3 class="result-heading">✓ Task Completed' + (mock ? ' · Mock' : '') + '</h3><p class="result-summary">' + agentEscape(report.summary) + '</p>' +
+                (report.package_path ? '<div class="result-path"><span class="agent-label">Package Path' + (mock ? ' · Mock' : '') + '</span><p class="agent-path-text">' + agentEscape(report.package_path) + '</p></div>' : '<p class="agent-note">' + '未生成材料包：后端未提供 package_path。' + '</p>') +
                 warnings.map(([label,items]) => '<p class="result-warning">⚠ ' + items.length + ' ' + label + ' — review the analysis before submitting materials.</p>').join('') +
                 '<div class="agent-summary">' + counts.filter(([,items]) => Array.isArray(items) && items.length).map(([label,items]) => '<div>' + label + '<strong>' + items.length + '</strong></div>').join('') + '</div>';
-            if (!mock && !presentationDemo) {
+            if (!mock) {
                 byId('agentFinal').innerHTML += '<p class="agent-note">任务完成不等于所有分析能力均已执行，也不表示材料已审核通过。文件操作结果以后台执行与验证信息为准。</p>' + AgentResults.matchingReport(agentState.snapshot?.results, report.missing_items);
                 const conflictResult = AgentResults.latest(agentState.snapshot?.results, 'detect_conflicts');
                 if (!conflictResult || conflictResult.success !== true) byId('agentFinal').innerHTML += '<p class="result-warning">冲突检查未执行或失败，不能将空报告解释为没有冲突。</p>';
@@ -966,7 +964,7 @@
                 byId('copyPackagePath').hidden = true;
                 byId('agentFinalCard').dataset.completed = 'false';
                 try {
-                    const report = agentState.presentationDemo ? AgentMock.getReport(context.taskId) : await AgentAPI.getReport(context.taskId);
+                    const report = await AgentAPI.getReport(context.taskId);
                     if (!isCurrentAgentRequest(context) || agentState.snapshot !== snapshot) return;
                     renderAgentReport(report);
                 }
@@ -994,7 +992,7 @@
             const context = agentRequestContext();
             agentError('');
             try {
-                const snapshot = agentState.presentationDemo ? AgentMock.getTask(context.taskId) : await AgentAPI.getTask(context.taskId);
+                const snapshot = await AgentAPI.getTask(context.taskId);
                 if (!isCurrentAgentRequest(context)) return;
                 await applyAgentSnapshot(snapshot, context);
             } catch (error) {
@@ -1008,18 +1006,16 @@
             if (agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             if (!byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim()) { agentError('请填写 Workspace 和 Goal。'); return; }
             stopAgentPolling(); agentState.generation++;
-            Object.assign(agentState, {busy: true, task: null, taskContext: null, snapshot: null, report: null, userRejected: false, approvalValid: false, presentationDemo: byId('agentScenario').value === 'presentation', mode: byId('agentMode').value});
+            Object.assign(agentState, {busy: true, task: null, taskContext: null, snapshot: null, report: null, userRejected: false, approvalValid: false, mode: byId('agentMode').value});
             agentError('');
             resetAgentPresentation();
             byId('agentPlan').textContent = '正在创建任务…'; updateAgentControls();
             try {
                 AgentAPI.setMode(agentState.mode);
-                const task = agentState.presentationDemo
-                    ? AgentMock.createTask({user_goal:byId('agentGoal').value.trim(), workspace:byId('agentWorkspacePath').value.trim(), scenario:'presentation'})
-                    : await AgentAPI.createTask(byId('agentGoal').value.trim(), byId('agentWorkspacePath').value.trim(), byId('agentScenario').value);
+                const task = await AgentAPI.createTask(byId('agentGoal').value.trim(), byId('agentWorkspacePath').value.trim(), byId('agentScenario').value);
                 validateAgentTask(task); agentState.task = task; byId('agentResumeTask').value = task.task_id;
                 agentState.taskContext = {task_id:task.task_id,user_goal:task.user_goal,workspace:task.workspace};
-                byId('agentTaskStatus').textContent = task.status + ' · ' + (agentState.presentationDemo ? 'Real Mode · 前端演示' : agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
+                byId('agentTaskStatus').textContent = task.status + ' · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
                 scheduleAgentPolling();
             } catch (error) {
                 agentState.busy = false; byId('agentPlan').textContent = '未能创建任务。'; byId('agentTaskStatus').textContent = 'Request failed · ' + agentState.mode; agentError(error.message);
@@ -1084,18 +1080,15 @@
         }
         ['agentWorkspacePath','agentGoal'].forEach(id => byId(id).addEventListener('input', updateAgentControls));
         function updateAgentModeNote() {
-            const presentation = byId('agentScenario').value === 'presentation';
-            byId('agentModeNote').textContent = presentation
-                ? '完整流程演示（前端展示）：界面保留当前模式，但此场景不调用真实模型、不读取或修改工作空间文件。'
-                : byId('agentMode').value === 'mock'
-                    ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。'
-                    : 'Real Mode：调用正式 Agent API。接口不可用时显示真实错误，不会切换至演示。';
+            byId('agentModeNote').textContent = byId('agentMode').value === 'mock'
+                ? 'Mock Mode：用于预览整理流程，不读取或修改工作空间文件。Browse 使用真实目录 API。'
+                : 'Real Mode：执行任务并根据 Agent 返回的计划、状态和结果更新流程图。';
         }
         byId('agentMode').addEventListener('change', () => {
             // Mode is locked during active work; clear only the idle view.
             if (agentState.workflow !== 'materials' || agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             stopAgentPolling(); agentState.generation++;
-            Object.assign(agentState, {task: null, taskContext: null, snapshot: null, report: null, approvalValid: false, userRejected: false, presentationDemo: false, mode: byId('agentMode').value});
+            Object.assign(agentState, {task: null, taskContext: null, snapshot: null, report: null, approvalValid: false, userRejected: false, mode: byId('agentMode').value});
             AgentAPI.setMode(agentState.mode);
             resetAgentPresentation();
             byId('agentTaskStatus').textContent = 'Ready · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
