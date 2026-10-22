@@ -1,0 +1,49 @@
+name: Agent Flow Visualization Checks
+
+on:
+  pull_request:
+    branches: [dev]
+    paths:
+      - 'frontend/index.html'
+      - 'frontend/agent-flow-visualization.js'
+      - 'frontend/agent-mock.js'
+      - 'frontend/agent-api.js'
+      - 'frontend/agent-flow-visualization.css'
+      - 'frontend/tests/agent-flow-visualization.test.cjs'
+      - 'frontend/tests/agent-workspace.test.cjs'
+      - '.github/workflows/agent-flow-visualization.yml'
+  push:
+    branches: [feat/frontend-workflow-ui]
+    paths:
+      - 'frontend/index.html'
+      - 'frontend/agent-flow-visualization.js'
+      - 'frontend/agent-flow-visualization.css'
+      - 'frontend/tests/agent-flow-visualization.test.cjs'
+      - '.github/workflows/agent-flow-visualization.yml'
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check flow renderer syntax
+        run: node --check frontend/agent-flow-visualization.js
+      - name: Test flow renderer states and escaping
+        run: node --test frontend/tests/agent-flow-visualization.test.cjs
+      - name: Check inline frontend script syntax
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const html = fs.readFileSync('frontend/index.html', 'utf8');
+          const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+            .map(match => match[1]).filter(source => source.trim());
+          scripts.forEach((source, index) => {
+            new Function(source);
+            process.stdout.write('inline script ' + (index + 1) + ': syntax OK\n');
+          });
+          NODE
+      - name: Test Agent workspace interaction and Real Mode presentation flow
+        run: node --test frontend/tests/agent-workspace.test.cjs

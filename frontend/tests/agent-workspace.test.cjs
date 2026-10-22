@@ -13,13 +13,13 @@ function harness(mode='real') {
     };
     const c={window:{},console,AbortController,document:{getElementById:el,querySelectorAll:()=>[],createElement:()=>el('toast')},navigator:{clipboard:{writeText:async()=>{}}},setTimeout:(fn,ms)=>{timers.set(++timerId,{fn,ms});return timerId;},clearTimeout:id=>timers.delete(id),setInterval(){throw Error('Unexpected interval');},clearInterval(){},fetch:async(url,options)=>{if(!url.startsWith('/api/agent/'))return {ok:false};calls.push({url,options});return c.respond(url,options);}};
     vm.createContext(c);
-    for(const file of ['agent-api.js','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
-    c.AgentAPI=c.window.AgentAPI;c.AgentMock=c.window.AgentMock;c.AgentResults=c.window.AgentResults;
+    for(const file of ['agent-api.js','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js','agent-flow-visualization.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
+    c.AgentAPI=c.window.AgentAPI;c.AgentMock=c.window.AgentMock;c.AgentResults=c.window.AgentResults;c.AgentFlowVisualization=c.window.AgentFlowVisualization;
     c.OrganizationPreview=c.window.OrganizationPreview;c.OrganizationDemo=c.window.OrganizationDemo;
     c.PackagePreview=c.window.PackagePreview;
     vm.runInContext(fs.readFileSync(path.join(base,'index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],c);
     vm.runInContext('window.state=agentState',c);
-    el('agentMode').value=mode;el('agentScenario').value='happy';el('agentWorkspacePath').value='E:/unknown-workspace';el('agentGoal').value='准备课程材料';
+    el('agentMode').value=mode;c.window.state.mode=mode;c.AgentAPI.setMode(mode);el('agentScenario').value='happy';el('agentWorkspacePath').value='E:/unknown-workspace';el('agentGoal').value='准备课程材料';
     return {c,el,state:c.window.state,calls,timers};
 }
 const response=(data,status=200)=>({ok:status<300,status,text:async()=>JSON.stringify(data)});
@@ -92,6 +92,52 @@ test('Mock happy, reject and failure flows stay separate and functional',async()
         else{for(let i=0;i<3;i++)await h.c.pollAgent();assert.equal(h.state.task.status,'completed');assert.ok(h.state.report);}
         assert.equal(h.calls.length,0);
     }
+});
+test('Real Mode creates and polls a real Agent task; the graph follows returned snapshots',async()=>{
+    const h=harness('real');h.el('agentScenario').value='happy';
+    const tools=['list_files','search_files','read_document','compare_versions','detect_conflicts','extract_requirements','create_folder','verify_result','build_package'];
+    const makeSteps=statuses=>tools.map((tool,i)=>({step_id:'step_'+i,tool,description:'步骤 '+tool,status:statuses[i],risk:'low'}));
+    const planning={task:{task_id:'task',status:'planning',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},plan:{steps:makeSteps(['completed','running','pending','pending','pending','pending','pending','pending','pending'])},results:[],pending_operations:[],operations:[],preview_id:null,error:null};
+    const completed={task:{task_id:'task',status:'completed',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},plan:{steps:makeSteps(tools.map(()=> 'completed'))},results:[],pending_operations:[],operations:[],preview_id:null,error:null};
+    h.c.AgentMock.createTask=()=>{throw Error('Real Mode must not call AgentMock');};
+    h.c.AgentMock.getTask=()=>{throw Error('Real Mode must not call AgentMock');};
+    h.c.respond=(url,options={})=>{
+        if(url==='/api/agent/tasks'&&options.method==='POST')return response({task_id:'task',status:'created',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},202);
+        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:null,summary:'任务完成，结果以实际执行证据为准。'});
+        if(url==='/api/agent/tasks/task')return response(completed);
+        throw Error('Unexpected Agent endpoint '+url);
+    };
+    await h.c.runAgent();
+    assert.equal(h.state.mode,'real');
+    assert.equal(h.calls.length,1);
+    assert.equal(h.calls[0].url,'/api/agent/tasks');
+    assert.equal(h.calls[0].options.method,'POST');
+    h.c.respond=(url,options={})=>{
+        if(url==='/api/agent/tasks/task')return response(planning);
+        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:null,summary:'任务完成。'});
+        throw Error('Unexpected Agent endpoint '+url);
+    };
+    await h.c.pollAgent();
+    assert.equal(h.state.snapshot.task.status,'planning');
+    assert.match(h.el('agentFlowVisualization').innerHTML,/data-stage="scan"[^>]*data-status="completed"/);
+    assert.match(h.el('agentFlowVisualization').innerHTML,/data-stage="identify"[^>]*data-status="running"/);
+    h.c.respond=(url,options={})=>{
+        if(url==='/api/agent/tasks/task')return response(completed);
+        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:null,summary:'任务完成。'});
+        throw Error('Unexpected Agent endpoint '+url);
+    };
+    await h.c.pollAgent();
+    assert.equal(h.state.snapshot.task.status,'completed');
+    assert.equal(h.state.mode,'real');
+    assert.equal(h.state.report.task_id,'task');
+    assert.ok(h.calls.some(call=>call.url==='/api/agent/tasks/task'));
+    assert.ok(h.calls.some(call=>call.url==='/api/agent/tasks/task/report'));
+    assert.match(h.el('agentTaskStatus').textContent,/completed · Real Mode/);
+    assert.match(h.el('agentFlowVisualization').innerHTML,/Real Mode · 实时任务状态/);
+    assert.match(h.el('agentFlowVisualization').innerHTML,/data-stage="result"[^>]*data-status="completed"/);
+    assert.doesNotMatch(h.el('agentFlowVisualization').innerHTML,/前端演示|仅前端|不调用真实模型/);
+    assert.doesNotMatch(h.el('agentPackagePreview').innerHTML,/前端演示|仅前端|不调用真实模型/);
+    assert.equal(h.state.presentationDemo,undefined);
 });
 test('every organization preview sends no requests and material Mock happy path still completes',async()=>{
     const h=harness();h.c.switchAgentWorkflow('organization');assert.equal(h.el('organizationWorkspace').hidden,false);assert.equal(h.el('materialWorkspace').hidden,true);

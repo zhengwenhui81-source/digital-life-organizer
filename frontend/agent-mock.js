@@ -20,12 +20,19 @@ window.AgentMock = (() => {
         if (!user_goal.trim() || !workspace.trim()) throw new Error('Workspace and goal are required');
         const task_id = 'mock_' + Date.now() + '_' + tasks.size;
         const path = name => workspace.replace(/[\\/]+$/, '') + '/' + name;
-        const documents = ['项目介绍_v1.docx', '项目介绍_最终版.docx', '比赛通知.pdf', '补充通知.pdf', '报名表.docx', '学生证.pdf', '身份证.pdf'].map((filename, i) => ({file_id: 'file_' + i, path: path(filename), filename, extension: filename.slice(filename.lastIndexOf('.')), text: '', size: 12345, modified_time: i === 0 ? '2026-10-12T10:00:00' : '2026-10-14T18:00:00', metadata: {}}));
+        const filenames = ['项目介绍_v1.docx', '项目介绍_最终版.docx', '比赛通知.pdf', '补充通知.pdf', '报名表.docx', '学生证.pdf', '身份证.pdf'];
+        const documents = filenames.map((filename, i) => ({file_id: 'file_' + i, path: path(filename), filename, extension: filename.slice(filename.lastIndexOf('.')), text: '', size: 12345, modified_time: i === 0 ? '2026-10-12T10:00:00' : '2026-10-14T18:00:00', metadata: {}}));
         const groups = [{group_id: 'version_group_001', documents: documents.slice(0, 2), newest_candidate: documents[1].file_id, changes: ['补充项目方案与团队介绍（Mock）']}];
         const conflicts = [{field: 'deadline', values: [{value: '2026-10-18', source: '比赛通知.pdf'}, {value: '2026-10-20', source: '补充通知.pdf'}], recommendation: '请人工确认'}];
         const required_documents = ['报名表', '学生证', '身份证', '项目介绍', '指导教师确认书'];
         const operations = [{tool: 'copy_file', source: documents[1].path, destination: path('Hackathon_Package/项目介绍.docx'), status: 'pending'}, {tool: 'move_file', source: documents[0].path, destination: path('archive/项目介绍_v1.docx'), status: 'pending'}];
-        const steps = definitions.map(([tool, description, risk], i) => ({step_id: 'step_' + i, tool, description, risk, status: 'pending', arguments: i === 4 || i === 5 ? {source: operations[i - 4].source, destination: operations[i - 4].destination} : i === 0 ? {workspace, query: user_goal, extensions: []} : {}}));
+        const steps = definitions.map(([tool, description, risk], i) => ({
+            step_id: 'step_' + i, tool, description, risk, status: 'pending',
+            arguments: tool === 'copy_file' || tool === 'move_file'
+                ? {source: operations[tool === 'copy_file' ? 0 : 1]?.source, destination: operations[tool === 'copy_file' ? 0 : 1]?.destination}
+                : tool === 'search_files' ? {workspace, query: user_goal}
+                : {}
+        }));
         const tool = (name, data) => ({success: true, tool: name, data, message: 'Mock demonstration', error: null});
         tasks.set(task_id, {task: {task_id, user_goal, workspace, status: 'created'}, plan: {task_id, goal: user_goal, steps}, results: [], missing_items: [], operations, report: null, error: null, tick: 0, executionTick: 0, scenario, documents, groups, conflicts, required_documents, tool});
         return clone(find(task_id).task);
