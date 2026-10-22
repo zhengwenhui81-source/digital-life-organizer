@@ -36,16 +36,19 @@
 .agent-flow-stage[data-path="down"] .agent-flow-arrow{left:50%;bottom:-2.15rem;width:2px;height:2.1rem;background:rgba(145,165,192,.36)}
 .agent-flow-stage[data-path="down"] .agent-flow-arrow:after{content:"";position:absolute;left:-4px;bottom:-1px;width:10px;height:9px;background:rgba(145,165,192,.55);clip-path:polygon(0 0,100% 0,50% 100%)}
 .agent-flow-stage[data-path="none"] .agent-flow-arrow{display:none}
-/* Flow particles make the route visibly move; task statuses still come from TaskSnapshot. */
+/* Motion is enabled only for the stage reported as running by TaskSnapshot. */
 .agent-flow-stage-top{flex-wrap:wrap}
 .agent-flow-current-badge{display:inline-flex;align-items:center;padding:.16rem .38rem;border-radius:999px;background:rgba(43,125,233,.16);border:1px solid rgba(43,125,233,.42);color:#a9ceff;font-size:.62rem;white-space:nowrap}
-.agent-flow-stage[data-path="right"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:0;top:-2px;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:agentFlowParticleRight 2s ease-in-out infinite}
-.agent-flow-stage[data-path="left"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:0;top:-2px;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:agentFlowParticleLeft 2s ease-in-out infinite}
-.agent-flow-stage[data-path="down"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:-2px;top:0;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:agentFlowParticleDown 2s ease-in-out infinite}
+.agent-flow-stage[data-path="right"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:0;top:-2px;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:none}
+.agent-flow-stage[data-path="left"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:0;top:-2px;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:none}
+.agent-flow-stage[data-path="down"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:-2px;top:0;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:none}
 .agent-flow-stage[data-current="true"]:not([data-status="failed"]):not([data-status="awaiting_approval"]){border-color:rgba(73,151,255,.82);box-shadow:0 0 0 1px rgba(43,125,233,.18),0 0 22px rgba(43,125,233,.12)}
 .agent-flow-stage[data-current="true"] .agent-flow-stage-icon{border-color:rgba(73,151,255,.7);box-shadow:0 0 0 3px rgba(43,125,233,.08)}
 .agent-flow-stage[data-current="true"] .agent-flow-stage-title{text-shadow:0 0 16px rgba(96,165,250,.12)}
 .agent-flow-stage[data-current="true"] .agent-flow-arrow:before{background:#c5e2ff;box-shadow:0 0 10px rgba(96,165,250,1)}
+.agent-flow-stage[data-status="running"][data-path="right"] .agent-flow-arrow:before{animation:agentFlowParticleRight 2s ease-in-out infinite}
+.agent-flow-stage[data-status="running"][data-path="left"] .agent-flow-arrow:before{animation:agentFlowParticleLeft 2s ease-in-out infinite}
+.agent-flow-stage[data-status="running"][data-path="down"] .agent-flow-arrow:before{animation:agentFlowParticleDown 2s ease-in-out infinite}
 @keyframes agentFlowParticleRight{0%{transform:translateX(0);opacity:.15}15%{opacity:1}85%{opacity:1}100%{transform:translateX(1.85rem);opacity:.12}}
 @keyframes agentFlowParticleLeft{0%{transform:translateX(1.85rem);opacity:.12}15%{opacity:1}85%{opacity:1}100%{transform:translateX(0);opacity:.15}}
 @keyframes agentFlowParticleDown{0%{transform:translateY(0);opacity:.15}15%{opacity:1}85%{opacity:1}100%{transform:translateY(1.85rem);opacity:.12}}
