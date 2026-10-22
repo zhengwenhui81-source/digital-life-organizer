@@ -4,12 +4,13 @@
   const STAGES = [
     {key:'scan', title:'扫描工作空间', subtitle:'建立文件清单与基础元数据', col:1,row:1,path:'right', match:/list_files|scan_workspace|scan_files|list all files|扫描文件/i},
     {key:'identify', title:'识别关键材料', subtitle:'定位课程要求、报告、代码与实验数据', col:2,row:1,path:'right', match:/search_files|extract_requirements|match_requirements|classif|identify|search|识别材料/i},
-    {key:'read', title:'读取文档内容', subtitle:'提取可读取的正文与表格', col:3,row:1,path:'right', match:/read_document|extract_text|document_reader|读取文档/i},
-    {key:'versions', title:'比较报告版本', subtitle:'分析候选版本与内容差异', col:4,row:1,path:'down', match:/compare_versions|detect_conflicts|version|比较版本|版本分析/i},
-    {key:'approve', title:'确认整理方案', subtitle:'关键操作在执行前等待审批', col:4,row:2,path:'left', match:/approval|approve|preview_plan|确认方案/i},
-    {key:'execute', title:'创建目录并复制', subtitle:'按已确认方案执行文件操作', col:3,row:2,path:'left', match:/create_directory|copy_file|move_file|execute_operation|apply_operation|write_package_report|创建目录|复制文件/i},
-    {key:'verify', title:'校验整理结果', subtitle:'检查目标文件与内容完整性', col:2,row:2,path:'left', match:/verify|checksum|sha.?256|hash|validation|校验|核验/i},
-    {key:'result', title:'汇总整理结果', subtitle:'呈现执行记录与最终结果', col:1,row:2,path:'none', match:/final_report|summarize_results|result_report|汇总结果/i}
+    {key:'read', title:'读取文档内容', subtitle:'提取可读取的正文与表格', col:3,row:1,path:'down', match:/read_document|extract_text|document_reader|读取文档/i},
+    {key:'versions', title:'比较报告版本', subtitle:'分析候选版本与内容差异', col:3,row:2,path:'left', match:/compare_versions|detect_conflicts|version|比较版本|版本分析/i},
+    {key:'plan', title:'生成整理方案', subtitle:'形成分类目录与文件归属', col:2,row:2,path:'left', match:/plan_task|generate_plan|生成整理方案/i},
+    {key:'approve', title:'确认整理方案', subtitle:'关键操作在执行前等待审批', col:1,row:2,path:'down', match:/approval|approve|preview_plan|确认方案/i},
+    {key:'execute', title:'创建目录并复制', subtitle:'按已确认方案执行文件操作', col:1,row:3,path:'right', match:/create_directory|copy_file|move_file|execute_operation|apply_operation|write_package_report|创建目录|复制文件/i},
+    {key:'verify', title:'校验整理结果', subtitle:'检查目标文件与内容完整性', col:2,row:3,path:'right', match:/verify|checksum|sha.?256|hash|validation|校验|核验/i},
+    {key:'result', title:'汇总整理结果', subtitle:'呈现执行记录与最终结果', col:3,row:3,path:'none', match:/final_report|summarize_results|result_report|汇总结果/i}
   ];
 
   const STATUS = {
