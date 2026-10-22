@@ -66,6 +66,21 @@ def test_list_only_material_package_plan_is_rejected(tmp_path: Path) -> None:
         )
 
 
+def test_requirements_extraction_only_does_not_require_matching(tmp_path: Path) -> None:
+    steps = _steps(str(tmp_path))[:3]
+    plan = plan_task(
+        "task_001",
+        "仅提取通知中的提交要求",
+        str(tmp_path),
+        generate=lambda _: json.dumps({"steps": steps}),
+    )
+    assert [step["tool"] for step in plan["steps"]] == [
+        "search_files",
+        "read_document",
+        "extract_requirements",
+    ]
+
+
 def test_material_package_must_end_with_restricted_marker(tmp_path: Path) -> None:
     steps = _steps(str(tmp_path), package=True)
     assert (

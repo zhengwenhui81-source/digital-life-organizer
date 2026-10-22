@@ -163,13 +163,16 @@ def _material_goal(goal: str) -> tuple[bool, bool]:
     material = (
         package
         or (
-            any(word in lowered for word in ("材料", "资料", "提交要求"))
+            any(word in lowered for word in ("材料", "资料", "提交要求", "证明文件"))
             and any(
                 word in lowered
-                for word in ("提交", "核对", "检查", "准备", "报名", "要求")
+                for word in ("核对", "检查", "匹配", "齐全", "缺少", "缺失", "准备")
             )
         )
-        or bool(re.search(r"\b(submission|requirements|materials)\b", lowered))
+        or bool(
+            re.search(r"\b(check|match|verify|audit)\b", lowered)
+            and re.search(r"\b(submission|requirements|materials)\b", lowered)
+        )
     )
     return material, package
 
