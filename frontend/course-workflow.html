@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1424">
+  <title>课程材料工作台 · Digital Life Organizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/course-workflow.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="返回 Digital Life Organizer">
+      <span class="brand-mark">DL</span>
+      <span><strong>Digital Life Organizer</strong><small>COURSE MATERIAL WORKSPACE</small></span>
+    </a>
+    <div class="topbar-actions">
+      <span class="local-badge"><span class="status-dot"></span> 本地预览 · 不上传文件</span>
+      <a class="back-link" href="/">返回主工作台 <span aria-hidden="true">↗</span></a>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow"><span>WORKFLOW 01</span> / COURSE MATERIALS</p>
+        <h1>课程材料工作台</h1>
+        <p class="hero-copy">把分散材料放进同一条可检查的处理流程。文件由你导入、分类和确认，未核实的信息不会被自动补全。</p>
+      </div>
+      <div class="hero-side">
+        <span class="hero-icon" aria-hidden="true">▤</span>
+        <div><strong>材料清单</strong><span>目标数量：22 份</span></div>
+      </div>
+    </section>
+
+    <section class="notice" role="note">
+      <span class="notice-icon" aria-hidden="true">i</span>
+      <div><strong>先说明当前边界</strong><p>仓库中尚无这 22 份材料的正式文件名清单。本页不会伪造材料名称或声称已完成内容分析；导入后只读取浏览器提供的文件名、相对路径、大小和修改时间。分类、报告版本与目录结构由你逐项确认。</p></div>
+    </section>
+
+    <section class="metrics" aria-label="材料处理概览">
+      <article class="metric-card"><span class="metric-label">已导入材料</span><strong id="metricImported">0 <small>/ 22</small></strong><span class="metric-foot">实际导入文件数</span></article>
+      <article class="metric-card"><span class="metric-label">待确认分类</span><strong id="metricPending">0</strong><span class="metric-foot">需要人工归类</span></article>
+      <article class="metric-card"><span class="metric-label">报告候选</span><strong id="metricReports">0</strong><span class="metric-foot">由你手动标记</span></article>
+      <article class="metric-card accent-card"><span class="metric-label">目录预览文件</span><strong id="metricTree">0</strong><span class="metric-foot">尚未执行复制或移动</span></article>
+    </section>
+
+    <section class="workflow-section">
+      <div class="section-heading">
+        <div><p class="eyebrow">PROCESS TRACK</p><h2>处理进度</h2></div>
+        <span id="workflowStatus" class="status-pill">等待导入材料</span>
+      </div>
+      <div class="workflow-track" id="workflowTrack">
+        <article class="workflow-step is-current" data-step="import"><span class="step-number">01</span><div><strong>导入材料</strong><small>选择文件或整个文件夹</small></div><span class="step-state">待开始</span></article>
+        <article class="workflow-step" data-step="classify"><span class="step-number">02</span><div><strong>分类确认</strong><small>逐份确认材料用途</small></div><span class="step-state">待开始</span></article>
+        <article class="workflow-step" data-step="report"><span class="step-number">03</span><div><strong>报告版本</strong><small>标记候选并手动定版</small></div><span class="step-state">待开始</span></article>
+        <article class="workflow-step" data-step="preview"><span class="step-number">04</span><div><strong>目录预览</strong><small>检查拟整理后的结构</small></div><span class="step-state">待开始</span></article>
+      </div>
+    </section>
+
+    <div class="workspace-grid">
+      <div class="main-column">
+        <section class="panel import-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">STEP 01</p><h2>导入课程材料</h2><p class="panel-subtitle">支持多选文件，或选择包含材料的文件夹。</p></div>
+            <span class="panel-index">01 / 04</span>
+          </div>
+          <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="选择或拖放课程材料">
+            <div class="upload-symbol" aria-hidden="true">↑</div>
+            <strong>拖放文件到这里</strong>
+            <span>或从电脑选择文件；也可以导入整个文件夹</span>
+            <div class="upload-actions">
+              <button class="btn btn-primary" id="chooseFiles" type="button">选择文件</button>
+              <button class="btn btn-secondary" id="chooseFolder" type="button">选择文件夹</button>
+            </div>
+            <small>只在当前浏览器会话中读取文件元数据，不会上传文件内容。</small>
+          </div>
+          <input id="fileInput" type="file" multiple hidden>
+          <input id="folderInput" type="file" webkitdirectory directory multiple hidden>
+          <div class="import-footer"><span id="importMessage" aria-live="polite">尚未导入文件。</span><button id="clearAll" class="text-button" type="button" disabled>清空当前清单</button></div>
+        </section>
+
+        <section class="panel inventory-panel">
+          <div class="panel-heading inventory-heading">
+            <div><p class="eyebrow">STEP 02</p><h2>材料清单与分类</h2><p class="panel-subtitle">默认全部为“待确认”；请根据实际内容手动选择分类。</p></div>
+            <span id="inventoryCount" class="count-badge">0 份材料</span>
+          </div>
+          <div class="inventory-tools">
+            <label class="search-field"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="搜索文件名或相对路径" aria-label="搜索材料"></label>
+            <select id="filterSelect" class="select-control" aria-label="筛选材料">
+              <option value="all">全部材料</option>
+              <option value="pending">待确认分类</option>
+              <option value="categorized">已分类</option>
+              <option value="reports">报告候选</option>
+            </select>
+          </div>
+          <div id="fileList" class="file-list">
+            <div class="empty-state"><span class="empty-icon" aria-hidden="true">▤</span><strong>清单还是空的</strong><p>导入实际材料后，这里会显示文件信息、分类选择和报告候选操作。</p></div>
+          </div>
+          <div class="inventory-bottom"><span id="visibleCount">显示 0 份</span><span>文件内容尚未解析 · 不会自动推断语义分类</span></div>
+        </section>
+      </div>
+
+      <aside class="side-column">
+        <section class="panel report-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">STEP 03</p><h2>报告版本选择</h2><p class="panel-subtitle">先在清单中手动标记候选，再明确选择一个版本。</p></div>
+          </div>
+          <div class="report-caveat"><span aria-hidden="true">↳</span><p>修改时间只是一项参考信息，不能单独证明文件内容是最新版本。系统不会自动替你定版。</p></div>
+          <div id="reportCandidates" class="report-candidates">
+            <div class="empty-state compact"><strong>还没有报告候选</strong><p>在材料清单中点击“设为报告候选”。</p></div>
+          </div>
+          <div id="selectedReport" class="selected-report" hidden></div>
+        </section>
+
+        <section class="panel directory-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">STEP 04</p><h2>目录结构预览</h2><p class="panel-subtitle">根据你手动选择的分类生成建议目录，不会操作磁盘。</p></div>
+          </div>
+          <label class="root-label" for="outputRoot">预览根目录名称</label>
+          <input id="outputRoot" class="root-input" type="text" value="课程材料整理结果" maxlength="80">
+          <div class="tree-summary"><span id="treeSummary">0 个文件 · 0 个分类</span><span class="preview-tag">仅预览</span></div>
+          <div id="directoryTree" class="directory-tree">
+            <div class="empty-tree"><span aria-hidden="true">⌁</span><p>导入材料并选择分类后，将在这里显示拟整理的目录树。</p></div>
+          </div>
+          <div class="directory-actions">
+            <button id="exportManifest" class="btn btn-primary btn-full" type="button" disabled>导出清单 JSON</button>
+            <p>导出的文件仅包含清单元数据与人工选择，不包含材料正文，也不执行复制、移动或删除。</p>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="page-footer"><span>Digital Life Organizer <span class="footer-separator">/</span> Course Workflow</span><span>当前阶段：前端交互预览 · 真实文档解析与后端工作流尚未接入</span></footer>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/static/course-workflow.js"></script>
+</body>
+</html>
