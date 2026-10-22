@@ -19,7 +19,7 @@ function harness(mode='real') {
     c.PackagePreview=c.window.PackagePreview;
     vm.runInContext(fs.readFileSync(path.join(base,'index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],c);
     vm.runInContext('window.state=agentState',c);
-    el('agentMode').value=mode;el('agentScenario').value='happy';el('agentWorkspacePath').value='E:/unknown-workspace';el('agentGoal').value='准备课程材料';
+    el('agentMode').value=mode;c.window.state.mode=mode;c.AgentAPI.setMode(mode);el('agentScenario').value='happy';el('agentWorkspacePath').value='E:/unknown-workspace';el('agentGoal').value='准备课程材料';
     return {c,el,state:c.window.state,calls,timers};
 }
 const response=(data,status=200)=>({ok:status<300,status,text:async()=>JSON.stringify(data)});
