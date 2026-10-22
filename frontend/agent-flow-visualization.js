@@ -3,12 +3,12 @@
 
   const STAGES = [
     {key:'scan', title:'扫描工作空间', subtitle:'建立文件清单与基础元数据', col:1,row:1,path:'right', match:/list_files|scan_workspace|scan_files|list all files|扫描文件/i},
-    {key:'identify', title:'识别关键材料', subtitle:'定位课程要求、报告、代码与实验数据', col:2,row:1,path:'right', match:/search_files|extract_requirements|match_requirements|classif|identify|search|识别材料/i},
+    {key:'identify', title:'识别关键材料', subtitle:'定位课程要求、报告、代码与实验数据', col:2,row:1,path:'right', match:/search_files|find_duplicates|extract_requirements|match_requirements|classif|identify|search|识别材料/i},
     {key:'read', title:'读取文档内容', subtitle:'提取可读取的正文与表格', col:3,row:1,path:'down', match:/read_document|extract_text|document_reader|读取文档/i},
-    {key:'versions', title:'比较报告版本', subtitle:'分析候选版本与内容差异', col:3,row:2,path:'left', match:/compare_versions|detect_conflicts|version|比较版本|版本分析/i},
-    {key:'plan', title:'生成整理方案', subtitle:'形成分类目录与文件归属', col:2,row:2,path:'left', match:/plan_task|generate_plan|生成整理方案/i},
+    {key:'versions', title:'比对版本与核查冲突', subtitle:'分析候选版本、内容差异与规则冲突', col:3,row:2,path:'left', match:/compare_versions|detect_conflicts|version|比较版本|版本分析|核查冲突/i},
+    {key:'plan', title:'生成整理方案', subtitle:'形成分类目录与文件归属', col:2,row:2,path:'left', match:/plan_task|generate_plan|build_package|package_preview|生成整理方案/i},
     {key:'approve', title:'确认整理方案', subtitle:'关键操作在执行前等待审批', col:1,row:2,path:'down', match:/approval|approve|preview_plan|确认方案/i},
-    {key:'execute', title:'创建目录并复制', subtitle:'按已确认方案执行文件操作', col:1,row:3,path:'right', match:/create_directory|copy_file|move_file|execute_operation|apply_operation|write_package_report|创建目录|复制文件/i},
+    {key:'execute', title:'创建目录并复制', subtitle:'按已确认方案执行文件操作', col:1,row:3,path:'right', match:/create_directory|create_folder|copy_file|move_file|execute_operation|apply_operation|write_package_report|创建目录|复制文件/i},
     {key:'verify', title:'校验整理结果', subtitle:'检查目标文件与内容完整性', col:2,row:3,path:'right', match:/verify|checksum|sha.?256|hash|validation|校验|核验/i},
     {key:'result', title:'汇总整理结果', subtitle:'呈现执行记录与最终结果', col:3,row:3,path:'none', match:/final_report|summarize_results|result_report|汇总结果/i}
   ];
@@ -61,8 +61,11 @@
     return counts;
   }
 
-  function stageStatus(stage, snapshot, steps) {
+  function stageStatus(stage, snapshot, steps, report) {
     const taskStatus = snapshot && snapshot.task ? snapshot.task.status : '';
+    if (stage.key === 'result' && report && report.status === 'completed') {
+      return {key:'completed', label:'结果已生成', evidence:[]};
+    }
     const matches = steps.filter(function (step) {
       const searchable = [step.tool, step.description, step.name].filter(Boolean).join(' ');
       return stage.match.test(searchable);
@@ -98,7 +101,7 @@
     return {key:snapshot ? 'not-returned' : 'idle', label:snapshot ? '当前快照未返回' : '等待任务', evidence:[]};
   }
 
-  function currentStageKey(snapshot, steps) {
+  function currentStageKey(snapshot, steps, report) {
     if (!snapshot || !snapshot.task) return null;
     const taskStatus = typeof snapshot.task.status === 'string' ? snapshot.task.status : '';
     const failedStep = steps.find(function (step) { return normalizeStatus(step.status).key === 'failed'; });
@@ -132,7 +135,7 @@
     }
     if (taskStatus === 'verifying') return 'verify';
     if (taskStatus === 'completed') {
-      if (snapshot.final_report) return 'result';
+      if ((report && report.status === 'completed') || snapshot.final_report) return 'result';
       const lastCompleted = steps.slice().reverse().find(function (step) {
         return normalizeStatus(step.status).key === 'completed';
       });
@@ -161,14 +164,14 @@
       actual + meta + '<span class="agent-flow-arrow" aria-hidden="true"></span></article>';
   }
 
-  function render(snapshot, mode) {
+  function render(snapshot, mode, report) {
     const hasTask = Boolean(snapshot && snapshot.task && typeof snapshot.task === 'object');
     const task = hasTask ? snapshot.task : {};
     const steps = asArray(snapshot && snapshot.plan && snapshot.plan.steps);
     const taskStatus = typeof task.status === 'string' ? task.status : '';
     const taskLabel = TASK_STATUS[taskStatus] || (taskStatus ? '任务状态：' + taskStatus : '等待 Agent 任务');
     const stageStates = STAGES.map(function (stage) {
-      return {stage:stage, state:stageStatus(stage, hasTask ? snapshot : null, steps)};
+      return {stage:stage, state:stageStatus(stage, hasTask ? snapshot : null, steps, report)};
     });
     const counts = {completed:0,running:0,failed:0,awaiting:0,notReturned:0};
     stageStates.forEach(function (item) {
@@ -184,7 +187,7 @@
     const note = !hasTask
       ? '启动任务后，流程图将跟随任务计划与执行状态更新；灰色节点表示当前尚无对应步骤证据。'
       : '流程节点依据当前 Agent 任务快照更新；蓝色表示当前环节，绿色表示已完成，红色表示失败，橙色表示等待审批。';
-    const activeStageKey = currentStageKey(hasTask ? snapshot : null, steps);
+    const activeStageKey = currentStageKey(hasTask ? snapshot : null, steps, report);
     const nodes = stageStates.map(function (item, index) {
       return stageMarkup(item.stage, index, item.state, hasTask ? snapshot : null, activeStageKey);
     }).join('');
