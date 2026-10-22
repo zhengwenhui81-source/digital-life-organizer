@@ -131,7 +131,13 @@
       return matchingStage(nextStep) || 'execute';
     }
     if (taskStatus === 'verifying') return 'verify';
-    if (taskStatus === 'completed') return 'result';
+    if (taskStatus === 'completed') {
+      if (snapshot.final_report) return 'result';
+      const lastCompleted = steps.slice().reverse().find(function (step) {
+        return normalizeStatus(step.status).key === 'completed';
+      });
+      return matchingStage(lastCompleted);
+    }
     return null;
   }
 
@@ -177,7 +183,7 @@
     const percent = Math.round(counts.completed / STAGES.length * 100);
     const note = !hasTask
       ? '点击 Run Agent 后，流程图将跟随任务快照更新；灰色节点表示尚未开始或没有任务证据。'
-      : '流动连线呈现流程方向；当前环节随任务状态切换。节点完成状态仍以 Agent 返回的任务快照为准。';
+      : '流动连线呈现流程方向；当前环节随任务状态切换。灰色节点表示当前任务未返回对应步骤，不代表该操作已执行；完成状态以 Agent 快照为准。';
     const activeStageKey = currentStageKey(hasTask ? snapshot : null, steps);
     const nodes = stageStates.map(function (item, index) {
       return stageMarkup(item.stage, index, item.state, hasTask ? snapshot : null, activeStageKey);
