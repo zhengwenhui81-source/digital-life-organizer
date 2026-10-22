@@ -81,6 +81,25 @@ def test_requirements_extraction_only_does_not_require_matching(tmp_path: Path) 
     ]
 
 
+def test_scanning_an_existing_package_folder_does_not_request_build(
+    tmp_path: Path,
+) -> None:
+    steps = [
+        {
+            "tool": "list_files",
+            "description": "scan files",
+            "arguments": {"workspace": str(tmp_path)},
+        }
+    ]
+    plan = plan_task(
+        "task_001",
+        "仅扫描材料包目录并列出文件",
+        str(tmp_path),
+        generate=lambda _: json.dumps({"steps": steps}),
+    )
+    assert [step["tool"] for step in plan["steps"]] == ["list_files"]
+
+
 def test_material_package_must_end_with_restricted_marker(tmp_path: Path) -> None:
     steps = _steps(str(tmp_path), package=True)
     assert (

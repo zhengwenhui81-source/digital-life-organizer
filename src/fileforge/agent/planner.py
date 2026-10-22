@@ -157,8 +157,15 @@ Goal: {goal}
 
 def _material_goal(goal: str) -> tuple[bool, bool]:
     lowered = goal.casefold()
-    package = any(word in lowered for word in ("打包", "材料包", "资料包")) or bool(
-        re.search(r"\bpackage\b", lowered)
+    package = (
+        "打包" in lowered
+        or (
+            any(word in lowered for word in ("材料包", "资料包"))
+            and any(
+                word in lowered for word in ("创建", "生成", "制作", "输出", "准备")
+            )
+        )
+        or bool(re.search(r"\b(build|create|prepare)\b.*\bpackage\b", lowered))
     )
     material = (
         package
