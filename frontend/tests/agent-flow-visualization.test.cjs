@@ -35,7 +35,7 @@ test('maps real plan steps onto graph stages and preserves their returned status
   assert.match(stage(html, 'read'), /data-status="running"/);
   assert.match(stage(html, 'versions'), /data-status="pending"/);
   assert.match(stage(html, 'execute'), /data-status="pending"/);
-  assert.match(html, /Real Mode · 当前任务快照/);
+  assert.match(html, /Real Mode · 实时任务状态/);
   assert.match(html, /agent-flow-arrow/);
 });
 
@@ -49,7 +49,7 @@ test('does not imply that unreturned stages completed just because the task is c
   assert.match(stage(html, 'plan'), /data-status="completed"/);
   assert.match(stage(html, 'versions'), /data-status="not-returned"/);
   assert.match(stage(html, 'execute'), /data-status="not-returned"/);
-  assert.match(html, /不代表该操作已执行/);
+  assert.match(html, /未返回的阶段不会被标记为已完成/);
 });
 
 test('shows the approval stage as waiting when the current task awaits approval', () => {
