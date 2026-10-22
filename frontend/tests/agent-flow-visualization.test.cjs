@@ -52,6 +52,21 @@ test('does not imply that unreturned stages completed just because the task is c
   assert.match(html, /未返回的阶段不会被标记为已完成/);
 });
 
+test('marks the result stage complete only when a completed report is available', () => {
+  const snapshot = {
+    task:{task_id:'t-report',status:'completed'},
+    plan:{steps:[{description:'Copy selected files.',tool:'copy_file',status:'completed',risk:'medium'}]}
+  };
+  const beforeReport = Flow.render(snapshot, 'real');
+  assert.match(stage(beforeReport, 'result'), /data-status="not-returned"/);
+  assert.doesNotMatch(stage(beforeReport, 'result'), /data-current="true"/);
+  const report = {task_id:'t-report',status:'completed',summary:'Verified report'};
+  const afterReport = Flow.render(snapshot, 'real', report);
+  assert.match(stage(afterReport, 'result'), /data-status="completed"/);
+  assert.match(stage(afterReport, 'result'), /data-current="true"/);
+  assert.match(afterReport, /结果已生成/);
+});
+
 test('shows the approval stage as waiting when the current task awaits approval', () => {
   const html = Flow.render({
     task:{task_id:'t3',status:'awaiting_approval'},
