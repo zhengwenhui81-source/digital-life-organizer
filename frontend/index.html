@@ -536,14 +536,14 @@
 执行文件操作前先让我确认。"></textarea>
                 <div class="agent-footer">
                     <label for="agentMode">Mode</label>
-                    <select id="agentMode" class="filter-select"><option value="mock">Mock Mode</option><option value="real">Real Mode</option></select>
+                    <select id="agentMode" class="filter-select"><option value="real" selected>Real Mode</option><option value="mock">Mock Mode</option></select>
                     <label id="agentScenarioLabel" for="agentScenario">Scenario</label>
-                    <select id="agentScenario" class="filter-select"><option value="happy">Happy path</option><option value="presentation">完整流程演示（仅前端）</option><option value="failed">Analysis failure</option></select>
+                    <select id="agentScenario" class="filter-select"><option value="presentation" selected>完整流程演示（仅前端）</option><option value="happy">Happy path（Mock）</option><option value="failed">Analysis failure（Mock）</option></select>
                     <button id="runAgent" class="btn btn-primary" disabled onclick="runAgent()">Run Agent</button>
                     <button id="refreshAgent" class="btn btn-secondary btn-sm" disabled onclick="pollAgent()">Refresh Task Status</button>
-                    <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Mock Mode</span>
+                    <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Real Mode</span>
                 </div>
-                <p id="agentModeNote" class="agent-note">Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。</p>
+                <p id="agentModeNote" class="agent-note">完整流程演示（前端展示）：保留 Real Mode 界面，不调用真实模型、不读取或修改工作空间文件。</p>
                 <div id="agentError" class="agent-error" role="alert" hidden><strong id="agentErrorTitle"></strong><span id="agentErrorDetail"></span></div>
             </div>
             <section id="organizationWorkspace" class="agent-card" hidden>
@@ -723,7 +723,7 @@
     <script src="/static/agent-flow-visualization.js"></script>
     <script>
         // State
-        const agentState = {workflow: 'materials', organizationDemo: false, task: null, taskContext: null, snapshot: null, mode: 'mock', presentationDemo: false, busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null, packageRiskKey: null, acceptedPackageRisk: null};
+        const agentState = {workflow: 'materials', organizationDemo: false, task: null, taskContext: null, snapshot: null, mode: 'real', presentationDemo: false, busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null, packageRiskKey: null, acceptedPackageRisk: null};
         const byId = id => document.getElementById(id);
         const agentArray = value => Array.isArray(value) ? value.filter(item => item != null) : [];
         const agentText = value => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value, (_,item) => typeof item === 'bigint' ? item.toString() : item);
