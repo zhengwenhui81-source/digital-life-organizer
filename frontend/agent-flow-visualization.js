@@ -179,11 +179,14 @@
       else if (key === 'awaiting_approval') counts.awaiting++;
       else if (key === 'not-returned') counts.notReturned++;
     });
-    const modeLabel = mode === 'mock' ? 'Mock Mode · 模拟任务数据' : 'Real Mode · 当前任务快照';
+    const presentation = mode === 'presentation';
+    const modeLabel = presentation ? 'Real Mode · 前端演示流程' : mode === 'mock' ? 'Mock Mode · 模拟任务数据' : 'Real Mode · 当前任务快照';
     const percent = Math.round(counts.completed / STAGES.length * 100);
-    const note = !hasTask
-      ? '点击 Run Agent 后，流程图将跟随任务快照更新；灰色节点表示尚未开始或没有任务证据。'
-      : '流动连线呈现流程方向；当前环节随任务状态切换。灰色节点表示当前任务未返回对应步骤，不代表该操作已执行；完成状态以 Agent 快照为准。';
+    const note = presentation
+      ? '前端演示流程：节点按预设的课程材料整理步骤依次推进，不调用真实模型、不读取或修改工作空间文件。'
+      : !hasTask
+        ? '点击 Run Agent 后，流程图将跟随任务快照更新；灰色节点表示尚未开始或没有任务证据。'
+        : '流动连线呈现流程方向；当前环节随任务状态切换。灰色节点表示当前任务未返回对应步骤，不代表该操作已执行；完成状态以 Agent 快照为准。';
     const activeStageKey = currentStageKey(hasTask ? snapshot : null, steps);
     const nodes = stageStates.map(function (item, index) {
       return stageMarkup(item.stage, index, item.state, hasTask ? snapshot : null, activeStageKey);
@@ -194,14 +197,14 @@
       '<p class="agent-flow-note">' + escapeHtml(note) + '</p>' +
       '<div class="agent-flow-summary">' +
         '<span><strong>' + STAGES.length + '</strong> 个流程阶段</span>' +
-        '<span><strong>' + counts.completed + '</strong> 已有完成证据</span>' +
+        '<span><strong>' + counts.completed + '</strong> ' + (presentation ? '演示阶段已推进' : '已有完成证据') + '</span>' +
         '<span><strong>' + counts.running + '</strong> 进行中</span>' +
         '<span><strong>' + counts.failed + '</strong> 失败</span>' +
         '<span><strong>' + counts.notReturned + '</strong> 当前快照未返回</span>' +
       '</div>' +
       '<div class="agent-flow-progress" role="progressbar" aria-label="有完成证据的流程阶段比例" aria-valuemin="0" aria-valuemax="' + STAGES.length + '" aria-valuenow="' + counts.completed + '"><span style="width:' + percent + '%"></span></div>' +
       '<div class="agent-flow-graph" role="list" aria-label="课程材料整理流程图">' + nodes + '</div>' +
-      '<p class="agent-flow-footnote">动态连线持续显示流程方向，蓝色高亮标记当前环节；绿色、红色与橙色状态分别表示已有完成证据、失败和等待审批。未返回的阶段不会被标记为已完成。</p>' +
+      '<p class="agent-flow-footnote">' + (presentation ? '本图展示的是前端演示状态，不代表真实 Agent 已执行文件操作。' : '动态连线持续显示流程方向，蓝色高亮标记当前环节；绿色、红色与橙色状态分别表示已有完成证据、失败和等待审批。未返回的阶段不会被标记为已完成。') + '</p>' +
       '</section>';
   }
 
