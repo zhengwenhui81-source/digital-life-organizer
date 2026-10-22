@@ -69,7 +69,7 @@ test('mock mode is explicitly labeled as simulated', () => {
 test('escapes untrusted plan text and tool metadata', () => {
   const html = Flow.render({
     task:{status:'executing'},
-    plan:{steps:[{description:'<img src=x onerror=alert(1)>',tool:'<script>x</script>',status:'running',risk:'<b>high</b>'}]}
+    plan:{steps:[{description:'<img src=x onerror=alert(1)>',tool:'read_document <script>x</script>',status:'running',risk:'<b>high</b>'}]}
   }, 'real');
   assert.doesNotMatch(html, /<img src=x/);
   assert.doesNotMatch(html, /<script>x<\/script>/);
