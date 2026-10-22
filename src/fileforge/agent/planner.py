@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -121,8 +122,13 @@ find_duplicates(workspace: string); verify_result(task_id: string,
 expected: object, workspace: string); create_folder(path: string);
 copy_file(source: string, destination: string);
 move_file(source: string, destination: string).
-For a material package goal, put build_package with empty arguments as the
-final step after requirement extraction, candidate reads and matching. It only
+For a material submission/check/package goal, use this order: search_files for
+notices/rules; read_document {{}}; extract_requirements {{}}; detect_conflicts
+{{}}; search_files separately for candidate materials; read_document {{}};
+match_requirements {{}}. If packaging was requested, put build_package {{}}
+last. Use empty arguments for reads and analysis so the server binds actual
+successful results; never write Document or requirement data into the Plan.
+The package step only
 requests a read-only frozen proposal; the server will propose unique filename
 candidates and require explicit preview approval before any write. Do not put
 build_package in a scan-only task or invent selected files, IDs, or output paths.
@@ -149,7 +155,95 @@ Goal: {goal}
 """
 
 
-def validate_plan(payload: dict[str, Any], task_id: str, goal: str) -> dict[str, Any]:
+def _material_goal(goal: str) -> tuple[bool, bool]:
+    lowered = goal.casefold()
+    package = any(word in lowered for word in ("打包", "材料包", "资料包")) or bool(
+        re.search(r"\bpackage\b", lowered)
+    )
+    material = (
+        package
+        or (
+            any(word in lowered for word in ("材料", "资料", "提交要求"))
+            and any(
+                word in lowered
+                for word in ("提交", "核对", "检查", "准备", "报名", "要求")
+            )
+        )
+        or bool(re.search(r"\b(submission|requirements|materials)\b", lowered))
+    )
+    return material, package
+
+
+def _validate_material_sequence(steps: list[dict[str, Any]], goal: str) -> None:
+    material, package = _material_goal(goal)
+    if not material:
+        return
+    names = [step["tool"] for step in steps]
+    # The planner cannot know the number of matched rule files before search
+    # executes, so always include the read-only conflict check.
+    sequence = (
+        "search_files",
+        "read_document",
+        "extract_requirements",
+        "detect_conflicts",
+        "search_files",
+        "read_document",
+        "match_requirements",
+    )
+    cursor = -1
+    selected = []
+    for name in sequence:
+        cursor = next(
+            (index for index in range(cursor + 1, len(names)) if names[index] == name),
+            -1,
+        )
+        if cursor < 0:
+            raise ValueError(f"Material plan is missing or misorders {name}")
+        selected.append(cursor)
+    for step in steps:
+        if (
+            step["tool"]
+            in {
+                "read_document",
+                "compare_versions",
+                "extract_requirements",
+                "detect_conflicts",
+                "match_requirements",
+            }
+            and step["arguments"]
+        ):
+            raise ValueError(
+                f"Material plan must resolve {step['tool']} from current Task results"
+            )
+        if step["tool"] == "search_files" and not step["arguments"]["query"].strip():
+            raise ValueError("Material plan search query must be nonempty")
+    collections = {"list_files", "search_files"}
+    if any(
+        steps[index]["tool"] in collections
+        for index in range(selected[0] + 1, selected[3])
+    ) or any(
+        steps[index]["tool"] in collections
+        for index in range(selected[4] + 1, selected[6])
+    ):
+        raise ValueError("Material reads must use their matching search results")
+    if package:
+        if names[-1] != "build_package":
+            raise ValueError("Material package plan must end with build_package")
+    elif "build_package" in names:
+        raise ValueError("Material check did not request build_package")
+    if "build_package" in names[:-1]:
+        raise ValueError("build_package must be the final plan step")
+    if any(name in {"create_folder", "copy_file", "move_file"} for name in names):
+        raise ValueError("Material plan file changes require a frozen preview")
+
+
+def validate_plan(
+    payload: dict[str, Any],
+    task_id: str,
+    goal: str,
+    *,
+    enforce_material_workflow: bool = False,
+) -> dict[str, Any]:
     """Normalize model output to the exact Plan and PlanStep contract fields."""
     if not task_id.strip() or not goal.strip():
         raise ValueError("task_id and goal are required")
@@ -180,6 +274,8 @@ def validate_plan(payload: dict[str, Any], task_id: str, goal: str) -> dict[str,
                 "arguments": arguments,
             }
         )
+    if enforce_material_workflow:
+        _validate_material_sequence(steps, goal)
     return {"task_id": task_id, "goal": goal, "steps": steps}
 
 
@@ -309,4 +405,4 @@ def plan_task(
         raise ValueError("Planner returned invalid JSON") from exc
     if not isinstance(payload, dict):
         raise ValueError("Planner response must be an object")
-    return validate_plan(payload, task_id, user_goal)
+    return validate_plan(payload, task_id, user_goal, enforce_material_workflow=True)

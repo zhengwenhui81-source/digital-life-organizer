@@ -503,7 +503,8 @@ class TaskService:
                         )
                     raise ValueError(
                         "No readable document found among the collected candidates; "
-                        "read_document was not called and analysis was not performed"
+                        "unsupported files remain unanalyzed, not proven absent; "
+                        "read_document was not called"
                     )
                 calls = [{"path": path} for path in paths]
                 for call in calls:
