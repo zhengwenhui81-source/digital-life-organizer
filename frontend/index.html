@@ -887,7 +887,7 @@
             const results = agentArray(snapshot.results);
             const result = tool => AgentResults.latest(results, tool);
             const versions = result('compare_versions'), conflicts = result('detect_conflicts'), materials = result('extract_requirements');
-            byId('agentMatching').innerHTML = mock ? '<p class="agent-note">Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。</p>' : AgentResults.matching(result('match_requirements'));
+            byId('agentMatching').innerHTML = demoData ? '<p class="agent-note">' + (presentationDemo ? '前端演示未调用真实匹配工具。' : 'Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。') + '</p>' : AgentResults.matching(result('match_requirements'));
             if (!demoData) {
                 byId('agentVersions').innerHTML = AgentResults.versions(versions);
                 byId('agentConflicts').innerHTML = AgentResults.conflicts(conflicts);
@@ -905,7 +905,7 @@
             if (conflicts) byId('agentConflicts').classList.remove('agent-placeholder');
             if (materials) byId('agentMaterials').classList.remove('agent-placeholder');
             if (conflicts) byId('agentConflicts').innerHTML = conflicts.success && Array.isArray(conflicts.data?.conflicts) ? agentArray(conflicts.data.conflicts).map(c => '<p><span class="badge badge-warning">' + agentEscape(c.field) + '</span></p>' + agentArray(c.values).map(v => '<div class="agent-item">' + agentEscape(v.source) + '<br><strong>' + agentEscape(v.value) + '</strong></div>').join('') + '<p>Recommendation: ' + agentEscape(c.recommendation) + '</p>').join('') || '未检测到冲突。' : agentDetails(conflicts.error || conflicts.data);
-            if (materials) byId('agentMaterials').innerHTML = materials.success && Array.isArray(materials.data?.required_documents) ? agentArray(materials.data.required_documents).map(name => '<div class="agent-item">' + (demoData ? (agentArray(snapshot.missing_items).includes(name) ? '⚠ ' + agentEscape(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + agentEscape(name)) : '• ' + agentEscape(name)) + '</div>').join('') + (mock ? '' : '<p class="agent-note">匹配与缺失结果结构尚未提供。</p>') : agentDetails(materials.error || materials.data);
+            if (materials) byId('agentMaterials').innerHTML = materials.success && Array.isArray(materials.data?.required_documents) ? agentArray(materials.data.required_documents).map(name => '<div class="agent-item">' + (demoData ? (agentArray(snapshot.missing_items).includes(name) ? '⚠ ' + agentEscape(name) + ' <span class="badge badge-warning">Missing</span>' : '✓ ' + agentEscape(name)) : '• ' + agentEscape(name)) + '</div>').join('') + (demoData ? '' : '<p class="agent-note">匹配与缺失结果结构尚未提供。</p>') : agentDetails(materials.error || materials.data);
             }
             byId('agentOtherResults').innerHTML = AgentResults.otherResults(results) || '尚无其他工具结果。';
             if (demoData) {
@@ -1094,7 +1094,7 @@
             // Mode is locked during active work; clear only the idle view.
             if (agentState.workflow !== 'materials' || agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             stopAgentPolling(); agentState.generation++;
-            Object.assign(agentState, {task: null, taskContext: null, snapshot: null, report: null, approvalValid: false, userRejected: false, mode: byId('agentMode').value});
+            Object.assign(agentState, {task: null, taskContext: null, snapshot: null, report: null, approvalValid: false, userRejected: false, presentationDemo: false, mode: byId('agentMode').value});
             AgentAPI.setMode(agentState.mode);
             resetAgentPresentation();
             byId('agentTaskStatus').textContent = 'Ready · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
