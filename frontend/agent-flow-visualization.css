@@ -42,7 +42,7 @@
 .agent-flow-stage[data-path="right"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:0;top:-2px;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:none}
 .agent-flow-stage[data-path="left"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:0;top:-2px;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:none}
 .agent-flow-stage[data-path="down"] .agent-flow-arrow:before{content:"";position:absolute;z-index:2;left:-2px;top:0;width:5px;height:5px;border-radius:50%;background:#8fc5ff;box-shadow:0 0 7px rgba(96,165,250,.9);animation:none}
-.agent-flow-stage[data-current="true"]:not([data-status="failed"]):not([data-status="awaiting_approval"]){border-color:rgba(73,151,255,.82);box-shadow:0 0 0 1px rgba(43,125,233,.18),0 0 22px rgba(43,125,233,.12)}
+.agent-flow-stage[data-current="true"]:not([data-status="failed"]):not([data-status="awaiting_approval"]):not([data-status="awaiting_clarification"]){border-color:rgba(73,151,255,.82);box-shadow:0 0 0 1px rgba(43,125,233,.18),0 0 22px rgba(43,125,233,.12)}
 .agent-flow-stage[data-current="true"] .agent-flow-stage-icon{border-color:rgba(73,151,255,.7);box-shadow:0 0 0 3px rgba(43,125,233,.08)}
 .agent-flow-stage[data-current="true"] .agent-flow-stage-title{text-shadow:0 0 16px rgba(96,165,250,.12)}
 .agent-flow-stage[data-current="true"] .agent-flow-arrow:before{background:#c5e2ff;box-shadow:0 0 10px rgba(96,165,250,1)}
@@ -81,3 +81,17 @@
 @media(max-width:680px){.agent-flow{padding:.7rem}.agent-flow-graph{display:flex;flex-direction:column;gap:1.1rem;padding:.1rem 0 .5rem}.agent-flow-stage{min-height:0;padding:.8rem 1rem}.agent-flow-stage-top{margin-bottom:.5rem}.agent-flow-stage-icon{float:left;margin:0 .7rem .45rem 0;width:32px;height:32px;font-size:1.05rem}.agent-flow-stage-title{min-height:32px;display:flex;align-items:center}.agent-flow-stage-subtitle{clear:both;margin:.45rem 0 .6rem}.agent-flow-stage .agent-flow-arrow{display:block!important;top:auto!important;left:50%!important;right:auto!important;bottom:-1.15rem!important;width:2px!important;height:1.1rem!important;background:rgba(145,165,192,.36)!important;animation:none!important}.agent-flow-stage .agent-flow-arrow:after{left:-4px!important;right:auto!important;top:auto!important;bottom:-1px!important;width:10px!important;height:9px!important;background:rgba(145,165,192,.55)!important;clip-path:polygon(0 0,100% 0,50% 100%)!important}.agent-flow-stage[data-path="none"] .agent-flow-arrow{display:none!important}.agent-flow-stage[data-status="completed"] .agent-flow-arrow{background:rgba(39,174,96,.52)!important}.agent-flow-stage[data-status="completed"] .agent-flow-arrow:after{background:rgba(39,174,96,.7)!important}}
 @media(max-width:680px){.agent-flow-graph .agent-flow-stage .agent-flow-arrow:before{top:0!important;left:-2px!important;animation:agentFlowParticleDown 1.8s ease-in-out infinite!important}}
 @media(prefers-reduced-motion:reduce){.agent-flow-stage[data-status="running"],.agent-flow-stage[data-status="running"] .agent-flow-stage-icon,.agent-flow-stage[data-status="running"] .agent-flow-arrow,.agent-flow-stage .agent-flow-arrow:before,.agent-flow-stage[data-current="true"]{animation:none;transition:none}.agent-flow-progress>span{transition:none}}
+
+/* Waiting for a user answer is not authorization, nor active file execution. */
+.agent-flow-stage[data-status="awaiting_clarification"]{border-color:rgba(243,156,18,.65);background:rgba(243,156,18,.055)}
+.agent-flow-stage[data-status="awaiting_clarification"] .agent-flow-stage-state{color:#f4b34f}
+.agent-flow-stage[data-current="true"][data-status="awaiting_clarification"]{border-color:rgba(243,156,18,.8);box-shadow:0 0 0 1px rgba(243,156,18,.15)}
+.agent-flow-stage[data-status="awaiting_clarification"] .agent-flow-current-badge,.agent-flow-stage[data-status="awaiting_approval"] .agent-flow-current-badge{border-color:rgba(243,156,18,.5);color:#f4b34f;background:rgba(243,156,18,.1)}
+.agent-flow-graph .agent-flow-stage .agent-flow-arrow:before{opacity:0;animation:none!important}
+.agent-flow-graph .agent-flow-stage[data-current="true"][data-status="running"][data-path="right"] .agent-flow-arrow:before{animation:agentFlowParticleRight 2s ease-in-out infinite!important}
+.agent-flow-graph .agent-flow-stage[data-current="true"][data-status="running"][data-path="left"] .agent-flow-arrow:before{animation:agentFlowParticleLeft 2s ease-in-out infinite!important}
+.agent-flow-graph .agent-flow-stage[data-current="true"][data-status="running"][data-path="down"] .agent-flow-arrow:before{animation:agentFlowParticleDown 2s ease-in-out infinite!important}
+@media(max-width:680px){.agent-flow-graph .agent-flow-stage[data-current="true"][data-status="running"] .agent-flow-arrow:before{animation:agentFlowParticleDown 2s ease-in-out infinite!important}}
+@media(prefers-reduced-motion:reduce){.agent-flow-graph .agent-flow-stage[data-current="true"][data-status="running"] .agent-flow-arrow:before{animation:none!important;opacity:0}}
+
+.agent-flow-stage[data-current="true"][data-status="awaiting_clarification"] .agent-flow-stage-icon{border-color:rgba(243,156,18,.65);box-shadow:0 0 0 3px rgba(243,156,18,.08);color:#f4b34f}

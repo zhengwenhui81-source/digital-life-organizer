@@ -1,0 +1,32 @@
+/* Professional blue/white workbench; existing controls and state logic retained. */
+:root{--navy:#fff;--dark:#f3f7fc;--silver:#354962;--light:#172b49;--blue:#1769d2;--success:#16834b;--warning:#a86505;--danger:#c8343f}
+body{background:#f3f7fc;color:#354962;font-family:"Segoe UI","Microsoft YaHei",sans-serif}
+header{background:#fff;border-bottom:1px solid #dbe5f0;box-shadow:0 2px 10px #15375b08}
+.brand-text h1,.agent-card h2,.agent-card h3,.agent-summary strong{color:#172b49}
+.btn-primary,.btn:not(.btn-secondary):not(.btn-sm){color:#fff}.btn-secondary{background:#edf4ff;color:#175aa8;border:1px solid #cbdcf1}
+.workspace-nav button{background:#fff;color:#244568;border:1px solid #dbe5f0}.workspace-nav button[aria-pressed="true"]{background:#e7f0ff;color:#125abd;border-color:#96b9eb}
+.agent-card,.card{background:#fff;border:1px solid #dbe5f0;box-shadow:0 3px 14px #183c6305}
+.form-input,.form-textarea,.filter-select,input,textarea,select{background:#fff;color:#243c59;border-color:#bdcee2}
+input:focus,textarea:focus,select:focus{outline:2px solid #2b7de930;border-color:#2b7de9}
+.agent-panel{background:#f6f9fd;border:1px solid #e3ebf5}.agent-step{border-color:#e5edf6}
+.agent-card pre,.agent-card code{background:#f3f7fc;color:#30435d}.agent-card summary{cursor:pointer;color:#275c9d}
+.agent-note,.agent-placeholder{color:#52677f;opacity:1}.agent-error{color:#76343b;background:#fff2f3}.agent-error strong{color:#b72836}
+.badge-neutral{color:#48617e;background:#eef3f9}.result-warning{color:#805005;background:#fff7e6}.badge-warning{color:#805005;background:#fff0d5}
+.browser-modal,.modal-content,.browser-content,.browser-sidebar{background:#fff;color:#243c59}.dir-item{border-color:#e5edf6}.dir-item:hover{background:#edf4ff}.browser-cur-path{color:#52677f}
+#agentClarification textarea{display:block;width:100%;min-height:72px;margin:.7rem 0;padding:.7rem;border:1px solid #bdcee2;border-radius:7px}
+#agentClarification button{padding:.5rem .8rem;margin:.3rem .4rem .3rem 0;border:1px solid #bfd3ed;background:#edf4ff;color:#175aa8;border-radius:6px;cursor:pointer}
+.agent-flow{background:#f8fbff;border-color:#dbe5f0}.agent-flow-mode{color:#175aa8;background:#edf4ff}.agent-flow-summary span{background:#eaf1f9;color:#48617e}
+.agent-flow-progress{background:#e3ebf5}.agent-flow-stage{background:#fff;border-color:#d4e0ee}.agent-flow-stage-state,.agent-flow-stage-icon{color:#526b89}.agent-flow-stage-icon{background:#eef4fc;border-color:#d2e0f0}
+.agent-flow-stage-hint,.agent-flow-evidence{border-color:#dfE8f4}.agent-flow-stage-hint{opacity:1;color:#64768d}.agent-flow-evidence small{color:#42658a}.agent-flow-current-badge{color:#155caf;background:#e8f1ff}
+.agent-flow-stage[data-status="completed"]{background:#f2fbf6;border-color:#afd9c0}.agent-flow-stage[data-status="completed"] .agent-flow-stage-state,.agent-flow-stage[data-status="completed"] .agent-flow-stage-icon{color:#187547;background:#e8f6ed}
+.agent-flow-stage[data-status="running"]{background:#edf5ff}.agent-flow-stage[data-status="running"] .agent-flow-stage-state{color:#125fbd}.agent-flow-stage[data-status="running"] .agent-flow-stage-icon{color:#125fbd}
+.agent-flow-stage[data-status="awaiting_approval"],.agent-flow-stage[data-status="awaiting_clarification"]{background:#fff9eb}.agent-flow-stage[data-status="awaiting_approval"] .agent-flow-stage-state,.agent-flow-stage[data-status="awaiting_clarification"] .agent-flow-stage-state{color:#925803}
+.agent-flow-stage[data-status="failed"]{background:#fff2f3}.agent-flow-stage[data-status="failed"] .agent-flow-stage-state{color:#bd2838}
+.agent-flow-stage[data-status="not-returned"]{background:#f8fafc;border-color:#d8e2ed}.agent-flow-stage[data-status="not-returned"] .agent-flow-stage-icon{color:#71839a}
+.agent-flow-details{margin-top:.7rem;font-size:.76rem}.agent-flow-details summary{padding:.4rem 0;color:#175aa8;cursor:pointer}.agent-flow-details pre{padding:.65rem;max-height:280px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f5fb;border-radius:6px;font-size:.72rem}.agent-flow-stage:has(.agent-flow-details[open]){z-index:3}
+.agent-flow-empty{border-color:#cedceb}.agent-flow-card{border-top:3px solid #1769d2}
+
+/* User-selected green card appearance is independent of execution outcome. */
+.agent-flow-stage[data-status="failed"]{background:#f2fbf6;border-color:#afd9c0}
+.agent-flow-stage[data-status="failed"] .agent-flow-stage-icon{background:#e8f6ed;border-color:#afd9c0;color:#187547}
+.agent-flow-stage[data-status="failed"] .agent-flow-stage-state{color:#b42335;font-weight:700}

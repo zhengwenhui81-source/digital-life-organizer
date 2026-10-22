@@ -8,13 +8,13 @@ const base = path.resolve(__dirname,'..');
 function harness(mode='real') {
     const elements=new Map(), timers=new Map(), calls=[]; let timerId=0;
     const el=id=>{
-        if(!elements.has(id))elements.set(id,{value:'',textContent:'',innerHTML:'',hidden:false,disabled:false,dataset:{},style:{},listeners:{},classList:{add(){},remove(){},toggle(){}},addEventListener(k,v){this.listeners[k]=v;},setAttribute(k,v){this[k]=v;},querySelectorAll(){return[];},appendChild(){},remove(){}});
+        if(!elements.has(id))elements.set(id,{value:'',textContent:'',innerHTML:'',replaceChildren(){this.innerHTML='';},hidden:false,disabled:false,dataset:{},style:{},listeners:{},classList:{add(){},remove(){},toggle(){}},addEventListener(k,v){this.listeners[k]=v;},setAttribute(k,v){this[k]=v;},querySelectorAll(){return[];},appendChild(){},remove(){}});
         return elements.get(id);
     };
     const c={window:{},console,AbortController,document:{getElementById:el,querySelectorAll:()=>[],createElement:()=>el('toast')},navigator:{clipboard:{writeText:async()=>{}}},setTimeout:(fn,ms)=>{timers.set(++timerId,{fn,ms});return timerId;},clearTimeout:id=>timers.delete(id),setInterval(){throw Error('Unexpected interval');},clearInterval(){},fetch:async(url,options)=>{if(!url.startsWith('/api/agent/'))return {ok:false};calls.push({url,options});return c.respond(url,options);}};
     vm.createContext(c);
-    for(const file of ['agent-api.js','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js','agent-flow-visualization.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
-    c.AgentAPI=c.window.AgentAPI;c.AgentMock=c.window.AgentMock;c.AgentResults=c.window.AgentResults;c.AgentFlowVisualization=c.window.AgentFlowVisualization;
+    for(const file of ['agent-api.js','agent-clarification.js','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js','agent-flow-visualization.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
+    c.AgentClarification=c.window.AgentClarification;c.AgentAPI=c.window.AgentAPI;c.AgentMock=c.window.AgentMock;c.AgentResults=c.window.AgentResults;c.AgentFlowVisualization=c.window.AgentFlowVisualization;
     c.OrganizationPreview=c.window.OrganizationPreview;c.OrganizationDemo=c.window.OrganizationDemo;
     c.PackagePreview=c.window.PackagePreview;
     vm.runInContext(fs.readFileSync(path.join(base,'index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],c);
@@ -95,15 +95,15 @@ test('Mock happy, reject and failure flows stay separate and functional',async()
 });
 test('Real Mode creates and polls a real Agent task; the graph follows returned snapshots',async()=>{
     const h=harness('real');h.el('agentScenario').value='happy';
-    const tools=['list_files','search_files','read_document','compare_versions','detect_conflicts','extract_requirements','create_folder','verify_result','build_package'];
+    const tools=['list_files','search_files','read_document','compare_versions','detect_conflicts','extract_requirements','create_folder','verify_result'];
     const makeSteps=statuses=>tools.map((tool,i)=>({step_id:'step_'+i,tool,description:'步骤 '+tool,status:statuses[i],risk:'low'}));
-    const planning={task:{task_id:'task',status:'planning',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},plan:{steps:makeSteps(['completed','running','pending','pending','pending','pending','pending','pending','pending'])},results:[],pending_operations:[],operations:[],preview_id:null,error:null};
-    const completed={task:{task_id:'task',status:'completed',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},plan:{steps:makeSteps(tools.map(()=> 'completed'))},results:[],pending_operations:[],operations:[],preview_id:null,error:null};
+    const planning={task:{task_id:'task',status:'planning',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},plan:{task_id:'task',steps:makeSteps(['completed','running','pending','pending','pending','pending','pending','pending','pending'])},results:[{tool:'list_files',success:true,data:{files:[]},message:'scan',error:null}],pending_operations:[],operations:[],preview_id:null,error:null};
+    const completed={task:{task_id:'task',status:'completed',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},plan:{task_id:'task',steps:makeSteps(tools.map(()=> 'completed'))},results:tools.map(tool=>({tool,success:true,data:tool==='verify_result'?{passed:true}:{},message:'test',error:null})),pending_operations:[],operations:[],preview_id:null,error:null};
     h.c.AgentMock.createTask=()=>{throw Error('Real Mode must not call AgentMock');};
     h.c.AgentMock.getTask=()=>{throw Error('Real Mode must not call AgentMock');};
     h.c.respond=(url,options={})=>{
         if(url==='/api/agent/tasks'&&options.method==='POST')return response({task_id:'task',status:'created',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},202);
-        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:null,summary:'任务完成，结果以实际执行证据为准。'});
+        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:'',summary:'任务完成，结果以实际执行证据为准。'});
         if(url==='/api/agent/tasks/task')return response(completed);
         throw Error('Unexpected Agent endpoint '+url);
     };
@@ -114,7 +114,7 @@ test('Real Mode creates and polls a real Agent task; the graph follows returned 
     assert.equal(h.calls[0].options.method,'POST');
     h.c.respond=(url,options={})=>{
         if(url==='/api/agent/tasks/task')return response(planning);
-        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:null,summary:'任务完成。'});
+        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:'',summary:'任务完成。'});
         throw Error('Unexpected Agent endpoint '+url);
     };
     await h.c.pollAgent();
@@ -123,7 +123,7 @@ test('Real Mode creates and polls a real Agent task; the graph follows returned 
     assert.match(h.el('agentFlowVisualization').innerHTML,/data-stage="identify"[^>]*data-status="running"/);
     h.c.respond=(url,options={})=>{
         if(url==='/api/agent/tasks/task')return response(completed);
-        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:null,summary:'任务完成。'});
+        if(url==='/api/agent/tasks/task/report')return response({task_id:'task',status:'completed',found_files:[],version_groups:[],conflicts:[],missing_items:[],operations:[],package_path:'',summary:'任务完成。'});
         throw Error('Unexpected Agent endpoint '+url);
     };
     await h.c.pollAgent();
@@ -486,3 +486,5 @@ test('awaiting Package remains risk-interactive while the task is busy; untruste
     s.pending_operations[1].arguments.destination='untrusted-mapping-secret';h.c.renderAgent(s);
     assert.doesNotMatch(h.el('agentActions').innerHTML,/untrusted-mapping-secret/);assert.equal(h.el('approveAgent').disabled,true);
 });
+
+test('transport defaults to real without an implicit Mock fallback',()=>{const context={window:{}};vm.runInNewContext(fs.readFileSync(path.join(base,'agent-api.js'),'utf8'),context);assert.equal(context.window.AgentAPI.mode,'real');});

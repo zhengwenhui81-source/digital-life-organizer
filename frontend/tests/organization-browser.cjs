@@ -8,7 +8,7 @@ const path=require('node:path');
 const {createServer}=require('node:http');
 
 test('Organization formal shell and isolated Fixture browser regression',{timeout:60000},async()=>{
-    const files=new Set(['agent-api.js','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js']);
+    const files=new Set(['agent-api.js','agent-clarification.js','agent-flow-visualization.js','agent-flow-visualization.css','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js']);
     const api=[];
     const server=createServer(async(req,res)=>{
         try{
@@ -86,7 +86,7 @@ test('Organization formal shell and isolated Fixture browser regression',{timeou
         }
         // Ordinary material Mock approval/report remain functional after workflow changes.
         const status=await evaluate(`(async()=>{
-            agentMode.value='mock';agentMode.dispatchEvent(new Event('change'));agentWorkspacePath.value='E:/synthetic';agentGoal.value='synthetic goal';
+            agentMode.add(new Option('Isolated test only','mock'));agentMode.value='mock';agentMode.dispatchEvent(new Event('change'));agentWorkspacePath.value='E:/synthetic';agentGoal.value='synthetic goal';
             await runAgent();for(let i=0;i<5;i++)await pollAgent();const awaiting=agentState.task.status;
             await decideAgent(true);for(let i=0;i<3;i++)await pollAgent();return {awaiting,final:agentState.task.status,report:!!agentState.report};
         })()`);

@@ -1,6 +1,6 @@
 /* Agreed Agent HTTP transport. Mock is always an explicit choice. */
 window.AgentAPI = {
-    mode: 'mock',
+    mode: 'real',
     // Preserve large JSON integer tokens before Number can round mtime_ns.
     // BigInt is local presentation data, never sent as an authorization field.
     parseJSON(raw) {
@@ -82,10 +82,14 @@ window.AgentAPI = {
         if (typeof id !== 'string' || !id) throw new Error('Missing task_id');
         return '/api/agent/tasks/' + encodeURIComponent(id);
     },
-    async createTask(userGoal, workspace, scenario = 'happy') {
+    async createTask(userGoal, workspace, scenario = 'happy', interactive = false) {
         if (!userGoal?.trim() || !workspace?.trim()) throw new Error('Workspace and goal are required');
         if (this.mode === 'mock') return window.AgentMock.createTask({user_goal: userGoal, workspace, scenario});
-        return this.request('/api/agent/tasks', 'POST', {user_goal: userGoal, workspace}, 202);
+        return this.request('/api/agent/tasks', 'POST', {user_goal: userGoal, workspace, ...(interactive ? {interactive:true} : {})}, 202);
+    },
+    async answerTask(id, clarificationId, answers) {
+        if (this.mode !== 'real') throw new Error('澄清回答仅支持正式 Real Mode 接口');
+        return this.request(this.taskPath(id) + '/answers', 'POST', {clarification_id:clarificationId, answers}, 202);
     },
     async getTask(id) {
         if (this.mode === 'mock') return window.AgentMock.getTask(id);

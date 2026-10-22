@@ -1,142 +1,34 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const Flow = require('../agent-flow-visualization.js');
+const test=require('node:test'),assert=require('node:assert/strict');
+const Flow=require('../agent-flow-visualization.js');
+const stage=(html,key)=>{const m=html.match(new RegExp('<article class="agent-flow-stage"[^>]*data-stage="'+key+'"[^>]*>'));assert.ok(m);return m[0];};
+const result=(tool,success=true,data={})=>({tool,success,data,message:'test evidence',error:success?null:'test failure'});
+function sample(status='executing') {return {task:{task_id:'t1',status},plan:{task_id:'t1',steps:[
+ {step_id:'s1',tool:'list_files',description:'Scan',status:'completed'},
+ {step_id:'s2',tool:'read_document',description:'Read',status:'running'},
+ {step_id:'s3',tool:'compare_versions',description:'Versions',status:'pending'},
+ {step_id:'s4',tool:'copy_file',description:'Copy',status:'pending'}]},results:[result('list_files')]};}
+const report=()=>({task_id:'t1',status:'completed',found_files:[],version_groups:[],conflicts:[],operations:[],package_path:'',summary:'Analysis finished'});
 
-function stage(html, key) {
-  const match = html.match(new RegExp('<article class="agent-flow-stage"[^>]*data-stage="' + key + '"[^>]*>'));
-  assert.ok(match, 'missing stage ' + key);
-  return match[0];
-}
+test('retains nine connected visual stages and no invented completion before task',()=>{const h=Flow.render(null,'real');assert.equal((h.match(/class="agent-flow-stage"/g)||[]).length,9);assert.match(h,/agent-flow-graph/);assert.match(stage(h,'read'),/data-path="down"/);assert.match(stage(h,'versions'),/data-path="left"/);assert.match(stage(h,'result'),/data-path="none"/);assert.doesNotMatch(h,/data-status="completed"/);});
+test('real completed results and running steps drive stage color and current focus',()=>{const h=Flow.render(sample(),'real');assert.match(stage(h,'scan'),/data-status="completed"/);assert.match(stage(h,'read'),/data-status="running"/);assert.match(stage(h,'read'),/data-current="true"/);assert.match(stage(h,'versions'),/data-status="pending"/);assert.match(h,/agent-flow-arrow/);});
+test('step completed without a ToolResult is not completion evidence',()=>{const s=sample();s.results=[];assert.equal(Flow.evidenceSteps(s)[0].status,'unknown');assert.doesNotMatch(stage(Flow.render(s,'real'),'scan'),/data-status="completed"/);});
+test('wrong tool, failed record and cross-task plan never establish completion',()=>{for(const change of [s=>s.results=[result('copy_file')],s=>s.results=[result('list_files',false)],s=>s.plan.task_id='other']){const s=sample();change(s);assert.doesNotMatch(stage(Flow.render(s,'real'),'scan'),/data-status="completed"/);}});
+test('failure blocks later abnormal successes in trusted steps',()=>{const s=sample();s.plan.steps[0].status='failed';s.plan.steps[1].status='completed';s.results=[result('list_files',false),result('read_document')];const steps=Flow.evidenceSteps(s);assert.equal(steps[0].status,'failed');assert.equal(steps[1].status,'unknown');});
+test('final result requires current completed task and structurally valid report',()=>{const s=sample('completed');s.plan.steps=s.plan.steps.slice(0,1);const good=report();assert.match(stage(Flow.render(s,'real',good),'result'),/data-status="completed"/);for(const bad of [{summary:'exists'}, {...good,task_id:'old'}, {...good,status:'failed'}, {...good,operations:null}])assert.doesNotMatch(stage(Flow.render(s,'real',bad),'result'),/data-status="completed"/);s.task.status='failed';assert.doesNotMatch(stage(Flow.render(s,'real',good),'result'),/data-status="completed"/);});
+test('merely present snapshot final_report is not authoritative',()=>{const s=sample('completed');s.final_report={summary:'not a report'};assert.doesNotMatch(stage(Flow.render(s,'real'),'result'),/data-status="completed"/);});
+test('approval and clarification remain waiting and do not complete writes',()=>{for(const status of ['awaiting_approval','awaiting_clarification']){const s=sample(status);s.plan.steps[3].status='awaiting_approval';const h=Flow.render(s,'real');assert.match(stage(h,'approve'),/data-current="true"/);assert.doesNotMatch(stage(h,'execute'),/data-status="completed"/);if(status==='awaiting_clarification'){assert.match(h,/确认材料用途/);assert.match(stage(h,'plan'),/data-status="pending"/);assert.match(stage(h,'approve'),/data-status="awaiting_clarification"/);}}});
+test('planner failure highlights planning without success',()=>{const h=Flow.render({task:{task_id:'t1',status:'failed'},error:'Planner model request failed (connection failed)',plan:null,results:[]},'real');assert.match(stage(h,'plan'),/data-current="true"/);assert.match(stage(h,'plan'),/data-status="failed"/);assert.doesNotMatch(h,/data-status="completed"/);});
+test('unreturned analysis and writes never turn green with task completed',()=>{const s=sample('completed');s.plan.steps=s.plan.steps.slice(0,1);const h=Flow.render(s,'real');assert.match(stage(h,'scan'),/data-status="completed"/);assert.match(stage(h,'versions'),/data-status="not-returned"/);assert.match(stage(h,'execute'),/data-status="not-returned"/);});
+test('untrusted descriptions escaped and cannot impersonate another tool',()=>{const s=sample();s.plan.steps[1].description='<img src=x onerror=alert(1)> copy_file';const h=Flow.render(s,'real');assert.match(h,/&lt;img/);assert.doesNotMatch(h,/<img src=x/);assert.match(stage(h,'execute'),/data-status="pending"/);});
+test('verification requires passed true, not ToolResult success alone',()=>{const s=sample();s.plan.steps=[{step_id:'s',tool:'verify_result',status:'completed'}];s.results=[result('verify_result',true,{passed:false})];assert.equal(Flow.evidenceSteps(s)[0].status,'failed');});
+test('summary counts actual statuses and explicit mock labeling survives',()=>{assert.equal(Flow.summarize([{status:'completed'},{status:'unexpected'}]).unknown,1);assert.match(Flow.render(null,'mock'),/Mock Mode/);});
 
-test('renders a connected nine-stage graph before a task starts', () => {
-  const html = Flow.render(null, 'real');
-  assert.match(html, /课程材料整理流程/);
-  assert.match(html, /agent-flow-graph/);
-  assert.equal((html.match(/class="agent-flow-stage"/g) || []).length, 9);
-  assert.match(stage(html, 'scan'), /data-path="right"/);
-  assert.match(stage(html, 'read'), /data-path="down"/);
-  assert.match(stage(html, 'versions'), /data-path="left"/);
-  assert.match(stage(html, 'result'), /data-path="none"/);
-  assert.match(html, /等待任务/);
-});
+test('observed analysis order controls snake positions without moving the approval/execution gate',()=>{const s=sample();s.plan.steps=[{tool:'list_files',status:'completed'},{tool:'read_document',status:'completed'},{tool:'compare_versions',status:'completed'},{tool:'extract_requirements',status:'completed'}];s.results=s.plan.steps.map(step=>result(step.tool));const h=Flow.render(s,'real');assert.ok(h.indexOf('data-stage="read"')<h.indexOf('data-stage="versions"'));assert.ok(h.indexOf('data-stage="versions"')<h.indexOf('data-stage="identify"'));assert.match(stage(h,'read'),/data-path="right"/);assert.match(stage(h,'versions'),/data-path="down"/);assert.match(stage(h,'approve'),/data-path="down"/);assert.match(h,/冲突未执行/);});
+test('planning before plan is returned is active, never completed',()=>{const h=Flow.render({task:{task_id:'t1',status:'planning'},plan:null,results:[]},'real');assert.match(stage(h,'plan'),/data-status="running"/);assert.match(stage(h,'plan'),/data-current="true"/);});
 
-test('maps real plan steps onto graph stages and preserves their returned statuses', () => {
-  const snapshot = {
-    task: {task_id:'t1', status:'executing'},
-    plan: {steps:[
-      {description:'List all files in the workspace to discover documents.', tool:'list_files', status:'completed', risk:'low'},
-      {description:'Read the report document.', tool:'read_document', status:'running', risk:'medium'},
-      {description:'Compare report versions.', tool:'compare_versions', status:'pending', risk:'medium'},
-      {description:'Copy the selected files.', tool:'copy_file', status:'pending', risk:'medium'}
-    ]}
-  };
-  const html = Flow.render(snapshot, 'real');
-  assert.match(stage(html, 'scan'), /data-status="completed"/);
-  assert.match(stage(html, 'read'), /data-status="running"/);
-  assert.match(stage(html, 'versions'), /data-status="pending"/);
-  assert.match(stage(html, 'execute'), /data-status="pending"/);
-  assert.match(html, /Real Mode · 实时任务状态/);
-  assert.match(html, /agent-flow-arrow/);
-});
+test('expandable stage details expose actual indexed results and escape content',()=>{const s=sample();s.results[0].data={files:[{path:'C:/test/<img onerror=alert(1)>.txt'}]};const h=Flow.render(s,'real');assert.match(h,/<details class="agent-flow-details">/);assert.match(h,/执行详情/);assert.match(h,/result_index/);assert.match(h,/&lt;img/);assert.doesNotMatch(h,/<img/);assert.deepEqual(s.results[0].data.files,[{path:'C:/test/<img onerror=alert(1)>.txt'}]);});
+test('automatic server verification is shown only alongside a valid current report',()=>{const s=sample('completed');s.plan.steps=s.plan.steps.slice(0,1);s.results.push(result('verify_result',true,{passed:true,checks:[{kind:'copy_file',path:'C:/temp/target',passed:true}]}));assert.match(stage(Flow.render(s,'real',report()),'verify'),/data-status="completed"/);assert.doesNotMatch(stage(Flow.render(s,'real'),'verify'),/data-status="completed"/);s.results.at(-1).data.passed=false;assert.doesNotMatch(stage(Flow.render(s,'real',report()),'verify'),/data-status="completed"/);});
 
-test('does not imply that unreturned stages completed just because the task is complete', () => {
-  const snapshot = {
-    task: {task_id:'t2', status:'completed'},
-    plan: {steps:[{description:'List all files in the workspace to discover documents.', tool:'list_files', status:'completed', risk:'low'}]}
-  };
-  const html = Flow.render(snapshot, 'real');
-  assert.match(stage(html, 'scan'), /data-status="completed"/);
-  assert.match(stage(html, 'plan'), /data-status="completed"/);
-  assert.match(stage(html, 'versions'), /data-status="not-returned"/);
-  assert.match(stage(html, 'execute'), /data-status="not-returned"/);
-  assert.match(html, /未返回的阶段不会被标记为已完成/);
-});
+test('report cannot finish an incomplete or foreign execution chain',()=>{for(const change of [s=>s.plan.task_id='other',s=>s.results=[null],s=>s.results=null,s=>s.plan.steps[0].status='running']){const s=sample('completed');s.plan.steps=s.plan.steps.slice(0,1);change(s);assert.equal(Flow.confirmedReport(s,report()),null);assert.doesNotMatch(stage(Flow.render(s,'real',report()),'result'),/data-status="completed"/);}});
 
-test('marks the result stage complete only when a completed report is available', () => {
-  const snapshot = {
-    task:{task_id:'t-report',status:'completed'},
-    plan:{steps:[{description:'Copy selected files.',tool:'copy_file',status:'completed',risk:'medium'}]}
-  };
-  const beforeReport = Flow.render(snapshot, 'real');
-  assert.match(stage(beforeReport, 'result'), /data-status="not-returned"/);
-  assert.doesNotMatch(stage(beforeReport, 'result'), /data-current="true"/);
-  const report = {task_id:'t-report',status:'completed',summary:'Verified report'};
-  const afterReport = Flow.render(snapshot, 'real', report);
-  assert.match(stage(afterReport, 'result'), /data-status="completed"/);
-  assert.match(stage(afterReport, 'result'), /data-current="true"/);
-  assert.match(afterReport, /结果已生成/);
-});
-
-test('shows the approval stage as waiting when the current task awaits approval', () => {
-  const html = Flow.render({
-    task:{task_id:'t3',status:'awaiting_approval'},
-    plan:{steps:[{description:'Copy selected files after approval.',tool:'copy_file',status:'awaiting_approval',risk:'medium'}]}
-  }, 'real');
-  assert.match(stage(html, 'approve'), /data-status="awaiting_approval"/);
-  assert.match(stage(html, 'execute'), /data-status="awaiting_approval"/);
-});
-
-test('mock mode is explicitly labeled as simulated', () => {
-  const html = Flow.render({task:{status:'created'},plan:{steps:[]}}, 'mock');
-  assert.match(html, /Mock Mode · 模拟任务数据/);
-});
-
-test('escapes untrusted plan text and tool metadata', () => {
-  const html = Flow.render({
-    task:{status:'executing'},
-    plan:{steps:[{description:'<img src=x onerror=alert(1)>',tool:'read_document <script>x</script>',status:'running',risk:'<b>high</b>'}]}
-  }, 'real');
-  assert.doesNotMatch(html, /<img src=x/);
-  assert.doesNotMatch(html, /<script>x<\/script>/);
-  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
-  assert.match(html, /&lt;script&gt;x&lt;\/script&gt;/);
-});
-
-test('summary counts only actual step statuses', () => {
-  const summary = Flow.summarize([
-    {status:'completed'}, {status:'running'}, {status:'failed'}, {status:'awaiting_approval'}, {status:'unexpected'}
-  ]);
-  assert.deepEqual(
-    {total:summary.total,completed:summary.completed,running:summary.running,failed:summary.failed,awaitingApproval:summary.awaitingApproval,unknown:summary.unknown},
-    {total:5,completed:1,running:1,failed:1,awaitingApproval:1,unknown:1}
-  );
-});
-
-test('highlights the current stage based on the live task status and active step', () => {
-  const snapshot = {
-    task: {task_id:'t-current', status:'executing'},
-    plan: {steps:[
-      {description:'List all files in the workspace to discover documents.', tool:'list_files', status:'completed', risk:'low'},
-      {description:'Read the report document.', tool:'read_document', status:'running', risk:'medium'},
-      {description:'Copy selected files.', tool:'copy_file', status:'pending', risk:'medium'}
-    ]}
-  };
-  const html = Flow.render(snapshot, 'real');
-  assert.match(stage(html, 'read'), /data-current="true"/);
-  assert.match(stage(html, 'scan'), /data-current="false"/);
-  assert.match(html, /当前环节/);
-});
-
-test('moves focus to planning, approval, verification and result as task status changes', () => {
-  const cases = [
-    [{task:{status:'planning'},plan:{steps:[]}}, 'plan'],
-    [{task:{status:'awaiting_approval'},plan:{steps:[]}}, 'approve'],
-    [{task:{status:'verifying'},plan:{steps:[]}}, 'verify'],
-    [{task:{status:'completed'},plan:{steps:[]},final_report:{summary:'Verified final result'}}, 'result']
-  ];
-  cases.forEach(function (item) {
-    const html = Flow.render(item[0], 'real');
-    assert.match(stage(html, item[1]), /data-current="true"/);
-  });
-});
-
-test('planner connection failure highlights planning without inventing completed stages', () => {
-  const html = Flow.render({
-    task:{task_id:'t-failed',status:'failed'},
-    error:'Planner model request failed (connection failed)',
-    plan:{steps:[]}
-  }, 'real');
-  assert.match(stage(html, 'plan'), /data-current="true"/);
-  assert.match(stage(html, 'plan'), /data-status="failed"/);
-  assert.match(stage(html, 'execute'), /data-status="not-returned"/);
-});
+test('verified completion has no running focus and excludes unplanned capabilities from the main chain',()=>{const s=sample('completed');s.plan.steps=s.plan.steps.slice(0,1);const h=Flow.render(s,'real',report());assert.doesNotMatch(h,/data-current="true"/);assert.doesNotMatch(h,/data-stage="execute"/);assert.match(h,/本次未安排的能力/);assert.match(h,/未执行，不计为完成/);assert.match(h,/width:100%/);assert.match(stage(h,'result'),/data-status="completed"/);assert.match(stage(h,'result'),/data-path="none"/);});

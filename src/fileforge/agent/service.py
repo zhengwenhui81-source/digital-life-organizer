@@ -52,7 +52,9 @@ class TaskService:
         self._tasks: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
 
-    def create(self, user_goal: str, workspace: str) -> dict[str, Any]:
+    def create(self, user_goal: str, workspace: str, *, interactive: bool = False) -> dict[str, Any]:
+        if type(interactive) is not bool:
+            raise ValueError('interactive must be boolean')
         if not user_goal.strip() or not workspace.strip():
             raise ValueError("user_goal and workspace are required")
         root = Path(workspace).expanduser().resolve()
@@ -74,6 +76,10 @@ class TaskService:
                 "approved_operations_verified": False,
                 "package_approval": None,
                 "package_execution": None,
+                "interactive": interactive,
+                "interactive_running": False,
+                "clarification": None,
+                "answer_history": [],
             }
         return deepcopy(task)
 
@@ -82,6 +88,15 @@ class TaskService:
             return self._tasks[task_id]
         except KeyError as exc:
             raise KeyError("Task not found") from exc
+
+    def answer(self, task_id: str, clarification_id: str, answers: list) -> dict:
+        from fileforge.agent.clarification import accept_answers
+        with self._lock:
+            entry = self._entry(task_id)
+            if not entry['interactive'] or entry['interactive_running']:
+                raise TaskConflict('Task cannot accept clarification answers now')
+            accept_answers(self, entry, clarification_id, answers)
+            return self.snapshot(task_id)
 
     def snapshot(self, task_id: str) -> dict[str, Any]:
         with self._lock:
@@ -96,6 +111,7 @@ class TaskService:
                     "preview_id": entry["preview_id"],
                     "error": entry["error"],
                     "package_execution": entry["package_execution"],
+                    **({"clarification": entry['clarification'], 'planner_events':entry.get('planner_events',[])} if entry['interactive'] else {}),
                 }
             )
 
@@ -278,12 +294,29 @@ class TaskService:
     def run(self, task_id: str) -> None:
         with self._lock:
             entry = self._entry(task_id)
+            if entry['interactive']:
+                if entry['interactive_running'] or entry['task']['status'] not in {'created', 'planning'}:
+                    return
+                entry['interactive_running'] = True
+                entry['task']['status'] = 'planning'
+        if entry['interactive']:
+            from fileforge.agent.clarification import run
+            try:
+                run(self, entry)
+            finally:
+                with self._lock:
+                    entry['interactive_running'] = False
+            return
+        with self._lock:
+            entry = self._entry(task_id)
             if entry["task"]["status"] != "created":
                 return
             entry["task"]["status"] = "planning"
             task = deepcopy(entry["task"])
         try:
             plan = self._planner(task["task_id"], task["user_goal"], task["workspace"])
+            if plan.get('questions'):
+                raise ValueError('Clarification requires an explicitly interactive task')
             package_steps = [
                 index
                 for index, step in enumerate(plan["steps"])
@@ -888,6 +921,10 @@ class TaskService:
                 )
             if type(accept_incomplete) is not bool:
                 raise TaskConflict("accept_incomplete must be a boolean")
+            if approve and entry['interactive']:
+                from fileforge.agent.clarification import sources
+                if sources(entry['task']['workspace']) != entry.get('source_evidence'):
+                    raise TaskConflict('Sources changed since interactive analysis; preview cannot execute')
             if not approve and accept_incomplete:
                 raise TaskConflict("Rejection cannot accept Package risks")
             package = entry["package_approval"]

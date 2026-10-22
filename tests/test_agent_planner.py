@@ -420,3 +420,14 @@ def test_planner_sdk_error_category_is_safe(
     assert "document body" not in snapshot["error"]
     with pytest.raises(TaskConflict, match="Report is not available"):
         service.report(task_id)
+
+
+def test_local_planner_timeout_is_configurable_and_bounded(monkeypatch):
+    from fileforge.agent.planner import _planner_timeout
+    monkeypatch.delenv('FILEFORGE_AGENT_PLANNER_TIMEOUT_SECONDS',raising=False)
+    assert _planner_timeout()==15
+    monkeypatch.setenv('FILEFORGE_AGENT_PLANNER_TIMEOUT_SECONDS','90')
+    assert _planner_timeout()==90
+    for invalid in ['0','301','NaN','inf','not-a-number']:
+        monkeypatch.setenv('FILEFORGE_AGENT_PLANNER_TIMEOUT_SECONDS',invalid)
+        with pytest.raises(ValueError,match='timeout'):_planner_timeout()

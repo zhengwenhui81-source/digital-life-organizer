@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import time
+from contextvars import ContextVar
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
+PLANNER_TRACE = ContextVar('planner_trace', default=None)
 
 # The public names and risk levels are fixed by API_CONTRACT.md. This is an
 # internal validation map, not a second public contract.
@@ -129,6 +133,12 @@ build_package in a scan-only task or invent selected files, IDs, or output paths
 Use workspace, never path, for list_files and search_files. Use exactly the
 listed argument names; do not invent extra fields.
 Read and analysis steps should precede file changes. Include only steps that
+serve the goal. Input text containing Document/ToolResult is NOT execution evidence.
+Always plan an actual read_document of the relevant requirement document BEFORE
+extract_requirements, even if that document's text is already in the goal.
+Use read_document only for TXT/PDF/DOCX/XLSX; unsupported files may be scanned
+but never pretend their bodies have been read.
+Include only steps that
 serve the goal. Do not invent filenames, file contents, or results. When an
 argument depends on a previous result, use an empty object or list placeholder.
 To analyze unknown workspace documents, collect candidates with list_files or
@@ -154,7 +164,15 @@ def validate_plan(payload: dict[str, Any], task_id: str, goal: str) -> dict[str,
     if not task_id.strip() or not goal.strip():
         raise ValueError("task_id and goal are required")
     raw_steps = payload.get("steps")
-    if not isinstance(raw_steps, list) or not raw_steps:
+    questions = payload.get("questions", [])
+    if not isinstance(questions, list) or len(questions) > 10:
+        raise ValueError("Invalid clarification questions")
+    for question in questions:
+        if (type(question) is not dict or set(question) != {"question", "reason", "file_paths", "options"}
+            or any(type(question[k]) is not str or not question[k].strip() or len(question[k]) > 4000 for k in ("question", "reason"))
+            or any(type(question[k]) is not list or len(question[k]) > 30 or any(type(v) is not str or not v.strip() or len(v)>4000 for v in question[k]) for k in ("file_paths", "options"))):
+            raise ValueError("Invalid clarification question fields")
+    if not isinstance(raw_steps, list) or (not raw_steps and not questions):
         raise ValueError("Plan must contain at least one step")
     steps = []
     for index, raw in enumerate(raw_steps, 1):
@@ -180,12 +198,31 @@ def validate_plan(payload: dict[str, Any], task_id: str, goal: str) -> dict[str,
                 "arguments": arguments,
             }
         )
-    return {"task_id": task_id, "goal": goal, "steps": steps}
+    plan = {"task_id": task_id, "goal": goal, "steps": steps}
+    if questions:
+        plan["questions"] = questions
+    return plan
+
+
+def _planner_timeout() -> float:
+    """Bounded local deployment setting; never changes retry or approval policy."""
+    try:
+        value = float(os.getenv("FILEFORGE_AGENT_PLANNER_TIMEOUT_SECONDS", "15"))
+    except ValueError:
+        raise ValueError("Planner timeout must be between 1 and 300 seconds") from None
+    if not 1 <= value <= 300:
+        raise ValueError("Planner timeout must be between 1 and 300 seconds")
+    return value
 
 
 def _generate_local(prompt: str, *, model: str, base_url: str) -> str:
     """Call the configured OpenAI-compatible planner endpoint."""
     import httpx
+    trace = PLANNER_TRACE.get()
+    event = {'model':model, 'provider_host':urlparse(base_url).hostname, 'status':'started'}
+    started = time.monotonic()
+    if trace is not None:
+        trace.append(event)
 
     try:
         import openai
@@ -204,7 +241,7 @@ def _generate_local(prompt: str, *, model: str, base_url: str) -> str:
                 base_url=base_url,
                 api_key=os.getenv("FILEFORGE_AGENT_PLANNER_API_KEY") or "ignored",
                 http_client=http_client,
-                timeout=15.0,
+                timeout=_planner_timeout(),
                 max_retries=0,
             ) as client:
                 request = dict(
@@ -216,7 +253,13 @@ def _generate_local(prompt: str, *, model: str, base_url: str) -> str:
                 ):
                     request["response_format"] = {"type": "json_object"}
                 response = client.chat.completions.create(**request)
+                event.update(status='responded', duration_ms=(time.monotonic()-started)*1000,
+                             response_id=getattr(response,'id',None))
+                usage = getattr(response, 'usage', None)
+                if usage is not None:
+                    event['usage'] = {key:getattr(usage,key,None) for key in ('prompt_tokens','completion_tokens','total_tokens')}
         except openai.APIError as exc:
+            event.update(status='failed',duration_ms=(time.monotonic()-started)*1000)
             timeout_error = getattr(openai, "APITimeoutError", None)
             connection_error = getattr(openai, "APIConnectionError", None)
             status_error = getattr(openai, "APIStatusError", None)
@@ -275,6 +318,7 @@ def plan_task(
     model: str | None = None,
     base_url: str | None = None,
     generate: Callable[[str], str] | None = None,
+    interactive_context: dict | None = None,
 ) -> dict[str, Any]:
     """Generate a Plan; reject invalid or unsafe model output before execution."""
     root = Path(workspace).expanduser().resolve()
@@ -296,6 +340,38 @@ def plan_task(
     prompt = _PROMPT.format(
         tools=", ".join(_TOOL_ARGUMENTS), workspace=root, goal=user_goal
     )
+    if interactive_context is not None:
+        prompt += '''
+INTERACTIVE OUTPUT PROTOCOL: Return exactly {"steps": [...], "questions": [...]}.
+Questions contain exactly question, reason, file_paths (absolute observed files),
+options (nonempty answer strings). Questions are for genuine unresolved choices,
+not permission to analyze or permission to propose. Never ask the same resolved
+question again. A user choosing to leave uncertain files untouched resolves their
+handling for this task; omit those files from copies instead of asking again.
+Before questions about requirements/versions, use applicable existing analysis
+tools on actual evidence when they have not yet run. Return only low-risk steps
+for that analysis round; you will receive the executed results. Do not repeat reads.
+For compare_versions/extract_requirements/detect_conflicts ONLY, the private draft
+arguments may be {"document_paths": [absolute paths of actual read Documents]}.
+The server expands these selectors to exact observed Document objects; they are
+not a new public tool argument. Select relevant related documents, not every file.
+For questions use steps:[]; when user answers resolve the necessary choices, return
+the concrete create_folder/copy_file proposal and questions:[] (no extra permission
+question; the server still requires separate approval). Do not move/delete/overwrite.
+Never emit empty steps AND empty questions. Do not plan verify_result; approved
+copies are verified by TaskService. Do not infer unknown file content from filenames.
+ACTUAL EXECUTED EVIDENCE AND USER ANSWERS:
+''' + json.dumps(interactive_context, ensure_ascii=False)
+        prompt += '''
+HARD TOOL CAPABILITY LIMIT: read_document cannot read CPP/H/PY/JSON/CSV/MD/images.
+They may be copied after approval or remain uncertain; never plan unsupported reads.
+When planning_feedback rejects a draft, correct the exact error instead of repeating it.
+Do not request match_requirements unless you have explicitly scoped requirements
+and separately collected/read candidates after extraction, as the tool requires.
+Do not ask permission to do read-only analysis; do not seek approval to propose.
+If your draft has both questions and read-only analysis, the server executes the
+analysis first and calls you again to ask questions grounded in its actual results.
+'''
     raw = (
         generate(prompt)
         if generate is not None
@@ -309,4 +385,24 @@ def plan_task(
         raise ValueError("Planner returned invalid JSON") from exc
     if not isinstance(payload, dict):
         raise ValueError("Planner response must be an object")
+    if interactive_context is not None:
+        trace = PLANNER_TRACE.get()
+        if trace:
+            trace[-1]['draft'] = payload
+        observed = {os.path.normcase(str(Path(r['data']['document']['path']).resolve())): r['data']['document']
+                    for r in interactive_context['results'] if r.get('success') and
+                    r.get('tool') == 'read_document'}
+        for step in payload.get('steps', []):
+            if type(step) is not dict:
+                continue
+            arguments = step.get('arguments')
+            if type(arguments) is dict and 'document_paths' in arguments:
+                paths = arguments['document_paths']
+                normalized = [os.path.normcase(str(Path(p).resolve())) for p in paths] if type(paths) is list and all(type(p) is str for p in paths) else []
+                if (step.get('tool') not in {'extract_requirements','compare_versions','detect_conflicts'}
+                    or set(arguments) != {'document_paths'} or type(paths) is not list or not paths
+                    or len(normalized)!=len(paths) or any(p not in observed for p in normalized)
+                    or len(set(normalized)) != len(normalized)):
+                    raise ValueError('Analysis selectors must name unique actual read Documents')
+                step['arguments'] = {'documents': [observed[p] for p in normalized]}
     return validate_plan(payload, task_id, user_goal)
