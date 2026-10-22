@@ -876,7 +876,6 @@
             agentState.snapshot = snapshot;
             agentState.approvalValid = snapshot.task.status === 'awaiting_approval';
             const mock = agentState.mode === 'mock';
-            const demoData = mock;
             syncPackageRisk();
             byId('agentPackagePreview').innerHTML = mock ? '<p>Mock Mode：此处不展示真实 Package 规划数据。</p>' : PackagePreview.renderSnapshot(snapshot, packageTask);
             byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (mock ? 'Mock Mode' : 'Real Mode');
@@ -924,6 +923,7 @@
         function renderAgentReport(report) {
             if (agentState.workflow !== 'materials') return;
             if (!report || agentState.task?.status !== 'completed' || report.task_id !== agentState.task.task_id || report.status !== 'completed') throw new Error('Invalid FinalReport response');
+            byId('agentFlowVisualization').innerHTML = AgentFlowVisualization.render(agentState.snapshot, agentState.mode, report);
             if (agentState.mode === 'real' && (hasAgentPackageData(agentState.snapshot) || report.package_unresolved !== undefined || report.package_path)) {
                 const gate = PackagePreview.inspectSnapshot(agentState.snapshot, agentState.taskContext);
                 const model = gate.state === 'provided' ? PackagePreview.inspect({...gate.input, report}) : null;
