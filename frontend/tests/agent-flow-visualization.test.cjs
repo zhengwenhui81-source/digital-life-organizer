@@ -86,3 +86,42 @@ test('summary counts only actual step statuses', () => {
     {total:5,completed:1,running:1,failed:1,awaitingApproval:1,unknown:1}
   );
 });
+
+test('highlights the current stage based on the live task status and active step', () => {
+  const snapshot = {
+    task: {task_id:'t-current', status:'executing'},
+    plan: {steps:[
+      {description:'List all files in the workspace to discover documents.', tool:'list_files', status:'completed', risk:'low'},
+      {description:'Read the report document.', tool:'read_document', status:'running', risk:'medium'},
+      {description:'Copy selected files.', tool:'copy_file', status:'pending', risk:'medium'}
+    ]}
+  };
+  const html = Flow.render(snapshot, 'real');
+  assert.match(stage(html, 'read'), /data-current="true"/);
+  assert.match(stage(html, 'scan'), /data-current="false"/);
+  assert.match(html, /当前环节/);
+});
+
+test('moves focus to planning, approval, verification and result as task status changes', () => {
+  const cases = [
+    [{task:{status:'planning'},plan:{steps:[]}}, 'plan'],
+    [{task:{status:'awaiting_approval'},plan:{steps:[]}}, 'approve'],
+    [{task:{status:'verifying'},plan:{steps:[]}}, 'verify'],
+    [{task:{status:'completed'},plan:{steps:[]}}, 'result']
+  ];
+  cases.forEach(function (item) {
+    const html = Flow.render(item[0], 'real');
+    assert.match(stage(html, item[1]), /data-current="true"/);
+  });
+});
+
+test('planner connection failure highlights planning without inventing completed stages', () => {
+  const html = Flow.render({
+    task:{task_id:'t-failed',status:'failed'},
+    error:'Planner model request failed (connection failed)',
+    plan:{steps:[]}
+  }, 'real');
+  assert.match(stage(html, 'plan'), /data-current="true"/);
+  assert.match(stage(html, 'plan'), /data-status="failed"/);
+  assert.match(stage(html, 'execute'), /data-status="not-returned"/);
+});
