@@ -93,18 +93,20 @@ test('Mock happy, reject and failure flows stay separate and functional',async()
         assert.equal(h.calls.length,0);
     }
 });
-test('front-end presentation scenario advances all nine stages and completes without API requests',async()=>{
-    const h=harness('mock');h.el('agentScenario').value='presentation';
+test('Real Mode can play the nine-stage front-end presentation without calling Agent APIs',async()=>{
+    const h=harness('real');h.el('agentScenario').value='presentation';
     await h.c.runAgent();
     for(let i=0;i<12&&h.state.task.status!=='completed';i++)await h.c.pollAgent();
     assert.equal(h.state.task.status,'completed');
-    assert.equal(h.state.mode,'mock');
+    assert.equal(h.state.mode,'real');
+    assert.equal(h.state.presentationDemo,true);
     assert.equal(h.state.snapshot.plan.steps.length,9);
     assert.ok(h.state.snapshot.plan.steps.every(step=>step.status==='completed'));
     assert.equal(h.calls.length,0);
     assert.ok(h.state.report);
+    assert.match(h.el('agentTaskStatus').textContent,/Real Mode · 前端演示/);
     assert.match(h.el('agentFinal').innerHTML,/前端演示流程已完成/);
-    assert.match(h.el('agentFlowVisualization').innerHTML,/Mock Mode · 模拟任务数据/);
+    assert.match(h.el('agentFlowVisualization').innerHTML,/Real Mode · 前端演示流程/);
     assert.match(h.el('agentFlowVisualization').innerHTML,/data-stage="result"[^>]*data-status="completed"/);
 });
 test('every organization preview sends no requests and material Mock happy path still completes',async()=>{
