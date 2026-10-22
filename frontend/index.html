@@ -538,7 +538,7 @@
                     <label for="agentMode">Mode</label>
                     <select id="agentMode" class="filter-select"><option value="mock">Mock Mode</option><option value="real">Real Mode</option></select>
                     <label id="agentScenarioLabel" for="agentScenario">Mock Scenario</label>
-                    <select id="agentScenario" class="filter-select"><option value="happy">Happy path</option><option value="failed">Analysis failure</option></select>
+                    <select id="agentScenario" class="filter-select"><option value="happy">Happy path</option><option value="presentation">完整流程演示（仅前端）</option><option value="failed">Analysis failure</option></select>
                     <button id="runAgent" class="btn btn-primary" disabled onclick="runAgent()">Run Agent</button>
                     <button id="refreshAgent" class="btn btn-secondary btn-sm" disabled onclick="pollAgent()">Refresh Task Status</button>
                     <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Mock Mode</span>
@@ -1077,6 +1077,14 @@
             catch (error) { agentError('无法复制路径，请手动复制显示的 Package Path。'); }
         }
         ['agentWorkspacePath','agentGoal'].forEach(id => byId(id).addEventListener('input', updateAgentControls));
+        function updateAgentModeNote() {
+            const presentation = byId('agentScenario').value === 'presentation';
+            byId('agentModeNote').textContent = presentation && byId('agentMode').value === 'mock'
+                ? '完整流程演示：前端模拟数据，仅展示流程推进；不调用真实模型、不读取或修改工作空间文件。'
+                : byId('agentMode').value === 'mock'
+                    ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。'
+                    : 'Real Mode：调用正式 Agent API。接口不可用时显示真实错误，不会切换至 Mock。';
+        }
         byId('agentMode').addEventListener('change', () => {
             // Mode is locked during active work; clear only the idle view.
             if (agentState.workflow !== 'materials' || agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
@@ -1085,8 +1093,17 @@
             AgentAPI.setMode(agentState.mode);
             resetAgentPresentation();
             byId('agentTaskStatus').textContent = 'Ready · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');
-            byId('agentModeNote').textContent = byId('agentMode').value === 'mock' ? 'Mock Mode：分析与执行均为演示，不读取或修改文件。Browse 使用真实目录 API。' : 'Real Mode：调用正式 Agent API。接口不可用时显示真实错误，不会切换至 Mock。';
+            updateAgentModeNote();
             updateAgentControls();
+        });
+        byId('agentScenario').addEventListener('change', () => {
+            if (agentState.workflow !== 'materials' || agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
+            if (byId('agentScenario').value === 'presentation' && byId('agentMode').value !== 'mock') {
+                byId('agentMode').value = 'mock';
+                byId('agentMode').dispatchEvent(new Event('change'));
+                return;
+            }
+            updateAgentModeNote();
         });
         // Existing FileForge logic
         let files = [];
