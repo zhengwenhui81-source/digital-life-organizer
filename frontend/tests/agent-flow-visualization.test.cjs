@@ -107,7 +107,7 @@ test('moves focus to planning, approval, verification and result as task status 
     [{task:{status:'planning'},plan:{steps:[]}}, 'plan'],
     [{task:{status:'awaiting_approval'},plan:{steps:[]}}, 'approve'],
     [{task:{status:'verifying'},plan:{steps:[]}}, 'verify'],
-    [{task:{status:'completed'},plan:{steps:[]}}, 'result']
+    [{task:{status:'completed'},plan:{steps:[]},final_report:{summary:'Verified final result'}}, 'result']
   ];
   cases.forEach(function (item) {
     const html = Flow.render(item[0], 'real');
