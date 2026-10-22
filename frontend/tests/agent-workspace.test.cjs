@@ -94,7 +94,7 @@ test('Mock happy, reject and failure flows stay separate and functional',async()
     }
 });
 test('Real Mode creates and polls a real Agent task; the graph follows returned snapshots',async()=>{
-    const h=harness('real');h.el('agentScenario').value='presentation';
+    const h=harness('real');h.el('agentScenario').value='happy';
     const tools=['list_files','search_files','read_document','compare_versions','plan_task','preview_plan','copy_file','verify_result','final_report'];
     const makeSteps=statuses=>tools.map((tool,i)=>({step_id:'step_'+i,tool,description:'步骤 '+tool,status:statuses[i],risk:'low'}));
     const planning={task:{task_id:'task',status:'planning',user_goal:'准备课程材料',workspace:'E:/unknown-workspace'},plan:{steps:makeSteps(['completed','running','pending','pending','pending','pending','pending','pending','pending'])},results:[],pending_operations:[],operations:[],preview_id:null,error:null};
