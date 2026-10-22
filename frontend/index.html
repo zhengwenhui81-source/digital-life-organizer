@@ -845,7 +845,7 @@
             clearTimeout(agentState.copyTimer);
             agentState.report = null; agentState.packageRiskKey = agentState.acceptedPackageRisk = null;
             byId('packageRiskIntent').checked = false; byId('packageRiskControl').hidden = true;
-            byId('agentPackagePreview').textContent = agentState.mode === 'real' ? '真实 Package 规划数据尚未提供。' : 'Mock Mode：此处不展示真实 Package 规划数据。';
+            byId('agentPackagePreview').textContent = agentState.mode === 'real' ? '运行任务后显示材料包规划与核验结果。' : 'Mock Mode：此处不展示真实 Package 规划数据。';
             byId('agentOtherResults').textContent = '尚无其他工具结果。';
             byId('agentMatching').textContent = agentState.mode === 'mock' ? 'Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。' : '未执行：尚未收到此工具的结果。';
             byId('agentPlan').innerHTML = '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
