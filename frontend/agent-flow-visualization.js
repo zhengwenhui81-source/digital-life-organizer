@@ -66,6 +66,9 @@
     if (stage.key === 'result' && report && report.status === 'completed') {
       return {key:'completed', label:'结果已生成', evidence:[]};
     }
+    if (stage.key === 'plan' && taskStatus === 'awaiting_approval' && snapshot && snapshot.plan && asArray(snapshot.plan.steps).length) {
+      return {key:'completed', label:'计划已生成', evidence:[]};
+    }
     const matches = steps.filter(function (step) {
       const searchable = [step.tool, step.description, step.name].filter(Boolean).join(' ');
       return stage.match.test(searchable);
