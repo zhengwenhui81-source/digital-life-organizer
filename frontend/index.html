@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/agent-flow-visualization.css">
     <style>
         :root {
             --navy: #0d1b2e;
@@ -502,7 +503,6 @@
             </div>
             <div class="nav-actions">
                 <button class="btn btn-primary" onclick="switchWorkspaceView('files'); openBrowser()"><span>📁</span> Scan Files</button>
-                <a class="btn btn-secondary" href="/static/course-workflow.html"><span>▤</span> 课程材料工作台</a>
                 <button class="btn btn-secondary" onclick="showSettings()"><span>⚙️</span> Settings</button>
             </div>
         </div>
@@ -576,6 +576,10 @@
                 <button class="btn btn-secondary" onclick="switchAgentWorkflow('materials')">返回材料准备</button>
             </section>
             <div id="materialWorkspace">
+            <section class="agent-card agent-flow-card" aria-labelledby="agentFlowTitle">
+                <div class="agent-flow-header"><div><h2 id="agentFlowTitle">Agent 动态流程图</h2><p class="agent-flow-intro">节点按当前 Agent 计划顺序连接，状态随任务快照刷新。</p></div></div>
+                <div id="agentFlowVisualization" aria-live="polite" aria-atomic="false"><div class="agent-flow-empty"><span class="agent-flow-empty-icon" aria-hidden="true">⌁</span><strong>等待 Agent 任务</strong><p>填写 Workspace 和目标后点击 Run Agent。流程图将根据 Agent 返回的计划步骤动态更新。</p></div></div>
+            </section>
             <div class="agent-card"><h2>2. Agent Plan</h2><div id="agentPlan" aria-live="polite"><p class="agent-placeholder">Run a task to see the execution plan.</p></div></div>
             <div class="agent-card"><h2>3. Analysis Results</h2>
                 <div class="agent-grid">
@@ -716,6 +720,7 @@
     <script src="/static/package-preview.js"></script>
     <script src="/static/organization-preview.js"></script>
     <script src="/static/organization-demo.js"></script>
+    <script src="/static/agent-flow-visualization.js"></script>
     <script>
         // State
         const agentState = {workflow: 'materials', organizationDemo: false, task: null, taskContext: null, snapshot: null, mode: 'mock', busy: false, timer: null, report: null, pollInFlight: false, decisionBusy: false, generation: 0, userRejected: false, approvalValid: false, decisionAction: null, copyTimer: null, packageRiskKey: null, acceptedPackageRisk: null};
@@ -844,6 +849,7 @@
             byId('agentOtherResults').textContent = '尚无其他工具结果。';
             byId('agentMatching').textContent = agentState.mode === 'mock' ? 'Mock 演示未提供正式 Matching Phase 1 结果；不代表已完成匹配。' : '未执行：尚未收到此工具的结果。';
             byId('agentPlan').innerHTML = '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
+            byId('agentFlowVisualization').innerHTML = AgentFlowVisualization.render(null, agentState.mode);
             ['agentVersions','agentConflicts','agentMaterials'].forEach(id => {
                 byId(id).textContent = 'Analysis results will appear here.';
                 byId(id).classList.add('agent-placeholder');
@@ -873,6 +879,7 @@
             syncPackageRisk();
             byId('agentPackagePreview').innerHTML = mock ? '<p>Mock Mode：此处不展示真实 Package 规划数据。</p>' : PackagePreview.renderSnapshot(snapshot, packageTask);
             byId('agentTaskStatus').textContent = snapshot.task.status + ' · ' + (mock ? 'Mock Mode' : 'Real Mode');
+            byId('agentFlowVisualization').innerHTML = AgentFlowVisualization.render(snapshot, agentState.mode);
             const symbols = {pending:'○',running:'●',completed:'✓',failed:'✕',awaiting_approval:'⚠',skipped:'－'};
             byId('agentPlan').innerHTML = agentArray(snapshot.plan?.steps).map(step => '<div class="agent-step" data-status="' + agentEscape(step.status) + '"><span class="step-symbol">' + (symbols[step.status] || '○') + '</span><div>' + agentEscape(step.description) + '<small>' + agentEscape(step.tool) + ' · ' + agentEscape(step.status) + '</small></div><span class="badge ' + (step.risk === 'medium' ? 'badge-warning' : step.risk === 'high' ? 'badge-critical' : 'badge-neutral') + '">' + agentEscape(step.risk) + '</span></div>').join('') || '<p class="agent-placeholder">Run a task to see the execution plan.</p>';
             const results = agentArray(snapshot.results);
