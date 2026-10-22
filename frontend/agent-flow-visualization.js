@@ -98,7 +98,44 @@
     return {key:snapshot ? 'not-returned' : 'idle', label:snapshot ? '当前快照未返回' : '等待任务', evidence:[]};
   }
 
-  function stageMarkup(stage, index, status, snapshot) {
+  function currentStageKey(snapshot, steps) {
+    if (!snapshot || !snapshot.task) return null;
+    const taskStatus = typeof snapshot.task.status === 'string' ? snapshot.task.status : '';
+    const failedStep = steps.find(function (step) { return normalizeStatus(step.status).key === 'failed'; });
+    const activeStep = steps.find(function (step) {
+      const key = normalizeStatus(step.status).key;
+      return key === 'running' || key === 'awaiting_approval';
+    });
+
+    function matchingStage(step) {
+      if (!step) return null;
+      const searchable = [step.tool, step.description, step.name].filter(Boolean).join(' ');
+      const match = STAGES.find(function (stage) { return stage.match.test(searchable); });
+      return match ? match.key : null;
+    }
+
+    if (taskStatus === 'awaiting_approval') return 'approve';
+    if (taskStatus === 'failed') {
+      const failedStage = matchingStage(failedStep);
+      if (failedStage) return failedStage;
+      const errorText = [snapshot.error, snapshot.task.error, snapshot.message].filter(Boolean).join(' ');
+      if (/planner|plan|model request|connection failed/i.test(errorText)) return 'plan';
+      return null;
+    }
+    const activeStage = matchingStage(activeStep);
+    if (activeStage) return activeStage;
+    if (taskStatus === 'created') return 'scan';
+    if (taskStatus === 'planning') return 'plan';
+    if (taskStatus === 'executing') {
+      const nextStep = steps.find(function (step) { return normalizeStatus(step.status).key === 'pending'; });
+      return matchingStage(nextStep) || 'execute';
+    }
+    if (taskStatus === 'verifying') return 'verify';
+    if (taskStatus === 'completed') return 'result';
+    return null;
+  }
+
+  function stageMarkup(stage, index, status, snapshot, activeStageKey) {
     const evidence = status.evidence || [];
     const actual = evidence.length
       ? '<div class="agent-flow-evidence">' + evidence.slice(0,2).map(function (step) {
@@ -108,9 +145,10 @@
         }).join('') + (evidence.length > 2 ? '<small>另有 ' + (evidence.length - 2) + ' 个关联步骤</small>' : '') + '</div>'
       : '<div class="agent-flow-stage-hint">' + (snapshot ? '此阶段没有匹配到当前任务的执行步骤' : '开始任务后显示状态') + '</div>';
     const meta = evidence.length ? '<span class="agent-flow-tool-count">' + evidence.length + ' 个关联步骤</span>' : '';
-    return '<article class="agent-flow-stage" role="listitem" data-stage="' + stage.key + '" data-status="' + status.key + '" data-path="' + stage.path + '" style="--flow-col:' + stage.col + ';--flow-row:' + stage.row + ';">' +
+    return '<article class="agent-flow-stage" role="listitem" data-stage="' + stage.key + '" data-status="' + status.key + '" data-current="' + (activeStageKey === stage.key ? 'true' : 'false') + '" data-path="' + stage.path + '" style="--flow-col:' + stage.col + ';--flow-row:' + stage.row + ';">' +
       '<div class="agent-flow-stage-top"><span class="agent-flow-stage-number">' + String(index + 1).padStart(2,'0') + '</span>' +
-      '<span class="agent-flow-stage-state"><i aria-hidden="true">' + (STATUS[status.key] ? STATUS[status.key].symbol : '·') + '</i>' + escapeHtml(status.label) + '</span></div>' +
+      '<span class="agent-flow-stage-state"><i aria-hidden="true">' + (STATUS[status.key] ? STATUS[status.key].symbol : '·') + '</i>' + escapeHtml(status.label) + '</span>' +
+      (activeStageKey === stage.key ? '<span class="agent-flow-current-badge">当前环节</span>' : '') + '</div>' +
       '<div class="agent-flow-stage-icon" aria-hidden="true">' + ({scan:'▤',identify:'⌕',read:'▧',versions:'⇄',approve:'◇',execute:'▣',verify:'✓',result:'▤'}[stage.key] || '○') + '</div>' +
       '<strong class="agent-flow-stage-title">' + escapeHtml(stage.title) + '</strong>' +
       '<p class="agent-flow-stage-subtitle">' + escapeHtml(stage.subtitle) + '</p>' +
@@ -139,9 +177,10 @@
     const percent = Math.round(counts.completed / STAGES.length * 100);
     const note = !hasTask
       ? '点击 Run Agent 后，流程图将跟随任务快照更新；灰色节点表示尚未开始或没有任务证据。'
-      : '节点状态根据当前任务快照与计划步骤匹配。灰色节点表示当前任务未返回对应步骤，不代表该操作已执行。';
+      : '流动连线呈现流程方向；当前环节随任务状态切换。节点完成状态仍以 Agent 返回的任务快照为准。';
+    const activeStageKey = currentStageKey(hasTask ? snapshot : null, steps);
     const nodes = stageStates.map(function (item, index) {
-      return stageMarkup(item.stage, index, item.state, hasTask ? snapshot : null);
+      return stageMarkup(item.stage, index, item.state, hasTask ? snapshot : null, activeStageKey);
     }).join('');
 
     return '<section class="agent-flow" data-task-status="' + escapeHtml(taskStatus || 'idle') + '">' +
@@ -156,7 +195,7 @@
       '</div>' +
       '<div class="agent-flow-progress" role="progressbar" aria-label="有完成证据的流程阶段比例" aria-valuemin="0" aria-valuemax="' + STAGES.length + '" aria-valuenow="' + counts.completed + '"><span style="width:' + percent + '%"></span></div>' +
       '<div class="agent-flow-graph" role="list" aria-label="课程材料整理流程图">' + nodes + '</div>' +
-      '<p class="agent-flow-footnote">连线表示流程阶段的先后关系；节点颜色表示当前快照可支持的状态。未返回的阶段不会被标记为已完成。</p>' +
+      '<p class="agent-flow-footnote">动态连线持续显示流程方向，蓝色高亮标记当前环节；绿色、红色与橙色状态分别表示已有完成证据、失败和等待审批。未返回的阶段不会被标记为已完成。</p>' +
       '</section>';
   }
 
