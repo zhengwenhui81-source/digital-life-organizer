@@ -538,7 +538,7 @@
                     <label for="agentMode">Mode</label>
                     <select id="agentMode" class="filter-select"><option value="real" selected>Real Mode</option><option value="mock">Mock Mode</option></select>
                     <label id="agentScenarioLabel" for="agentScenario">Scenario</label>
-                    <select id="agentScenario" class="filter-select"><option value="presentation" selected>完整流程</option><option value="happy">Happy path（Mock）</option><option value="failed">Analysis failure（Mock）</option></select>
+                    <select id="agentScenario" class="filter-select"><option value="happy" selected>标准流程</option><option value="failed">分析异常</option></select>
                     <button id="runAgent" class="btn btn-primary" disabled onclick="runAgent()">Run Agent</button>
                     <button id="refreshAgent" class="btn btn-secondary btn-sm" disabled onclick="pollAgent()">Refresh Task Status</button>
                     <span id="agentTaskStatus" role="status" aria-live="polite">Ready · Real Mode</span>
@@ -1080,8 +1080,11 @@
         }
         ['agentWorkspacePath','agentGoal'].forEach(id => byId(id).addEventListener('input', updateAgentControls));
         function updateAgentModeNote() {
-            byId('agentModeNote').textContent = byId('agentMode').value === 'mock'
-                ? 'Mock Mode：用于预览整理流程，不读取或修改工作空间文件。Browse 使用真实目录 API。'
+            const mockMode = byId('agentMode').value === 'mock';
+            byId('agentScenario').hidden = !mockMode;
+            byId('agentScenarioLabel').hidden = !mockMode;
+            byId('agentModeNote').textContent = mockMode
+                ? 'Mock Mode：用于预览整理流程。Browse 使用真实目录 API。'
                 : 'Real Mode：执行任务并根据 Agent 返回的计划、状态和结果更新流程图。';
         }
         byId('agentMode').addEventListener('change', () => {
@@ -1099,6 +1102,7 @@
             if (agentState.workflow !== 'materials' || agentState.busy || agentState.pollInFlight || agentState.decisionBusy) return;
             updateAgentModeNote();
         });
+        updateAgentModeNote();
         // Existing FileForge logic
         let files = [];
         let currentFilter = { type: 'files', search: '', category: 'all', status: 'all' };
