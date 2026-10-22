@@ -6,8 +6,11 @@ on:
     paths:
       - 'frontend/index.html'
       - 'frontend/agent-flow-visualization.js'
+      - 'frontend/agent-mock.js'
+      - 'frontend/agent-api.js'
       - 'frontend/agent-flow-visualization.css'
       - 'frontend/tests/agent-flow-visualization.test.cjs'
+      - 'frontend/tests/agent-workspace.test.cjs'
       - '.github/workflows/agent-flow-visualization.yml'
   push:
     branches: [feat/frontend-workflow-ui]
@@ -42,3 +45,5 @@ jobs:
             process.stdout.write('inline script ' + (index + 1) + ': syntax OK\n');
           });
           NODE
+      - name: Test Agent workspace interaction and Real Mode presentation flow
+        run: node --test frontend/tests/agent-workspace.test.cjs
