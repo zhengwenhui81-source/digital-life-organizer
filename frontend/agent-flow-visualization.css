@@ -1,0 +1,54 @@
+/* Agent execution flow: driven by the current TaskSnapshot, not a pre-baked animation. */
+.agent-flow-card .agent-flow-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.agent-flow-card .agent-flow-header h2{margin-bottom:.25rem}
+.agent-flow-card .agent-flow-intro{font-size:.82rem;opacity:.72;margin-bottom:1rem}
+.agent-flow{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:1rem;background:rgba(0,0,0,.12);min-width:0}
+.agent-flow-overview{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap}
+.agent-flow-overview>div{display:flex;flex-direction:column;gap:.15rem}
+.agent-flow-task-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;opacity:.62}
+.agent-flow-overview strong{font-size:1rem;color:var(--light)}
+.agent-flow-mode{font-size:.72rem;padding:.3rem .55rem;border:1px solid rgba(43,125,233,.3);border-radius:999px;background:rgba(43,125,233,.09);color:#a9ceff}
+.agent-flow-note{font-size:.8rem;opacity:.76;margin:.65rem 0 .85rem}
+.agent-flow-summary{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0}
+.agent-flow-summary span{padding:.38rem .6rem;border-radius:6px;background:rgba(255,255,255,.045);font-size:.72rem;color:var(--silver)}
+.agent-flow-summary strong{color:var(--light);font-size:.9rem;margin-right:.2rem}
+.agent-flow-progress{height:4px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin:.7rem 0 1.1rem}
+.agent-flow-progress>span{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--success));transition:width .35s ease}
+.agent-flow-list{display:flex;flex-direction:column;gap:0;min-width:0}
+.agent-flow-item{display:grid;grid-template-columns:34px minmax(0,1fr);gap:.75rem;min-width:0}
+.agent-flow-rail{position:relative;display:flex;justify-content:center;align-items:flex-start;min-height:100%;padding-top:.95rem}
+.agent-flow-marker{position:relative;z-index:1;display:grid;place-items:center;width:27px;height:27px;flex:0 0 27px;border:1px solid rgba(255,255,255,.18);border-radius:50%;background:#14243a;color:#aebbd0;font-size:.9rem;font-weight:700}
+.agent-flow-connector{position:absolute;top:2.55rem;bottom:-.45rem;width:2px;background:rgba(255,255,255,.12)}
+.agent-flow-node{min-width:0;margin:.35rem 0 .7rem;padding:.75rem .9rem;border:1px solid rgba(255,255,255,.11);border-radius:9px;background:rgba(255,255,255,.025);transition:border-color .2s,background .2s,box-shadow .2s}
+.agent-flow-node-heading{display:flex;align-items:center;justify-content:space-between;gap:.7rem;margin-bottom:.3rem}
+.agent-flow-index{font-size:.65rem;letter-spacing:.1em;opacity:.5;font-family:'IBM Plex Mono',monospace}
+.agent-flow-status{font-size:.72rem;color:#aebbd0;white-space:nowrap}
+.agent-flow-description{display:block;color:var(--light);font-size:.9rem;line-height:1.5;overflow-wrap:anywhere}
+.agent-flow-meta{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.4rem}
+.agent-flow-tool,.agent-flow-risk{font-size:.7rem;overflow-wrap:anywhere}
+.agent-flow-tool{color:#9db1cc;font-family:'IBM Plex Mono',monospace}
+.agent-flow-risk{padding:.1rem .4rem;border-radius:4px;background:rgba(255,255,255,.06);color:#b8c4d6}
+.agent-flow-item[data-status="completed"] .agent-flow-marker{border-color:rgba(39,174,96,.5);background:rgba(39,174,96,.15);color:#75e1a0}
+.agent-flow-item[data-status="completed"] .agent-flow-node{border-color:rgba(39,174,96,.2)}
+.agent-flow-item[data-status="completed"] .agent-flow-connector{background:rgba(39,174,96,.45)}
+.agent-flow-item[data-status="running"] .agent-flow-marker{border-color:var(--blue);background:rgba(43,125,233,.2);color:#b7d6ff;animation:agentFlowPulse 1.5s ease-in-out infinite}
+.agent-flow-item[data-status="running"] .agent-flow-node{border-color:rgba(43,125,233,.65);background:rgba(43,125,233,.08);box-shadow:0 0 0 1px rgba(43,125,233,.08)}
+.agent-flow-item[data-status="running"] .agent-flow-status{color:#9cc5ff}
+.agent-flow-item[data-status="running"] .agent-flow-connector{background:linear-gradient(to bottom,var(--blue),rgba(43,125,233,.12));background-size:100% 180%;animation:agentFlowLine 1.5s linear infinite}
+.agent-flow-item[data-status="failed"] .agent-flow-marker{border-color:rgba(231,76,60,.6);background:rgba(231,76,60,.15);color:#ff9d95}
+.agent-flow-item[data-status="failed"] .agent-flow-node{border-color:rgba(231,76,60,.5);background:rgba(231,76,60,.06)}
+.agent-flow-item[data-status="failed"] .agent-flow-status{color:#ff9d95}
+.agent-flow-item[data-status="awaiting-approval"] .agent-flow-marker{border-color:rgba(243,156,18,.6);background:rgba(243,156,18,.13);color:#ffd18b}
+.agent-flow-item[data-status="awaiting-approval"] .agent-flow-node{border-color:rgba(243,156,18,.35)}
+.agent-flow-item[data-status="awaiting-approval"] .agent-flow-status{color:#ffd18b}
+.agent-flow-item[data-status="skipped"] .agent-flow-node{opacity:.58}
+.agent-flow-empty{display:flex;align-items:center;flex-direction:column;justify-content:center;min-height:130px;padding:1.5rem;text-align:center;border:1px dashed rgba(255,255,255,.14);border-radius:9px}
+.agent-flow-empty-icon{font-size:1.8rem;color:#8dbbff;margin-bottom:.4rem}
+.agent-flow-empty strong{font-size:.9rem;color:var(--light)}
+.agent-flow-empty p{max-width:540px;margin:.45rem 0 0;font-size:.78rem;opacity:.68}
+.agent-flow-empty.compact{min-height:90px;padding:1rem}
+.agent-flow-footnote{font-size:.68rem;opacity:.5;margin-top:.85rem;line-height:1.6}
+@keyframes agentFlowPulse{0%,100%{box-shadow:0 0 0 0 rgba(43,125,233,.12)}50%{box-shadow:0 0 0 6px rgba(43,125,233,0)}}
+@keyframes agentFlowLine{from{background-position:0 100%}to{background-position:0 0}}
+@media(max-width:600px){.agent-flow{padding:.7rem}.agent-flow-item{grid-template-columns:29px minmax(0,1fr);gap:.45rem}.agent-flow-marker{width:24px;height:24px;flex-basis:24px}.agent-flow-rail{padding-top:.9rem}.agent-flow-connector{top:2.2rem}.agent-flow-node{padding:.65rem}.agent-flow-description{font-size:.82rem}.agent-flow-status{font-size:.65rem}}
+@media(prefers-reduced-motion:reduce){.agent-flow-item[data-status="running"] .agent-flow-marker,.agent-flow-item[data-status="running"] .agent-flow-connector{animation:none}.agent-flow-progress>span{transition:none}}
