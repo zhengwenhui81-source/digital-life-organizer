@@ -2,7 +2,18 @@
 import tempfile
 import unittest
 from pathlib import Path
-from course22_demo import ROUTES, NOTICE, OUTPUT, CATEGORIES, prepare, inventory, read_rules, material_input, selected_workspace, _single_approval_write_batch
+from course22_demo import (
+    ROUTES,
+    NOTICE,
+    OUTPUT,
+    CATEGORIES,
+    prepare,
+    inventory,
+    read_rules,
+    material_input,
+    selected_workspace,
+    _single_approval_write_batch,
+)
 
 class CourseDemoTests(unittest.TestCase):
     def setUp(self):
@@ -42,10 +53,14 @@ class CourseDemoTests(unittest.TestCase):
 
     def test_material_input_rejects_incomplete_rule_mapping(self):
         from docx import Document
+
         rec = prepare(self.source, self.takes)
         root = Path(rec['workspace'])
         doc = Document(root / NOTICE)
-        paragraph = next(p for p in doc.paragraphs if p.text.startswith('[整理规则] main.cpp => '))
+        paragraph = next(
+            p for p in doc.paragraphs
+            if p.text.startswith('[整理规则] main.cpp => ')
+        )
         paragraph._element.getparent().remove(paragraph._element)
         doc.save(root / NOTICE)
         with self.assertRaises(ValueError):
@@ -53,22 +68,38 @@ class CourseDemoTests(unittest.TestCase):
 
     def test_material_input_rejects_unknown_category(self):
         from docx import Document
+
         rec = prepare(self.source, self.takes)
         root = Path(rec['workspace'])
         doc = Document(root / NOTICE)
-        paragraph = next(p for p in doc.paragraphs if p.text.startswith('[整理规则] main.cpp => '))
-        paragraph.text = '[整理规则] main.cpp => ' + OUTPUT + '/07_未定义/main.cpp'
+        paragraph = next(
+            p for p in doc.paragraphs
+            if p.text.startswith('[整理规则] main.cpp => ')
+        )
+        paragraph.text = (
+            '[整理规则] main.cpp => ' + OUTPUT + '/07_未定义/main.cpp'
+        )
         doc.save(root / NOTICE)
         with self.assertRaises(ValueError):
             material_input(root)
 
     def test_write_operations_form_one_approval_batch(self):
         steps = (
-            [{'tool': 'create_folder', 'risk': 'medium', 'status': 'completed'} for _ in range(7)]
-            + [{'tool': 'copy_file', 'risk': 'medium', 'status': 'completed'} for _ in range(22)]
+            [
+                {'tool': 'create_folder', 'risk': 'medium', 'status': 'completed'}
+                for _ in range(7)
+            ]
+            + [
+                {'tool': 'copy_file', 'risk': 'medium', 'status': 'completed'}
+                for _ in range(22)
+            ]
         )
         self.assertTrue(_single_approval_write_batch(steps))
-        interleaved = steps[:8] + [{'tool': 'list_files', 'risk': 'low', 'status': 'completed'}] + steps[8:]
+        interleaved = (
+            steps[:8]
+            + [{'tool': 'list_files', 'risk': 'low', 'status': 'completed'}]
+            + steps[8:]
+        )
         self.assertFalse(_single_approval_write_batch(interleaved))
         self.assertFalse(_single_approval_write_batch(steps[:-1]))
 
