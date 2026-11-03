@@ -13,6 +13,7 @@ from course22_demo import (
     material_input,
     selected_workspace,
     _single_approval_write_batch,
+    audit,
 )
 
 class CourseDemoTests(unittest.TestCase):
@@ -102,6 +103,84 @@ class CourseDemoTests(unittest.TestCase):
         )
         self.assertFalse(_single_approval_write_batch(interleaved))
         self.assertFalse(_single_approval_write_batch(steps[:-1]))
+
+    def test_audit_checks_folder_count_and_approved_write_batch(self):
+        import shutil
+
+        rec = prepare(self.source, self.takes)
+        root = Path(rec['workspace'])
+        material = material_input(root)
+        output_root = root / OUTPUT
+        output_root.mkdir()
+        folders = [output_root] + [output_root / category for category in CATEGORIES]
+        for folder in folders[1:]:
+            folder.mkdir()
+        for name in ROUTES:
+            destination = target(root, name)
+            shutil.copy2(root / name, destination)
+
+        steps = []
+        for index, folder in enumerate(folders, 1):
+            steps.append({
+                'step_id': f'step_{index:03d}',
+                'tool': 'create_folder',
+                'risk': 'medium',
+                'status': 'completed',
+                'arguments': {'path': str(folder)},
+            })
+        for name in ROUTES:
+            index = len(steps) + 1
+            steps.append({
+                'step_id': f'step_{index:03d}',
+                'tool': 'copy_file',
+                'risk': 'medium',
+                'status': 'completed',
+                'arguments': {
+                    'source': str(root / name),
+                    'destination': str(target(root, name)),
+                },
+            })
+
+        results = list(material['tool_inputs'])
+        results.extend({
+            'success': True, 'tool': 'create_folder',
+            'data': {'path': str(folder)}, 'message': 'created', 'error': None,
+        } for folder in folders)
+        results.extend({
+            'success': True, 'tool': 'copy_file',
+            'data': {'source': str(root / name), 'destination': str(target(root, name))},
+            'message': 'copied', 'error': None,
+        } for name in ROUTES)
+        results.append({
+            'success': True, 'tool': 'verify_result',
+            'data': {'passed': True}, 'message': 'verified', 'error': None,
+        })
+        snapshot = {
+            'task': {'task_id': 'task_audit', 'workspace': str(root), 'status': 'completed'},
+            'plan': {'steps': steps},
+            'results': results,
+        }
+
+        class StubService:
+            def snapshot(self, task_id):
+                return snapshot
+
+            def report(self, task_id):
+                return {'status': 'completed'}
+
+        records = {str(root): rec}
+        passed = audit(StubService(), 'task_audit', records)
+        self.assertEqual(passed['status'], 'controlled_pass')
+        self.assertTrue(passed['checks']['create_folder_count_7'])
+        self.assertTrue(passed['checks']['single_approval_write_batch'])
+
+        snapshot['results'].pop(next(
+            index for index, result in enumerate(snapshot['results'])
+            if result['tool'] == 'create_folder'
+        ))
+        failed = audit(StubService(), 'task_audit', records)
+        self.assertEqual(failed['status'], 'failed')
+        self.assertFalse(failed['checks']['create_folder_count_7'])
 
     def test_unknown_inputs_and_unreadable_notice_rejected(self):
         (self.source/'unknown.txt').write_bytes(b'extra')
