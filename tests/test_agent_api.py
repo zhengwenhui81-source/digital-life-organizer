@@ -1,4 +1,4 @@
-"""The five Agent routes follow the agreed HTTP and approval contracts."""
+"""Agent task routes enforce request and approval contracts."""
 
 from __future__ import annotations
 
