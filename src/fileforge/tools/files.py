@@ -6,8 +6,8 @@ FileForge's mover may overwrite a destination, so the Agent wrapper uses an
 exclusive destination create for both copy and move instead.
 
 Approval is an internal, keyword-only execution gate. It is deliberately absent
-from the public tool arguments in API_CONTRACT.md; the future Agent approval
-endpoint is responsible for passing it after the user approves a preview.
+from the public tool arguments in API_CONTRACT.md; the Agent service passes it
+only after the user approves the validated operation preview.
 """
 
 from __future__ import annotations
