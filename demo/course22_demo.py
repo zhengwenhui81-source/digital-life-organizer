@@ -91,6 +91,7 @@ def read_rules(text):
         raise ValueError('课程整理规则必须覆盖全部22份材料且不得包含额外文件')
     return routes
 
+
 def prepare(source, takes):
     from docx import Document
 
@@ -138,7 +139,11 @@ def material_input(workspace):
     document = notice.get('data', {}).get('document') if isinstance(notice.get('data'), dict) else None
     if (
         not isinstance(files, list)
-        or any(not isinstance(item, dict) or not isinstance(item.get('filename'), str) for item in files)
+        or any(
+            not isinstance(item, dict)
+            or not isinstance(item.get('filename'), str)
+            for item in files
+        )
         or not isinstance(document, dict)
         or not isinstance(document.get('text'), str)
     ):
@@ -175,6 +180,7 @@ def _single_approval_write_batch(steps):
         and [steps[index].get('tool') for index in positions] == expected
         and all(steps[index].get('status') == 'completed' for index in positions)
     )
+
 
 def selected_workspace(raw):
     """Explicit user selection only; never fall back to a prepared/default path."""
@@ -242,14 +248,23 @@ def audit(service, tid, records):
         ),
         "source_22_unchanged": inventory(root) == record['baseline'],
         "exact_output_22": actual == expected and len(actual) == 22,
-        "all_tool_results_success": bool(results) and all(result.get('success') is True for result in results),
-        "create_folder_count_7": sum(result.get('tool') == 'create_folder' for result in results) == 7,
-        "copy_tool_count_22": sum(result.get('tool') == 'copy_file' for result in results) == 22,
+        "all_tool_results_success": bool(results)
+        and all(result.get('success') is True for result in results),
+        "create_folder_count_7": sum(
+            result.get('tool') == 'create_folder' for result in results
+        ) == 7,
+        "copy_tool_count_22": sum(
+            result.get('tool') == 'copy_file' for result in results
+        ) == 22,
         "single_approval_write_batch": _single_approval_write_batch(steps),
-        "six_exact_categories": {path.name for path in output_root.iterdir() if path.is_dir()} == set(routes.values()),
+        "six_exact_categories": {
+            path.name for path in output_root.iterdir() if path.is_dir()
+        } == set(routes.values()),
         "plan_uses_read_rules": all(
-            Path(step['arguments']['destination']) == target(root, Path(step['arguments']['source']).name, routes)
-            for step in steps if step.get('tool') == 'copy_file'
+            Path(step['arguments']['destination'])
+            == target(root, Path(step['arguments']['source']).name, routes)
+            for step in steps
+            if step.get('tool') == 'copy_file'
         ),
         "backend_sha_verification": bool(results)
         and results[-1].get('tool') == 'verify_result'
