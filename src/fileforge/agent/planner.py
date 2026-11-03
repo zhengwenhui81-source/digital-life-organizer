@@ -138,13 +138,14 @@ Always plan an actual read_document of the relevant requirement document BEFORE
 extract_requirements, even if that document's text is already in the goal.
 Use read_document only for TXT/PDF/DOCX/XLSX; unsupported files may be scanned
 but never pretend their bodies have been read.
-Include only steps that
-serve the goal. Do not invent filenames, file contents, or results. When an
+Do not invent filenames, file contents, or results. When an
 argument depends on a previous result, use an empty object or list placeholder.
 To analyze unknown workspace documents, collect candidates with list_files or
-search_files, then use read_document with empty arguments to read each supported
-candidate. A following compare_versions with empty arguments compares documents
-read after that collection. A failed read stops the task.
+search_files, then use read_document with empty arguments to read up to 10
+supported candidates from the latest collection. If more than 10 readable
+candidates are present, narrow the collection with search_files to task-relevant
+files before reading. A following compare_versions with empty arguments compares
+documents read after that collection. A failed read stops the task.
 For detect_conflicts or extract_requirements, collect and read the relevant
 notice/rule documents first, then use empty arguments. Keep notice/rule documents
 separate from candidate materials; a material mentioned in a notice is not an
