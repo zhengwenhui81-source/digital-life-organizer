@@ -21,6 +21,8 @@ def test_plan_task_generates_contract_fields(tmp_path: Path) -> None:
         assert str(tmp_path) in prompt
         assert "list_files(workspace: string" in prompt
         assert "Use workspace, never path, for list_files" in prompt
+        assert "read_document with empty arguments to read up to 10" in prompt
+        assert "narrow the collection with search_files" in prompt
         return json.dumps(
             {
                 "steps": [
