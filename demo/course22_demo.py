@@ -64,7 +64,7 @@ def target(root, name, routes=None):
 
 
 def read_rules(text):
-    """Private course-material notation, not a public classification API."""
+    """Parse source-to-category mappings from the task requirements."""
     routes = {}
     for line in text.splitlines():
         if not line.startswith('[整理规则] '):
@@ -74,13 +74,22 @@ def read_rules(text):
             raise ValueError('课程整理规则格式不完整')
         name, raw = pair
         p = PurePosixPath(raw.replace('\\', '/'))
-        if name in routes or not name or '/' in name or '\\' in name or len(p.parts) != 3 or p.parts[0] != OUTPUT or p.parts[1] in ('.','..') or p.parts[2] != name:
+        invalid = (
+            name in routes
+            or not name
+            or '/' in name
+            or '\\' in name
+            or len(p.parts) != 3
+            or p.parts[0] != OUTPUT
+            or p.parts[1] not in CATEGORIES
+            or p.parts[2] != name
+        )
+        if invalid:
             raise ValueError('课程整理规则重复、越界或包含未知目标')
         routes[name] = p.parts[1]
-    if not routes:
-        raise ValueError('课程要求没有可验证的整理规则')
+    if set(routes) != set(ROUTES):
+        raise ValueError('课程整理规则必须覆盖全部22份材料且不得包含额外文件')
     return routes
-
 
 def prepare(source, takes):
     from docx import Document
@@ -116,13 +125,30 @@ def prepare(source, takes):
 
 
 def material_input(workspace):
-    """Read-only prompt input, no plan generation or classification decisions."""
+    """Build read-only task context from the workspace scan and requirement document."""
     from fileforge.tools import list_files
     from fileforge.document import read_document
+
     scan = list_files(workspace=str(workspace), recursive=False)
-    notice = read_document(str(Path(workspace)/NOTICE))
+    notice = read_document(str(Path(workspace) / NOTICE))
     if not scan['success'] or not notice['success']:
         raise ValueError('无法读取工作空间或课程要求')
+
+    files = scan.get('data', {}).get('files') if isinstance(scan.get('data'), dict) else None
+    document = notice.get('data', {}).get('document') if isinstance(notice.get('data'), dict) else None
+    if (
+        not isinstance(files, list)
+        or any(not isinstance(item, dict) or not isinstance(item.get('filename'), str) for item in files)
+        or not isinstance(document, dict)
+        or not isinstance(document.get('text'), str)
+    ):
+        raise ValueError('工作空间扫描结果或课程要求内容无效')
+
+    routes = read_rules(document['text'])
+    filenames = [item['filename'] for item in files]
+    if len(filenames) != 22 or len(set(filenames)) != 22 or set(filenames) != set(routes):
+        raise ValueError('工作空间文件集合与课程整理规则不一致')
+
     tools = [scan, notice]
     guidance = ('本次任务是依据课程规则复制归档，不是Package材料打包，不要build_package或move_file。'
                 '先list_files；只read_document课程要求并extract_requirements；'
@@ -134,8 +160,21 @@ def material_input(workspace):
                 '不能发明任务ID或重复执行带未知任务ID的验证步骤。'
                 '每步description不超过8个汉字。输出前核对：源集合等于Scanner的22个文件，各一次，不能重复。'
                 '每条整理规则只产生一个copy_file，22条之后禁止追加复制。全部写操作必须恰好7个create_folder和22个copy_file。')
-    return {"tool_inputs":tools, "prompt_context":'以下为同一Workspace的现有Scanner和read_document真实读取的输入资料（不是执行结果）：\n'+json.dumps(tools,ensure_ascii=False)+'\n\n'+guidance}
+    return {"tool_inputs": tools, "prompt_context": '以下为同一Workspace的现有Scanner和read_document真实读取的输入资料（不是执行结果）：\n' + json.dumps(tools, ensure_ascii=False) + '\n\n' + guidance}
 
+
+def _single_approval_write_batch(steps):
+    """Return whether all 29 file-changing steps form one contiguous batch."""
+    if not isinstance(steps, list) or any(not isinstance(step, dict) for step in steps):
+        return False
+    positions = [index for index, step in enumerate(steps) if step.get('risk') == 'medium']
+    expected = ['create_folder'] * 7 + ['copy_file'] * 22
+    return (
+        len(positions) == len(expected)
+        and positions == list(range(positions[0], positions[0] + len(expected)))
+        and [steps[index].get('tool') for index in positions] == expected
+        and all(steps[index].get('status') == 'completed' for index in positions)
+    )
 
 def selected_workspace(raw):
     """Explicit user selection only; never fall back to a prepared/default path."""
@@ -155,23 +194,78 @@ def audit(service, tid, records):
     record = records[str(root)]
     if snapshot['task']['status'] != 'completed':
         raise ValueError("Task is not completed; no successful audit")
-    report = service.report(tid)
-    notice = next(r['data']['document'] for r in snapshot['results'] if r['tool']=='read_document' and r['success'] and r['data']['document']['filename']==NOTICE)
-    routes = read_rules(notice['text'])
-    if set(routes)!=set(record['baseline']):raise ValueError('实际读取的整理规则与源文件集合不一致')
-    pairs = [{"filename":n,"source_sha256":digest(root/n),"target_sha256":digest(target(root,n,routes)),"approved_demo_baseline_sha256":record['baseline'][n]['sha256']} for n in record['baseline']]
-    actual = {str(p.relative_to(root/OUTPUT)) for p in (root/OUTPUT).rglob('*') if p.is_file()}
-    expected = {str(target(root,n,routes).relative_to(root/OUTPUT)) for n in routes}
-    checks = {"all_22_copies_equal": all(p['source_sha256']==p['target_sha256']==p['approved_demo_baseline_sha256'] for p in pairs),
-              "source_22_unchanged": inventory(root)==record['baseline'], "exact_output_22":actual==expected and len(actual)==22,
-              "all_tool_results_success": all(r['success'] for r in snapshot['results']),
-              "copy_tool_count_22":sum(r['tool']=='copy_file' for r in snapshot['results'])==22,
-              "six_exact_categories": {p.name for p in (root/OUTPUT).iterdir() if p.is_dir()} == set(routes.values()),
-              "plan_uses_read_rules": all(Path(s['arguments']['destination'])==target(root,Path(s['arguments']['source']).name,routes) for s in snapshot['plan']['steps'] if s['tool']=='copy_file'),
-              "backend_sha_verification": snapshot['results'][-1]['tool']=='verify_result' and snapshot['results'][-1]['data']['passed'] is True}
-    return {"status":"controlled_pass" if all(checks.values()) else "failed", "checks":checks,"copies":pairs,"snapshot":snapshot,"final_report":report,
-            "disclosure":"现有LLM Planner根据实际读取的课程规则规划；归档不等于内容审核。所有源件保留。","output":str(root/OUTPUT)}
 
+    report = service.report(tid)
+    results = snapshot.get('results', [])
+    notice_result = next(
+        (
+            result for result in results
+            if result.get('tool') == 'read_document'
+            and result.get('success')
+            and isinstance(result.get('data'), dict)
+            and isinstance(result['data'].get('document'), dict)
+            and result['data']['document'].get('filename') == NOTICE
+        ),
+        None,
+    )
+    if notice_result is None:
+        raise ValueError('已完成任务没有读取课程要求文档的记录')
+
+    routes = read_rules(notice_result['data']['document']['text'])
+    if set(routes) != set(record['baseline']):
+        raise ValueError('实际读取的整理规则与源文件集合不一致')
+
+    pairs = [
+        {
+            "filename": name,
+            "source_sha256": digest(root / name),
+            "target_sha256": digest(target(root, name, routes)),
+            "approved_demo_baseline_sha256": record['baseline'][name]['sha256'],
+        }
+        for name in record['baseline']
+    ]
+    output_root = root / OUTPUT
+    actual = {
+        str(path.relative_to(output_root))
+        for path in output_root.rglob('*')
+        if path.is_file()
+    }
+    expected = {
+        str(target(root, name, routes).relative_to(output_root))
+        for name in routes
+    }
+    steps = snapshot['plan'].get('steps', [])
+    checks = {
+        "all_22_copies_equal": all(
+            item['source_sha256'] == item['target_sha256'] == item['approved_demo_baseline_sha256']
+            for item in pairs
+        ),
+        "source_22_unchanged": inventory(root) == record['baseline'],
+        "exact_output_22": actual == expected and len(actual) == 22,
+        "all_tool_results_success": bool(results) and all(result.get('success') is True for result in results),
+        "create_folder_count_7": sum(result.get('tool') == 'create_folder' for result in results) == 7,
+        "copy_tool_count_22": sum(result.get('tool') == 'copy_file' for result in results) == 22,
+        "single_approval_write_batch": _single_approval_write_batch(steps),
+        "six_exact_categories": {path.name for path in output_root.iterdir() if path.is_dir()} == set(routes.values()),
+        "plan_uses_read_rules": all(
+            Path(step['arguments']['destination']) == target(root, Path(step['arguments']['source']).name, routes)
+            for step in steps if step.get('tool') == 'copy_file'
+        ),
+        "backend_sha_verification": bool(results)
+        and results[-1].get('tool') == 'verify_result'
+        and results[-1].get('success') is True
+        and isinstance(results[-1].get('data'), dict)
+        and results[-1]['data'].get('passed') is True,
+    }
+    return {
+        "status": "controlled_pass" if all(checks.values()) else "failed",
+        "checks": checks,
+        "copies": pairs,
+        "snapshot": snapshot,
+        "final_report": report,
+        "disclosure": "现有LLM Planner根据实际读取的课程规则规划；归档不等于内容审核。所有源件保留。",
+        "output": str(output_root),
+    }
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
