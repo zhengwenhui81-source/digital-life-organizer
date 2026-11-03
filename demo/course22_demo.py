@@ -136,7 +136,11 @@ def material_input(workspace):
         raise ValueError('无法读取工作空间或课程要求')
 
     files = scan.get('data', {}).get('files') if isinstance(scan.get('data'), dict) else None
-    document = notice.get('data', {}).get('document') if isinstance(notice.get('data'), dict) else None
+    document = (
+        notice.get('data', {}).get('document')
+        if isinstance(notice.get('data'), dict)
+        else None
+    )
     if (
         not isinstance(files, list)
         or any(
@@ -165,7 +169,13 @@ def material_input(workspace):
                 '不能发明任务ID或重复执行带未知任务ID的验证步骤。'
                 '每步description不超过8个汉字。输出前核对：源集合等于Scanner的22个文件，各一次，不能重复。'
                 '每条整理规则只产生一个copy_file，22条之后禁止追加复制。全部写操作必须恰好7个create_folder和22个copy_file。')
-    return {"tool_inputs": tools, "prompt_context": '以下为同一Workspace的现有Scanner和read_document真实读取的输入资料（不是执行结果）：\n' + json.dumps(tools, ensure_ascii=False) + '\n\n' + guidance}
+    prompt_context = (
+        '以下为同一Workspace的现有Scanner和read_document真实读取的输入资料（不是执行结果）：\n'
+        + json.dumps(tools, ensure_ascii=False)
+        + '\n\n'
+        + guidance
+    )
+    return {"tool_inputs": tools, "prompt_context": prompt_context}
 
 
 def _single_approval_write_batch(steps):
