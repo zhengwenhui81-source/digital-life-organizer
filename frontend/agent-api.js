@@ -1,4 +1,4 @@
-/* Agent API transport with real and mock adapters. */
+/* Agreed Agent HTTP transport. Mock is always an explicit choice. */
 window.AgentAPI = {
     mode: 'mock',
     // Preserve large JSON integer tokens before Number can round mtime_ns.
