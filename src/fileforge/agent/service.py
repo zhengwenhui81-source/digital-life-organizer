@@ -1,4 +1,4 @@
-"""In-memory task lifecycle behind the agreed Agent HTTP contract."""
+"""In-memory task lifecycle and execution orchestration for Agent tasks."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ from fileforge.agent.package_execution import execute_package
 from fileforge.agent.package_preview import freeze_package_preview
 from fileforge.agent.planner import plan_task
 
+# Keep automatic document batches bounded to match the Planner guidance.
 _READABLE_EXTENSIONS = frozenset({".txt", ".pdf", ".docx", ".xlsx"})
 _MAX_CANDIDATE_READS = 10
 
