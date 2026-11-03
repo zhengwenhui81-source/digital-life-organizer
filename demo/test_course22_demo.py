@@ -11,6 +11,7 @@ from course22_demo import (
     inventory,
     read_rules,
     material_input,
+    target,
     selected_workspace,
     _single_approval_write_batch,
     audit,
