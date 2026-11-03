@@ -526,7 +526,8 @@
                     <button id="agentBrowse" class="btn btn-secondary" onclick="openBrowser('agentWorkspacePath')">Browse</button>
                 </div>
                 <label class="agent-label" for="agentGoal">Natural Language Goal</label>
-                <textarea id="agentGoal" class="form-textarea" rows="6" placeholder="帮我准备生成式人工智能黑客松报名资料。
+                <label><input type="checkbox" id="agentInteractive"> 开启材料澄清（Real Mode）</label>
+<textarea id="agentGoal" class="form-textarea" rows="6" placeholder="帮我准备生成式人工智能黑客松报名资料。
 根据比赛通知找到需要提交的文件，
 同一材料如果有多个版本选择最新版本，
 检查不同通知有没有冲突，
@@ -589,6 +590,7 @@
             </section>
             <details class="agent-card"><summary>其他工具执行记录</summary><div id="agentOtherResults">尚无其他工具结果。</div></details>
             <section class="agent-card" aria-labelledby="agentPackageTitle"><h3 id="agentPackageTitle">Package · 冻结预览与执行结果</h3><div id="agentPackagePreview" aria-live="polite">真实 Package 规划数据尚未提供。</div></section>
+    <section id="agentClarification" class="agent-card" hidden></section>
             <div class="agent-card approval-card"><h2>4. Pending Actions · User Approval</h2>
                 <p class="agent-note">Review the source and destination before approving any file operations.</p>
                 <div id="agentActions" class="agent-placeholder">No file operations are waiting for approval.</div>
@@ -711,6 +713,7 @@
 
     <script src="/static/agent-mock.js"></script>
     <script src="/static/agent-api.js"></script>
+    <script src="/static/agent-clarification.js"></script>
     <script src="/static/agent-results.js"></script>
     <script src="/static/package-preview.js"></script>
     <script src="/static/organization-preview.js"></script>
@@ -771,7 +774,7 @@
             agentState.timer = setTimeout(() => { agentState.timer = null; pollAgent(); }, 1000);
         }
         function validateAgentTask(task) {
-            if (!task || typeof task.task_id !== 'string' || !task.task_id || ![...agentActiveStatuses,'awaiting_approval','completed','failed'].includes(task.status)) throw new Error('Invalid Agent Task response');
+            if (!task || typeof task.task_id !== 'string' || !task.task_id || ![...agentActiveStatuses,'awaiting_approval','awaiting_clarification','completed','failed'].includes(task.status)) throw new Error('Invalid Agent Task response');
             if (agentState.task && agentState.task.task_id !== task.task_id) throw new Error('Task response does not match the current task');
         }
         function agentRequestContext() {
@@ -802,7 +805,7 @@
             const organization = agentState.workflow === 'organization';
             byId('materialWorkflowTab').disabled = byId('organizationWorkflowTab').disabled = locked;
             byId('runAgent').disabled = organization || locked || !byId('agentWorkspacePath').value.trim() || !byId('agentGoal').value.trim();
-            ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario'].forEach(id => byId(id).disabled = locked);
+            ['agentWorkspacePath','agentGoal','agentBrowse','agentMode','agentScenario','agentInteractive'].forEach(id => byId(id).disabled = locked);
             byId('agentMode').disabled = locked || organization;
             byId('agentScenario').disabled = locked || organization;
             byId('runAgent').textContent = organization ? '整理任务 · 接口待确认' : agentState.busy ? 'Running...' : 'Run Agent';
@@ -836,6 +839,7 @@
             byId('agentErrorDetail').textContent = detail.length > 700 ? detail.slice(0,700) + '…' : detail;
         }
         function resetAgentPresentation() {
+            byId('agentClarification').replaceChildren(); byId('agentClarification').hidden=true;
             clearTimeout(agentState.copyTimer);
             agentState.report = null; agentState.packageRiskKey = agentState.acceptedPackageRisk = null;
             byId('packageRiskIntent').checked = false; byId('packageRiskControl').hidden = true;
@@ -862,6 +866,16 @@
         function renderAgent(snapshot) {
             if (agentState.workflow !== 'materials') return;
             validateAgentTask(snapshot?.task);
+            AgentClarification.render(byId('agentClarification'), snapshot, async (id, answers) => {
+                const context = agentRequestContext();
+                if (agentState.snapshot !== snapshot || agentState.task?.status !== 'awaiting_clarification' || agentState.decisionBusy) throw Error('当前问题已失效，请刷新任务');
+                agentState.decisionBusy=true; agentState.approvalValid=false; updateAgentControls();
+                try {
+                    const next=await AgentAPI.answerTask(snapshot.task.task_id,id,answers);
+                    if (!isCurrentAgentRequest(context)) return;
+                    await applyAgentSnapshot(next,context);
+                } finally { if(isCurrentAgentRequest(context)){agentState.decisionBusy=false;updateAgentControls();} }
+            });
             const packageTask = agentState.taskContext || agentState.task || snapshot.task;
             agentState.report = null; byId('copyPackagePath').hidden = true; byId('agentFinalCard').dataset.completed = 'false';
             byId('agentFinal').textContent = '当前报告尚未验证；以本次任务执行证据为准。';
@@ -947,7 +961,7 @@
             renderAgent(snapshot);
             const status = snapshot.task.status;
             if (snapshot.error && status !== 'failed') agentError(snapshot.error, 'Task needs attention');
-            agentState.busy = agentActiveStatuses.includes(status) || status === 'awaiting_approval';
+            agentState.busy = agentActiveStatuses.includes(status) || status === 'awaiting_approval' || status === 'awaiting_clarification';
             if (status === 'completed') {
                 stopAgentPolling();
                 agentState.report = null;
@@ -971,7 +985,7 @@
                 byId('agentFinal').classList.remove('agent-placeholder');
                 byId('agentFinal').textContent = agentState.userRejected ? 'Task stopped — 用户拒绝了待执行的文件操作。' : 'Task failed';
                 agentError(snapshot.error || (agentState.userRejected ? '用户拒绝了待执行的文件操作。' : 'Task failed'), agentState.userRejected ? 'Task stopped' : 'Task failed');
-            } else if (status === 'awaiting_approval') stopAgentPolling();
+            } else if (status === 'awaiting_approval' || status === 'awaiting_clarification') stopAgentPolling();
             else scheduleAgentPolling();
         }
         async function pollAgent() {
@@ -1002,7 +1016,7 @@
             byId('agentPlan').textContent = '正在创建任务…'; updateAgentControls();
             try {
                 AgentAPI.setMode(agentState.mode);
-                const task = await AgentAPI.createTask(byId('agentGoal').value.trim(), byId('agentWorkspacePath').value.trim(), byId('agentScenario').value);
+                const task = await AgentAPI.createTask(byId('agentGoal').value.trim(), byId('agentWorkspacePath').value.trim(), byId('agentScenario').value, byId('agentInteractive').checked);
                 validateAgentTask(task); agentState.task = task; byId('agentResumeTask').value = task.task_id;
                 agentState.taskContext = {task_id:task.task_id,user_goal:task.user_goal,workspace:task.workspace};
                 byId('agentTaskStatus').textContent = task.status + ' · ' + (agentState.mode === 'mock' ? 'Mock Mode' : 'Real Mode');

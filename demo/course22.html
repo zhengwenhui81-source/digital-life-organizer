@@ -1,0 +1,115 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Digital Life Organizer · 课程材料整理</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f1f5fb;color:#192f4f;font:16px/1.55 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1640px;margin:auto;padding:30px 36px}header{display:flex;justify-content:space-between;align-items:center}h1{font-size:30px;margin:0}h2{font-size:19px;margin:0 0 12px}.subtitle{color:#647b96}.badge{background:#e2edfc;color:#2059a4;border-radius:22px;padding:8px 18px}.card{background:#fff;border:1px solid #dce5f1;border-radius:16px;padding:22px;margin:18px 0;box-shadow:0 5px 24px #29476c06}.grid{display:grid;grid-template-columns:1.1fr 1fr;gap:20px}.grid .card{margin:0}input,textarea{width:100%;font:inherit;border:1px solid #bfcfe2;border-radius:9px;padding:11px 13px;color:#193554;background:#fff}input{margin:7px 0 13px}textarea{height:90px;resize:vertical}button{background:#1768d7;color:white;border:0;border-radius:9px;padding:12px 24px;font:inherit;font-weight:600;cursor:pointer;margin:12px 10px 0 0}button:disabled{opacity:.42;cursor:default}.secondary{background:#eaf0f8;color:#3c5c80}.metrics{display:flex;gap:18px}.metric{background:#f0f6ff;border-radius:12px;min-width:150px;padding:10px 20px}.metric strong{font-size:29px;display:block;color:#1768d7}.topline{display:flex;justify-content:space-between;gap:20px;align-items:center}.scroll{max-height:370px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:9px 12px;border-bottom:1px solid #edf1f7;text-align:left;overflow-wrap:anywhere}th{position:sticky;top:0;background:#edf4ff}td:nth-child(2){color:#5b718d}.error{color:#b52c3b;white-space:pre-wrap}.muted{font-size:13px;color:#6d8199}#progress{font-size:20px;font-weight:650;margin:0 0 12px}details{margin-top:12px;color:#5a7390;font-size:13px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 system-ui}.result-good{color:#087653}.summary-row{margin:7px 0}footer{margin-top:20px;color:#718299;font-size:13px}@media(max-width:1000px){.grid{grid-template-columns:1fr}.topline{display:block}.metrics{flex-wrap:wrap}main{padding:16px}header{display:block}}
+.modal-overlay{display:none;position:fixed;inset:0;background:#102c5070;z-index:100;align-items:center;justify-content:center}.modal-overlay.active{display:flex}.modal{background:white;border-radius:16px;width:min(760px,95vw);padding:22px}.modal-header,.browser-footer,.browser-jump{display:flex;gap:12px;align-items:center;justify-content:space-between}.modal-header h2{margin:0}.dir-list{max-height:45vh;overflow:auto}.dir-item{display:flex;align-items:center;gap:12px;padding:8px;cursor:pointer}.dir-item-name{flex:1;overflow-wrap:anywhere}.browser-cur-path,.browser-breadcrumb{overflow-wrap:anywhere}.browser-breadcrumb button{padding:4px 10px}.browser-jump input{margin:0}.browser-jump-hint,.dir-empty{color:#647b96}.close-btn{margin:0}.browser-cur-path{max-width:55%}
+/* Scoped visual-only course workflow. Existing page styles are unchanged. */
+#courseFlow .cf-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}#courseFlow .cf-note{font-size:13px;color:#647b96;margin:8px 0 16px}#courseFlow .cf-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:30px;padding:5px 0}#courseFlow .cf-node{position:relative;grid-column:var(--cf-col);grid-row:var(--cf-row);border:1px solid #d7e4f4;border-radius:13px;background:#f7faff;padding:17px;min-height:120px}#courseFlow .cf-node strong{display:block;font-size:16px;margin:8px 0}#courseFlow .cf-node small{color:#6b819d}#courseFlow .cf-state{float:right;font-size:12px;color:#647b96}#courseFlow .cf-node[data-state="active"]{border-color:#2b7de9;background:#edf5ff;box-shadow:0 0 0 3px #2b7de91a;animation:cfPulse 1.8s infinite}#courseFlow .cf-node[data-state="done"]{border-color:#a6d8bc;background:#f0faf4}#courseFlow .cf-node[data-state="done"] .cf-state{color:#15804a}#courseFlow .cf-node[data-state="waiting"]{border-color:#e9bd6b;background:#fff9ed}#courseFlow .cf-node[data-state="failed"]{border-color:#e1a0a8;background:#fff1f2}#courseFlow .cf-node[data-state="failed"] .cf-state{color:#b52c3b}#courseFlow .cf-arrow{position:absolute;background:#bdd0e7;pointer-events:none}#courseFlow [data-path="right"] .cf-arrow{top:50%;right:-30px;width:29px;height:2px}#courseFlow [data-path="left"] .cf-arrow{top:50%;left:-30px;width:29px;height:2px}#courseFlow [data-path="down"] .cf-arrow{left:50%;bottom:-30px;width:2px;height:29px}#courseFlow .cf-arrow:after{content:"";position:absolute;width:8px;height:8px;background:inherit;clip-path:polygon(0 0,100% 50%,0 100%);right:0;top:-3px}#courseFlow [data-path="left"] .cf-arrow:after{left:0;transform:rotate(180deg)}#courseFlow [data-path="down"] .cf-arrow:after{left:-3px;top:auto;bottom:0;transform:rotate(90deg)}#courseFlow [data-path="none"] .cf-arrow{display:none}#courseFlow [data-state="active"] .cf-arrow{background:#2b7de9}#courseFlow [data-state="active"] .cf-arrow:before{content:"";position:absolute;width:6px;height:6px;border-radius:50%;background:#1768d7;top:-2px;animation:cfRight 1s linear infinite}#courseFlow [data-state="active"][data-path="left"] .cf-arrow:before{animation:cfLeft 1s linear infinite}#courseFlow [data-state="active"][data-path="down"] .cf-arrow:before{left:-2px;top:0;animation:cfDown 1s linear infinite}#courseFlow .cf-track{height:5px;background:#e6eef9;border-radius:5px;margin-top:18px;overflow:hidden}#courseFlow .cf-track span{display:block;height:100%;background:#2b7de9;transition:width .4s;width:0}@keyframes cfPulse{50%{box-shadow:0 0 0 5px #2b7de90d}}@keyframes cfRight{to{transform:translateX(24px)}}@keyframes cfLeft{from{transform:translateX(24px)}to{transform:translateX(0)}}@keyframes cfDown{to{transform:translateY(24px)}}@media(max-width:700px){#courseFlow .cf-grid{display:flex;flex-direction:column;gap:22px}#courseFlow .cf-node{min-height:90px}#courseFlow .cf-node .cf-arrow{left:50%;right:auto;top:auto;bottom:-22px;width:2px;height:21px}#courseFlow .cf-node .cf-arrow:after{left:-3px;top:auto;bottom:0;transform:rotate(90deg)}#courseFlow [data-state="active"] .cf-arrow:before{left:-2px;top:0;animation:cfDown 1s linear infinite}}@media(prefers-reduced-motion:reduce){#courseFlow .cf-node,#courseFlow .cf-arrow:before{animation:none!important}#courseFlow .cf-track span{transition:none}}
+</style><main>
+<header><div><h1>Digital Life Organizer</h1></div></header>
+<section class="card"><h2>工作空间与任务</h2><label for="workspace">工作空间</label><input id="workspace" aria-label="工作空间" spellcheck="false" autocomplete="off"><button id="browse" class="secondary" onclick="openBrowser('workspace')">选择文件夹</button><textarea id="goal" aria-label="自然语言任务"></textarea><div><button id="start" disabled>Run Agent</button><span class="muted">选择文件夹或粘贴绝对路径。原文件保留，不覆盖已有结果。</span></div><div id="error" class="error" role="alert"></div></section>
+<section class="card"><div class="topline"><div><div id="progress" role="status">等待任务开始</div><span id="statusNote" class="muted">提交任务后扫描文件并读取课程整理依据。</span></div><div class="metrics"><div class="metric"><strong id="discovered">—</strong>发现文件</div><div class="metric"><strong id="planned">—</strong>计划整理</div><div class="metric"><strong id="copied">—</strong>复制成功</div><div class="metric"><strong id="verified">—</strong>内容验证一致</div></div></div></section>
+<section id="courseFlow" class="card" aria-labelledby="courseFlowTitle"><div class="cf-head"><h2 id="courseFlowTitle">材料整理流程</h2><span id="courseFlowStatus" class="badge" role="status">等待开始</span></div><div id="courseFlowNodes" class="cf-grid"></div><div class="cf-track" aria-label="流程动画进度"><span id="courseFlowProgress"></span></div></section>
+<div class="grid"><section class="card"><h2>分析与整理方案</h2><div id="analysis">尚未执行分析。</div><details><summary>查看任务步骤</summary><pre id="plan"></pre></details></section><section class="card"><h2>确认文件操作</h2><div id="approval">整理方案生成后，在此确认。</div><p class="muted">批准后创建分类目录并复制文件。原文件不移动、不删除、不覆盖。</p><button id="approve" disabled>批准整理方案</button><button id="reject" class="secondary" disabled>取消整理</button></section></div>
+<section class="card"><h2>文件分类与去向</h2><div class="scroll"><table><thead><tr><th>源文件</th><th>分类目的地</th><th>状态</th></tr></thead><tbody id="mapping"><tr><td colspan="3">等待生成整理方案。</td></tr></tbody></table></div></section>
+<section class="card" id="final"><h2>整理结果</h2><div id="result">文件操作尚未执行。</div><details id="verificationDetails" hidden><summary>查看逐文件验证结果</summary><pre id="report"></pre></details></section>
+<footer>按所选目录中实际读取的课程要求整理，不代表内容审核通过。保留原件，仅经审批复制。</footer>
+</main>    <div class="modal-overlay" id="browserModal">
+        <div class="modal browser-modal">
+            <div class="modal-header">
+                <h2>Browse for Directory</h2>
+                <button class="close-btn" onclick="closeBrowser()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="browserJumpPath">Go to path</label>
+                <form class="browser-jump" onsubmit="event.preventDefault(); fetchDirectory(document.getElementById('browserJumpPath').value)">
+                    <input id="browserJumpPath" class="form-input" type="text" placeholder="E:\ or a full directory path" autocomplete="off" aria-describedby="browserJumpHint">
+                    <button class="btn btn-secondary btn-sm" type="submit">Go</button>
+                </form>
+                <p id="browserJumpHint" class="browser-jump-hint">Enter any drive root or directory path, including a UNC path.</p>
+                <div class="browser-breadcrumb" id="browserBreadcrumb"></div>
+                <div class="dir-list" id="dirList" role="status" aria-live="polite">
+                    <div class="dir-empty">Loading…</div>
+                </div>
+            </div>
+            <div class="browser-footer">
+                <div class="browser-cur-path" id="browserCurPath"></div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="closeBrowser()">Cancel</button>
+                    <button id="browserSelect" class="btn btn-primary btn-sm" disabled onclick="selectDirectory()">Select This Folder</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script id="course-flow-script">
+(function(root){
+'use strict';
+const titles=['扫描工作空间','读取文档','识别材料','比较版本','生成整理方案','确认方案','创建文件夹并复制','校验结果','汇总结果'];
+function createFlow(render,schedule=setTimeout,cancel=clearTimeout){
+ let timer=null,index=-1,phase='idle',generation=0;
+ const emit=()=>render({index,phase,progress:index<0?0:Math.round((phase==='finished'?9:index)/9*100),states:titles.map((_,i)=>i<index?'done':i>index?'pending':phase==='finished'?'done':phase==='waiting'?'waiting':phase==='failed'?'failed':'active')});
+ const stop=()=>{generation++;if(timer!==null)cancel(timer);timer=null;};
+ function advance(token){if(token!==generation)return;if(index===5){phase='waiting';emit();return;}if(index===8){phase='finished';emit();return;}timer=schedule(()=>{if(token!==generation)return;timer=null;index++;emit();advance(token);},900);}
+ return {start(){stop();index=0;phase='playing';emit();advance(generation);},confirm(){if(index<0||phase==='failed'||phase==='finished')return;stop();index=6;phase='playing';emit();advance(generation);},fail(){if(index<0||phase==='finished')return;stop();phase='failed';emit();},reset(){stop();index=-1;phase='idle';emit();}};
+}
+const api={createFlow,titles};if(typeof module!=='undefined'&&module.exports)module.exports=api;root.CourseFlow=api;
+if(typeof document==='undefined')return;
+const host=document.getElementById('courseFlowNodes');
+const labels={pending:'待展示',active:'展示中',done:'已展示',waiting:'等待确认动作',failed:'展示暂停'};
+const flow=createFlow(state=>{
+ host.innerHTML=titles.map((title,i)=>{const row=Math.floor(i/3),col=row%2?3-i%3:i%3+1,direction=i===8?'none':i%3===2?'down':row%2?'left':'right';return '<article class="cf-node" data-state="'+state.states[i]+'" data-path="'+direction+'" style="--cf-col:'+col+';--cf-row:'+(row+1)+'"><span class="cf-state">'+labels[state.states[i]]+'</span><small>'+String(i+1).padStart(2,'0')+'</small><strong>'+title+'</strong><span class="cf-arrow" aria-hidden="true"></span></article>';}).join('');
+ document.getElementById('courseFlowProgress').style.width=state.progress+'%';
+ document.getElementById('courseFlowStatus').textContent=({idle:'等待开始',playing:'流程展示中',waiting:'等待方案确认',failed:'展示已暂停',finished:'流程展示结束'})[state.phase];
+});
+flow.reset();
+document.getElementById('start').addEventListener('click',event=>{if(!event.currentTarget.disabled)flow.start();},true);
+document.getElementById('approve').addEventListener('click',event=>{if(!event.currentTarget.disabled)flow.confirm();},true);
+document.getElementById('reject').addEventListener('click',event=>{if(!event.currentTarget.disabled)flow.fail();},true);
+document.getElementById('workspace').addEventListener('input',()=>flow.reset());
+new MutationObserver(()=>{if(document.getElementById('error').textContent.trim())flow.fail();}).observe(document.getElementById('error'),{childList:true,subtree:true,characterData:true});
+})(typeof window==='undefined'?globalThis:window);
+</script>
+<script src="/demo/course22/browser.js"></script><script src="/static/agent-api.js"></script><script>
+'use strict';function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}AgentAPI.mode='real';const token='__DEMO_TOKEN__',$=id=>document.getElementById(id);let context={workspace:'',evidence_id:''},apiReady=false,task=null,snapshot=null,busy=false,audit=null,uiError='',generation=0,selectionRequest=0;
+const basename=p=>p.split(/[\\/]/).at(-1);
+const operations=()=>snapshot?.pending_operations?.length?snapshot.pending_operations:snapshot?.plan?.steps?.filter(s=>s.tool==='copy_file'||s.tool==='create_folder')||[];
+async function local(path,method='GET',body){const r=await fetch(path,{method,headers:{'x-demo-token':token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const v=await r.json();if(!r.ok)throw Error(v.detail||('HTTP '+r.status));return v}
+function rows(){const copies=operations().filter(o=>o.tool==='copy_file');$('mapping').replaceChildren();if(!copies.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=3;td.textContent=snapshot?.task?.status==='failed'?'未生成可执行方案（任务已失败，请查看错误信息）。':'等待生成整理方案。';tr.append(td);$('mapping').append(tr)}for(const op of copies){const m=op.arguments,tr=document.createElement('tr');const copy=snapshot.results.filter(r=>r?.tool==='copy_file'&&r.data?.source===m.source&&r.data?.destination===m.destination).at(-1);for(const value of [basename(m.source),m.destination.slice(context.workspace.length+1),audit?.status==='controlled_pass'?'内容验证一致':copy?.success?'已复制':copy?'复制失败':'等待确认']){const td=document.createElement('td');td.textContent=value;tr.append(td)}tr.children[0].title=m.source;tr.children[1].title=m.destination;$('mapping').append(tr)}}
+function controls(){const locked=busy; $('workspace').disabled=locked;$('browse').disabled=locked;$('start').disabled=locked||!apiReady||!!task||!context?.workspace||!$('goal').value.trim();}
+async function selectionChanged(){
+ const request=++selectionRequest;generation++;task=null;snapshot=null;audit=null;uiError='';context.workspace='';context.evidence_id='';
+ $('approve').disabled=true;$('reject').disabled=true;$('error').textContent='';$('progress').textContent='等待任务开始';$('analysis').textContent='尚未执行分析。';$('plan').textContent='';$('approval').textContent='整理方案生成后，在此确认。';$('result').textContent='文件操作尚未执行。';$('verificationDetails').hidden=true;for(const id of ['discovered','planned','copied','verified'])$(id).textContent='—';rows();controls();
+ const raw=$('workspace').value.trim();if(!raw)return;
+ try{const r=await fetch('/api/browse?path='+encodeURIComponent(raw));const v=await r.json();if(request!==selectionRequest)return;if(!r.ok)throw Error(typeof v.detail==='string'?v.detail:'无法打开目录');context.workspace=v.path;controls()}catch(e){if(request===selectionRequest){$('error').textContent=e.message;controls()}}
+}
+async function render(){
+ if(!snapshot)return;if(!snapshot.task||!Array.isArray(snapshot.results)){uiError='任务快照格式异常，无法显示真实结果，请刷新任务。';$('error').textContent=uiError;return;}rows();const state=snapshot.task.status,results=snapshot.results;
+ $('discovered').textContent=results.find(r=>r.tool==='list_files'&&r.success)?.data.files.length??'—';$('planned').textContent=operations().filter(o=>o.tool==='copy_file').length||'—';$('copied').textContent=results.filter(r=>r.tool==='copy_file'&&r.success).length;
+ $('error').textContent=snapshot.error||uiError;
+ $('progress').textContent=({created:'准备开始',planning:'正在读取整理依据并规划',executing:'正在执行任务',awaiting_approval:'整理方案已生成，等待你的确认',verifying:'正在验证复制结果',completed:'任务已执行，正在核对结果',failed:'任务未完成'})[state]||state;
+ $('statusNote').textContent=state==='awaiting_approval'?'尚未创建结果文件夹；确认后才执行。':state==='failed'?'请查看错误信息，系统不会自动重试审批。':'扫描、方案与结果均来自当前任务。';
+ const notice=results.find(r=>r.tool==='read_document'&&r.success&&r.data?.document?.filename==='课程设计_提交要求.docx');const version=results.filter(r=>r?.tool==='compare_versions').at(-1);
+ $('analysis').replaceChildren();const notRun=label=>state==='failed'?label+'未执行（任务已失败，请查看错误）':label+'尚未完成';for(const line of [results.some(r=>r?.tool==='list_files'&&r.success)?'✓ 已扫描工作空间':notRun('扫描'),notice?'✓ 已读取课程要求及22条分类依据':notRun('课程要求读取'),version?.success?'✓ 已比较课程报告 v1 / v2 / v3':version?'版本比较失败：'+(version.error||'请查看错误信息'):notRun('报告版本比较')]){const p=document.createElement('div');p.className='summary-row';p.textContent=line;$('analysis').append(p)}
+ const labels={list_files:'扫描工作空间',read_document:'读取材料',extract_requirements:'提取课程要求',compare_versions:'比较报告版本',create_folder:'创建分类目录',copy_file:'复制材料',verify_result:'验证文件结果'};
+ $('plan').textContent=snapshot.plan?.steps.map((s,i)=>(i+1)+'. '+(labels[s.tool]||s.tool)+(s.arguments.source?' · '+basename(s.arguments.source):'')+' · '+(s.status==='completed'?'已完成':s.status==='failed'?'失败':s.status==='awaiting_approval'?'待批准':'待执行')).join('\n')||'';
+ const ops=operations();$('approval').textContent=state==='awaiting_approval'?'将创建 '+ops.filter(o=>o.tool==='create_folder').length+' 个目录，复制 '+ops.filter(o=>o.tool==='copy_file').length+' 份文件。请核对下方分类去向。':state==='completed'?'已按你批准的方案执行。':state==='failed'?'任务失败，当前不能批准；请查看错误信息。':'方案尚在生成，当前没有可批准的操作。';
+ $('approve').disabled=busy||state!=='awaiting_approval';$('reject').disabled=$('approve').disabled;
+ if(state==='awaiting_approval'){
+  const copies=ops.filter(o=>o.tool==='copy_file'),found=results.find(r=>r.tool==='list_files'&&r.success)?.data.files||[],key=p=>p.replaceAll('\\','/').toLowerCase();
+  const sources=new Set(copies.map(o=>key(o.arguments.source))),destinations=new Set(copies.map(o=>key(o.arguments.destination))),expected=new Set(found.map(f=>key(f.path)));
+  if(copies.length!==found.length||sources.size!==found.length||destinations.size!==found.length||[...sources].some(p=>!expected.has(p))){$('approve').disabled=true;$('reject').disabled=busy;$('error').textContent='整理方案包含重复或遗漏的文件，暂不能批准。尚未执行文件操作。';}
+ }
+ if(state==='failed'){$('result').textContent=results.some(r=>['create_folder','copy_file'].includes(r?.tool)&&r.success)?'任务失败，部分操作可能已完成，尚未确认完整核验；请核对实际记录。':'任务失败，文件操作未执行。';$('result').className='error';}
+ if(state==='completed'){
+  if(!audit){await AgentAPI.getReport(task.task_id);audit=await local('/demo/course22/audit/'+task.task_id+'?evidence_id='+encodeURIComponent(context.evidence_id));}
+  $('verified').textContent=audit.status==='controlled_pass'?audit.copies.length:'验证未通过';$('verificationDetails').hidden=false;$('report').textContent=audit.copies.map(c=>c.filename+'\nSHA-256：'+c.target_sha256+'\n源文件与目标文件：'+(c.source_sha256===c.target_sha256?'一致':'不一致')).join('\n\n');
+  $('result').textContent=audit.status==='controlled_pass'?'已创建“课程设计_智能整理结果”及6个分类文件夹。22份文件复制完成，内容验证全部一致，原文件完整保留。现在可在文件资源管理器按 F5 查看。':'实际文件验证未通过，不能确认整理完成。';
+  $('result').className=audit.status==='controlled_pass'?'result-good':'error';$('progress').textContent=audit.status==='controlled_pass'?'整理完成 · 22份文件验证通过':'文件验证未通过';$('statusNote').textContent='原始材料保留在原目录，整理副本已分区存放。';rows();
+ }
+}
+async function poll(){const currentGeneration=generation,tid=task.task_id;for(let i=0;i<180;i++){const value=await AgentAPI.getTask(tid);if(currentGeneration!==generation)return;if(value.task?.task_id!==tid||value.task.workspace!==context.workspace)throw Error('任务响应与当前任务或工作空间不一致');snapshot=value;await render();if(['awaiting_approval','completed','failed'].includes(snapshot.task.status))return;await new Promise(r=>setTimeout(r,500))}throw Error('任务响应超时，不会自动重试任务或审批。')}
+$('start').onclick=async()=>{if(busy||task||!context.workspace)return;uiError='';busy=true;controls();try{const input=await local('/demo/course22/material-input','POST',{workspace:context.workspace});if(input.workspace!==context.workspace)throw Error('材料上下文不属于当前目录');context.evidence_id=input.evidence_id;task=await AgentAPI.createTask($('goal').value+'\n\n'+input.prompt_context,context.workspace);await poll()}catch(e){uiError=e.message;$('error').textContent=uiError}finally{busy=false;controls();if(snapshot&&!uiError)await render()}};
+async function decide(approve){if(busy||!snapshot?.preview_id)return;uiError='';busy=true;controls();$('approve').disabled=true;$('reject').disabled=true;try{snapshot=await AgentAPI.decideTask(task.task_id,snapshot.preview_id,approve);await poll()}catch(e){uiError=e.message;$('error').textContent=uiError;try{snapshot=await AgentAPI.getTask(task.task_id)}catch{}}finally{busy=false;controls();if(!uiError)await render()}}
+$('approve').onclick=()=>decide(true);$('reject').onclick=()=>decide(false);$('workspace').addEventListener('input',selectionChanged);$('goal').addEventListener('input',controls);
+local('/demo/course22/context').then(c=>{context={...c,workspace:'',evidence_id:''};const request=AgentAPI.request;AgentAPI.request=function(path,...args){return request.call(this,new URL(path,c.backend_url).href,...args)};apiReady=true;controls();if($('workspace').value.trim())selectionChanged()}).catch(e=>{apiReady=false;uiError='无法连接演示服务：'+e.message;$('error').textContent=uiError;controls()});
+</script></html>

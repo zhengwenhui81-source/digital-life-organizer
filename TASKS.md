@@ -751,3 +751,14 @@ Reading table structure does not interpret or calculate scores.
 4. Demonstrate **actual** creation and copying in a safe, authorized Windows Workspace followed by byte verification. Retain a separate unmodified copy of source files; do not use a UI fixture as execution evidence.
 
 **Priority:** continue fixing Workflow 1 Requirements, Windows snapshot and Package execution blockers; do not call Workflow 2 delivered until the separate real-copy end-to-end acceptance passes.
+
+## Interactive clarification implementation 2026-10-22
+
+- [x] Implement opt-in evidence-first dependency handling and real Task reads.
+- [x] Implement backend-generated clarification tokens/questions, answers API,
+  same-task replanning and source/approval safety checks.
+- [x] Add frontend question rendering and explicit Real Mode answers transport.
+- [x] Controlled TaskService/API tests cover changed answers and real approved copies.
+- [ ] Complete independent review and real configured LLM Windows acceptance.
+- [ ] Verify weak-evidence course Workspace with an actual model-generated question
+  and subsequent human answer (controlled fixtures are not this evidence).

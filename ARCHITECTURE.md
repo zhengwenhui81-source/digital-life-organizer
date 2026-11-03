@@ -300,3 +300,18 @@ Possible later additions:
 - OCR and screenshot understanding
 - personal memory across tasks
 - multi-agent specialization
+
+## Opt-in same-task clarification
+
+Explicit interactive tasks reuse TaskService, ToolRouter and Executor. Real
+list_files/read_document evidence is collected inside the Task before decision
+planning; prompt text never counts as executed evidence. The existing supported
+formats and ten-document limit remain. The Planner can request applicable
+read-only analysis or emit specific questions; the frontend does not invent them.
+TaskService issues a per-round clarification token. Answers consume it atomically
+and continue planning in the same Task with accumulated ToolResults and answer
+history. Answers never approve writes. Proposals still require the existing
+frozen preview and approval gate; source hashes are checked before continuation
+and approval. Automatic planning is bounded to four rounds per continuation.
+Legacy tasks do not opt in and retain their existing lifecycle. See the
+clarification extension in API_CONTRACT.md for the exact additive HTTP shape.

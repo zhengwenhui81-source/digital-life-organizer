@@ -58,9 +58,16 @@ def _not_found(exc: KeyError) -> HTTPException:
 async def create_task(
     request: Request, service: TaskService = Depends(get_service)
 ) -> dict:
-    data = await _body(request, {"user_goal", "workspace"})
     try:
-        task = service.create(data["user_goal"], data["workspace"])
+        data = await request.json()
+    except ValueError as exc:
+        raise HTTPException(400, 'Invalid JSON body') from exc
+    if (type(data) is not dict or set(data) not in ({'user_goal','workspace'}, {'user_goal','workspace','interactive'})
+        or any(type(data.get(k)) is not str or not data[k].strip() for k in ('user_goal','workspace'))
+        or ('interactive' in data and type(data['interactive']) is not bool)):
+        raise HTTPException(400, 'Invalid Agent request fields')
+    try:
+        task = service.create(data["user_goal"], data["workspace"], interactive=data.get('interactive', False))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -77,6 +84,29 @@ async def get_task(task_id: str, service: TaskService = Depends(get_service)) ->
         return service.snapshot(task_id)
     except KeyError as exc:
         raise _not_found(exc) from exc
+
+
+@router.post('/{task_id}/answers', status_code=202)
+async def answer_task(task_id: str, request: Request, service: TaskService = Depends(get_service)) -> dict:
+    try:
+        data = await request.json()
+    except ValueError as exc:
+        raise HTTPException(400, 'Invalid JSON body') from exc
+    if (type(data) is not dict or set(data) != {'clarification_id','answers'} or
+        type(data['clarification_id']) is not str or not data['clarification_id'].strip()):
+        raise HTTPException(400, 'Invalid clarification fields')
+    try:
+        snapshot = service.answer(task_id, data['clarification_id'], data['answers'])
+    except KeyError as exc:
+        raise _not_found(exc) from exc
+    except TaskConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    job = asyncio.create_task(asyncio.to_thread(service.run, task_id))
+    _running.add(job)
+    job.add_done_callback(_running.discard)
+    return snapshot
 
 
 @router.post("/{task_id}/approve")

@@ -329,3 +329,14 @@ This section is the current, approved **delivery scope and module-ownership allo
 **Required outcome:** in a user-selected real Workspace, after an explicit user-approved frozen preview, create `整理结果/` within that Workspace, derive useful category subfolders from evidence, **copy** selected files (no move/delete/overwrite), retain every original, exclude the output subtree from later scans, and verify every reported successful copy byte-for-byte. Ambiguous classifications remain unexecuted until explicitly resolved by the user. The classifier accuracy goal is >=95% on a human-labeled set, reported alongside coverage; it is a target, not a measured achievement or unconditional guarantee.
 
 **Contract gate:** the product behavior and ownership above are approved; `classify_files` field-level schema and any organization plan/executor interface are **not yet frozen or implemented**. D and C must draft minimal proposals, and A/B/C/D must jointly approve changes to `API_CONTRACT.md` before strict consumers implement them. Never infer a new public tool/endpoint from this allocation.
+
+## Narrow clarification implementation delegation 2026-10-22
+
+The user explicitly requested B to implement the dependency repair, opt-in
+awaiting_clarification lifecycle, answers API, same-task continuation and UI.
+This permits narrowly scoped edits to Agent Core, Agent HTTP, their tests and
+the clarification contract documentation for this task only. A retains normal
+production ownership. No Package/Document/Task Intelligence algorithms are
+transferred. Changes remain unmerged pending independent review; existing Demo
+services and data must remain intact. Real LLM acceptance must be reported
+separately from controlled Planner tests.

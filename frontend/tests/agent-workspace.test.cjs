@@ -8,15 +8,15 @@ const base = path.resolve(__dirname,'..');
 function harness(mode='real') {
     const elements=new Map(), timers=new Map(), calls=[]; let timerId=0;
     const el=id=>{
-        if(!elements.has(id))elements.set(id,{value:'',textContent:'',innerHTML:'',hidden:false,disabled:false,dataset:{},style:{},listeners:{},classList:{add(){},remove(){},toggle(){}},addEventListener(k,v){this.listeners[k]=v;},setAttribute(k,v){this[k]=v;},querySelectorAll(){return[];},appendChild(){},remove(){}});
+        if(!elements.has(id))elements.set(id,{value:'',textContent:'',innerHTML:'',hidden:false,disabled:false,dataset:{},style:{},listeners:{},classList:{add(){},remove(){},toggle(){}},addEventListener(k,v){this.listeners[k]=v;},setAttribute(k,v){this[k]=v;},querySelectorAll(){return[];},appendChild(){},replaceChildren(...items){this.children=items;},append(...items){this.children=(this.children||[]).concat(items);},remove(){}});
         return elements.get(id);
     };
     const c={window:{},console,AbortController,document:{getElementById:el,querySelectorAll:()=>[],createElement:()=>el('toast')},navigator:{clipboard:{writeText:async()=>{}}},setTimeout:(fn,ms)=>{timers.set(++timerId,{fn,ms});return timerId;},clearTimeout:id=>timers.delete(id),setInterval(){throw Error('Unexpected interval');},clearInterval(){},fetch:async(url,options)=>{if(!url.startsWith('/api/agent/'))return {ok:false};calls.push({url,options});return c.respond(url,options);}};
     vm.createContext(c);
-    for(const file of ['agent-api.js','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
+    for(const file of ['agent-api.js','agent-clarification.js','agent-mock.js','agent-results.js','package-preview.js','organization-preview.js','organization-demo.js'])vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),c);
     c.AgentAPI=c.window.AgentAPI;c.AgentMock=c.window.AgentMock;c.AgentResults=c.window.AgentResults;
     c.OrganizationPreview=c.window.OrganizationPreview;c.OrganizationDemo=c.window.OrganizationDemo;
-    c.PackagePreview=c.window.PackagePreview;
+    c.PackagePreview=c.window.PackagePreview;c.AgentClarification=c.window.AgentClarification;
     vm.runInContext(fs.readFileSync(path.join(base,'index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],c);
     vm.runInContext('window.state=agentState',c);
     el('agentMode').value=mode;el('agentScenario').value='happy';el('agentWorkspacePath').value='E:/unknown-workspace';el('agentGoal').value='准备课程材料';
@@ -439,4 +439,19 @@ test('awaiting Package remains risk-interactive while the task is busy; untruste
     assert.equal(h.el('packageRiskIntent').disabled,false);assert.equal(h.el('approveAgent').disabled,true);
     s.pending_operations[1].arguments.destination='untrusted-mapping-secret';h.c.renderAgent(s);
     assert.doesNotMatch(h.el('agentActions').innerHTML,/untrusted-mapping-secret/);assert.equal(h.el('approveAgent').disabled,true);
+});
+
+test('clarification is a distinct non-approval state; answers use only the exact task/round endpoint',async()=>{
+    const h=harness();h.c.AgentAPI.setMode('real');
+    const s=snapshot('awaiting_clarification',{clarification:{clarification_id:'round-exact',questions:[]}});
+    h.c.renderAgent(s);h.state.busy=true;h.c.updateAgentControls();
+    assert.equal(h.el('approveAgent').disabled,true);assert.equal(h.el('rejectAgent').disabled,true);
+    h.c.respond=(url,options)=>{
+        assert.equal(url,'/api/agent/tasks/task/answers');
+        assert.deepEqual(JSON.parse(options.body),{clarification_id:'round-exact',answers:[{question_id:'q',answer:'保留原件'}]});
+        return response(snapshot('planning'),202);
+    };
+    const next=await h.c.AgentAPI.answerTask('task','round-exact',[{question_id:'q',answer:'保留原件'}]);
+    assert.equal(next.task.status,'planning');assert.equal(h.calls.length,1);assert.equal(h.calls.some(c=>c.url.endsWith('/approve')),false);
+    h.c.AgentAPI.setMode('mock');await assert.rejects(h.c.AgentAPI.answerTask('task','round-exact',[]),/Real Mode/);
 });

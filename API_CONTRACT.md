@@ -18,6 +18,7 @@ This document defines shared data structures, public tool contracts, and the MVP
 Allowed `status` values for MVP:
 - `created`
 - `planning`
+- `awaiting_clarification` (explicit interactive tasks only; see clarification extension below)
 - `awaiting_approval`
 - `executing`
 - `verifying`
@@ -27,6 +28,32 @@ Allowed `status` values for MVP:
 Notes:
 - user rejection does not introduce a new Task status in the MVP; the Task becomes `failed`
 - the frontend should distinguish a user rejection from a system/tool failure in its displayed message when that context is available
+
+### Interactive clarification extension (user-authorized implementation 2026-10-21)
+
+This additive opt-in extension does not change legacy task execution. Create Task
+may additionally include `interactive: true` (boolean). Interactive tasks execute
+real read-only discovery/reads before decision planning, preserve those ToolResults,
+and never fabricate them from prompt text. Existing resource limits still apply.
+
+Interactive Snapshot additionally contains `clarification`: null or
+`{clarification_id: string, questions: [{question_id: string, question: string,
+reason: string, file_paths: string[], options: string[]}]}`. Questions originate
+from the Planner, not the frontend. No writes or approval preview exist while
+`awaiting_clarification`. Plan may carry optional `questions` using the same item
+fields except server-issued question_id; empty steps are allowed only with questions.
+
+`POST /api/agent/tasks/{task_id}/answers` accepts exactly
+`{clarification_id: string, answers: [{question_id: string, answer: string}]}`.
+Every current question needs exactly one nonempty answer. The endpoint returns
+202 Snapshot after atomically consuming the token, then replans in the SAME Task
+with real accumulated evidence and user answers. Duplicate/stale/cross-task tokens,
+wrong state or changed source evidence return 409; malformed bodies return 400;
+unknown Task returns 404. Answers are not approval and cannot cause file writes.
+Replanning must produce a fresh existing approval preview before execution.
+Interactive sources are revalidated before answers and before approval.
+Models do not gain new filesystem tools. No deleting, overwriting, automatic
+approval, unlimited read batches, or implicit LLM retries are introduced.
 
 ### Plan
 
