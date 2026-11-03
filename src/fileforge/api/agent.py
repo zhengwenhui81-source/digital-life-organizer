@@ -1,4 +1,4 @@
-"""Agreed MVP Agent HTTP API."""
+"""Agent task HTTP API."""
 
 from __future__ import annotations
 
