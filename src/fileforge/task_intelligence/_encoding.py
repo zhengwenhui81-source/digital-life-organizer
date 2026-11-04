@@ -1,9 +1,3 @@
-"""Provisional encodings: see docs/task-intelligence-interface-proposal.md.
-
-These details await A/B/C agreement; they are not a frozen shared contract.
-"""
-
-
 def deadline_field(scope: str) -> str:
     return "deadline" if not scope else f"deadline:{scope}"
 

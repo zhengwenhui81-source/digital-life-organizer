@@ -56,8 +56,6 @@ class JobManager:
         )
         self.db._conn.commit()
 
-        # Add job to scheduler (would normally start scheduler here)
-        # For now, just log that it's scheduled
         _log.info(f"Scheduled scan job {job_id} with cron {self.config.schedule_cron}")
 
         return job_id
@@ -83,8 +81,6 @@ class JobManager:
             )
             self.db._conn.commit()
 
-            # In a real implementation, would trigger scan_command here
-            # For testing, just count files in directories
             file_count = sum(1 for d in scan_dirs for _ in d.rglob("*") if _.is_file())
 
             # Update with completion

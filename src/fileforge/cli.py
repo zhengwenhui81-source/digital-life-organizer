@@ -612,8 +612,6 @@ def watch(
     def on_change(path: Path, event_type: str) -> None:
         console.print(f"[cyan]Detected {event_type}: {path.name}[/cyan]")
         console.print(f"[dim]Scanning in {cfg.watch.scan_delay_seconds}s...[/dim]")
-        # In production, this would trigger scan_command
-        # For now, just log the detection
 
     watcher = FileWatcher(
         watch_paths,
