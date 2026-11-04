@@ -68,7 +68,7 @@ class CourseDemoTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             material_input(root)
 
-    def test_material_input_rejects_unknown_category(self):
+    def test_material_input_accepts_user_defined_category(self):
         from docx import Document
 
         rec = prepare(self.source, self.takes)
@@ -82,8 +82,9 @@ class CourseDemoTests(unittest.TestCase):
             '[整理规则] main.cpp => ' + OUTPUT + '/07_未定义/main.cpp'
         )
         doc.save(root / NOTICE)
-        with self.assertRaises(ValueError):
-            material_input(root)
+        value = material_input(root)
+        self.assertEqual(value['routes']['main.cpp'], OUTPUT + '/07_未定义/main.cpp')
+        self.assertEqual(len(value['folders']), 8)
 
     def test_write_operations_form_one_approval_batch(self):
         steps = (
@@ -214,3 +215,4 @@ class CourseDemoTests(unittest.TestCase):
         self.assertIn('function renderBreadcrumb(path, parent)',original.read_text(encoding='utf-8'))
 
 if __name__=='__main__':unittest.main()
+

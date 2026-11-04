@@ -126,66 +126,20 @@ def prepare(source, takes):
 
 
 def material_input(workspace):
-    """Build read-only task context from the workspace scan and requirement document."""
-    from fileforge.tools import list_files
-    from fileforge.document import read_document
-
-    scan = list_files(workspace=str(workspace), recursive=False)
-    notice = read_document(str(Path(workspace) / NOTICE))
-    if not scan['success'] or not notice['success']:
-        raise ValueError('无法读取工作空间或课程要求')
-
-    files = scan.get('data', {}).get('files') if isinstance(scan.get('data'), dict) else None
-    document = (
-        notice.get('data', {}).get('document')
-        if isinstance(notice.get('data'), dict)
-        else None
-    )
-    if (
-        not isinstance(files, list)
-        or any(
-            not isinstance(item, dict)
-            or not isinstance(item.get('filename'), str)
-            for item in files
-        )
-        or not isinstance(document, dict)
-        or not isinstance(document.get('text'), str)
-    ):
-        raise ValueError('工作空间扫描结果或课程要求内容无效')
-
-    routes = read_rules(document['text'])
-    filenames = [item['filename'] for item in files]
-    if len(filenames) != 22 or len(set(filenames)) != 22 or set(filenames) != set(routes):
-        raise ValueError('工作空间文件集合与课程整理规则不一致')
-
-    tools = [scan, notice]
-    guidance = ('本次任务是依据课程规则复制归档，不是Package材料打包，不要build_package或move_file。'
-                '先list_files；只read_document课程要求并extract_requirements；'
-                'search_files(query=课程设计报告, extensions=[docx])后read_document({})仅读取3份报告，再compare_versions({})。'
-                '不要求对CPP/JSON/CSV/图片做正文分析或match_requirements。随后先连续列出7个create_folder（根+六分类），'
-                '再连续22个copy_file；全部29个写操作必须相邻进入一次审批，目录与目的地按课程要求，使用完整绝对路径，'
-                '禁止占位路径/删除/覆盖。计划以第22个copy_file结束，不要显式规划verify_result。'
-                '项目TaskService在批准的操作结束后已经自动执行源/目标SHA-256验证并追加真实verify_result结果；'
-                '不能发明任务ID或重复执行带未知任务ID的验证步骤。'
-                '每步description不超过8个汉字。输出前核对：源集合等于Scanner的22个文件，各一次，不能重复。'
-                '每条整理规则只产生一个copy_file，22条之后禁止追加复制。全部写操作必须恰好7个create_folder和22个copy_file。')
-    prompt_context = (
-        '以下为同一Workspace的现有Scanner和read_document真实读取的输入资料（不是执行结果）：\n'
-        + json.dumps(tools, ensure_ascii=False)
-        + '\n\n'
-        + guidance
-    )
-    return {"tool_inputs": tools, "prompt_context": prompt_context}
+    """Read actual task inputs; sample preparation is a separate fixture helper."""
+    from fileforge.agent.organization_context import organization_input
+    return organization_input(workspace)
 
 
-def _single_approval_write_batch(steps):
-    """Return whether all 29 file-changing steps form one contiguous batch."""
+def _single_approval_write_batch(steps, folder_count=7, copy_count=22):
+    """Check one completed contiguous create/copy approval batch."""
     if not isinstance(steps, list) or any(not isinstance(step, dict) for step in steps):
         return False
     positions = [index for index, step in enumerate(steps) if step.get('risk') == 'medium']
-    expected = ['create_folder'] * 7 + ['copy_file'] * 22
+    expected = ['create_folder'] * folder_count + ['copy_file'] * copy_count
     return (
-        len(positions) == len(expected)
+        bool(positions)
+        and len(positions) == len(expected)
         and positions == list(range(positions[0], positions[0] + len(expected)))
         and [steps[index].get('tool') for index in positions] == expected
         and all(steps[index].get('status') == 'completed' for index in positions)
@@ -205,92 +159,89 @@ def selected_workspace(raw):
 
 
 def audit(service, tid, records):
+    """Verify actual completed copy operations; this does not grade classification."""
+    from fileforge.agent.organization_context import parse_routes
+
     snapshot = service.snapshot(tid)
-    root = Path(snapshot['task']['workspace'])
+    root = Path(snapshot['task']['workspace']).resolve()
     record = records[str(root)]
     if snapshot['task']['status'] != 'completed':
-        raise ValueError("Task is not completed; no successful audit")
-
-    report = service.report(tid)
+        raise ValueError('Task is not completed; no successful audit')
     results = snapshot.get('results', [])
-    notice_result = next(
-        (
-            result for result in results
-            if result.get('tool') == 'read_document'
-            and result.get('success')
-            and isinstance(result.get('data'), dict)
-            and isinstance(result['data'].get('document'), dict)
-            and result['data']['document'].get('filename') == NOTICE
-        ),
-        None,
-    )
-    if notice_result is None:
-        raise ValueError('已完成任务没有读取课程要求文档的记录')
-
-    routes = read_rules(notice_result['data']['document']['text'])
-    if set(routes) != set(record['baseline']):
-        raise ValueError('实际读取的整理规则与源文件集合不一致')
-
-    pairs = [
-        {
-            "filename": name,
-            "source_sha256": digest(root / name),
-            "target_sha256": digest(target(root, name, routes)),
-            "approved_demo_baseline_sha256": record['baseline'][name]['sha256'],
-        }
-        for name in record['baseline']
-    ]
-    output_root = root / OUTPUT
-    actual = {
-        str(path.relative_to(output_root))
-        for path in output_root.rglob('*')
-        if path.is_file()
-    }
-    expected = {
-        str(target(root, name, routes).relative_to(output_root))
-        for name in routes
-    }
     steps = snapshot['plan'].get('steps', [])
+    baseline = record['baseline']
+    read_text = '\n'.join(
+        result['data']['document']['text'] for result in results
+        if result.get('tool') == 'read_document' and result.get('success')
+        and isinstance(result.get('data'), dict)
+        and isinstance(result['data'].get('document'), dict)
+    )
+    routes = parse_routes(read_text, list(baseline))
+    # Bind to the input context too: a planner cannot omit a requirement read
+    # and thereby weaken the verification of an explicitly supplied mapping.
+    input_routes = record.get('routes')
+    if input_routes is not None and routes != input_routes:
+        raise ValueError('实际读取的整理规则与任务输入不一致')
+    copies = [s for s in steps if s.get('tool') == 'copy_file']
+    folders = [s for s in steps if s.get('tool') == 'create_folder']
+    if not copies:
+        raise ValueError('没有可验证的复制操作')
+    destinations = {}
+    for step in copies:
+        source = Path(step['arguments']['source'])
+        destination = Path(step['arguments']['destination'])
+        if (source.parent != root or source.name not in baseline
+                or source.is_symlink() or source.resolve() != source
+                or destination.is_symlink() or destination.resolve() != destination):
+            raise ValueError('复制路径不属于实际源文件或包含链接')
+        relative = destination.relative_to(root)
+        if len(relative.parts) != 3 or relative.name != source.name:
+            raise ValueError('复制目标必须位于工作空间的输出分类目录')
+        if source.name in destinations:
+            raise ValueError('源文件被重复复制')
+        destinations[source.name] = relative.as_posix()
+    roots = {PurePosixPath(p).parts[0] for p in destinations.values()}
+    if len(roots) != 1:
+        raise ValueError('复制结果必须位于一个输出目录')
+    output_root = root / roots.pop()
+    expected_folders = {output_root, *(root / PurePosixPath(p).parent for p in destinations.values())}
+    actual_folders = {Path(s['arguments']['path']) for s in folders}
+    pairs = [{
+        'filename': name,
+        'source_sha256': digest(root / name),
+        'target_sha256': digest(root / relative),
+        'approved_demo_baseline_sha256': baseline[name]['sha256'],
+    } for name, relative in destinations.items()]
+    output_entries = list(output_root.rglob('*'))
+    if any(p.is_symlink() or getattr(p.lstat(), 'st_file_attributes', 0) & 0x400
+           for p in output_entries):
+        raise ValueError('输出包含链接或reparse point')
+    actual_files = {p.relative_to(root).as_posix() for p in output_entries if p.is_file()}
+    n, d = len(baseline), len(expected_folders)
     checks = {
-        "all_22_copies_equal": all(
-            item['source_sha256'] == item['target_sha256'] == item['approved_demo_baseline_sha256']
-            for item in pairs
-        ),
-        "source_22_unchanged": inventory(root) == record['baseline'],
-        "exact_output_22": actual == expected and len(actual) == 22,
-        "all_tool_results_success": bool(results)
-        and all(result.get('success') is True for result in results),
-        "create_folder_count_7": sum(
-            result.get('tool') == 'create_folder' for result in results
-        ) == 7,
-        "copy_tool_count_22": sum(
-            result.get('tool') == 'copy_file' for result in results
-        ) == 22,
-        "single_approval_write_batch": _single_approval_write_batch(steps),
-        "six_exact_categories": {
-            path.name for path in output_root.iterdir() if path.is_dir()
-        } == set(routes.values()),
-        "plan_uses_read_rules": all(
-            Path(step['arguments']['destination'])
-            == target(root, Path(step['arguments']['source']).name, routes)
-            for step in steps
-            if step.get('tool') == 'copy_file'
-        ),
-        "backend_sha_verification": bool(results)
-        and results[-1].get('tool') == 'verify_result'
-        and results[-1].get('success') is True
-        and isinstance(results[-1].get('data'), dict)
-        and results[-1]['data'].get('passed') is True,
+        f'all_{n}_copies_equal': all(p['source_sha256'] == p['target_sha256']
+            == p['approved_demo_baseline_sha256'] for p in pairs),
+        f'source_{n}_unchanged': inventory(root) == baseline,
+        f'exact_output_{n}': set(destinations) == set(baseline)
+            and actual_files == set(destinations.values()),
+        'all_tool_results_success': bool(results)
+            and all(r.get('success') is True for r in results),
+        f'create_folder_count_{d}': len(folders) == d and actual_folders == expected_folders
+            and sum(r.get('tool') == 'create_folder' for r in results) == d,
+        f'copy_tool_count_{n}': len(copies) == n
+            and sum(r.get('tool') == 'copy_file' for r in results) == n,
+        'single_approval_write_batch': _single_approval_write_batch(steps, d, n),
+        'exact_categories': {p for p in output_entries if p.is_dir()} == expected_folders - {output_root},
+        'plan_uses_read_rules': not routes or destinations == routes,
+        'backend_sha_verification': bool(results) and results[-1].get('tool') == 'verify_result'
+            and results[-1].get('success') is True and isinstance(results[-1].get('data'), dict)
+            and results[-1]['data'].get('passed') is True,
     }
-    return {
-        "status": "controlled_pass" if all(checks.values()) else "failed",
-        "checks": checks,
-        "copies": pairs,
-        "snapshot": snapshot,
-        "final_report": report,
-        "disclosure": "现有LLM Planner根据实际读取的课程规则规划；归档不等于内容审核。所有源件保留。",
-        "output": str(output_root),
-    }
+    return {'status': 'controlled_pass' if all(checks.values()) else 'failed',
+            'checks': checks, 'copies': pairs, 'snapshot': snapshot,
+            'final_report': service.report(tid), 'output': str(output_root),
+            'disclosure': '核验实际复制、源件保留及显式规则一致性；不代表语义分类或内容审核通过。'}
+
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -333,11 +284,10 @@ def main():
         try:
             body=await request.json();root=selected_workspace(body.get('workspace'))
             before=inventory(root)
-            if (root/OUTPUT).exists():raise ValueError('该目录已存在整理结果，请选择尚未整理的副本；不会覆盖已有结果')
             value=material_input(root)
             if inventory(root)!=before:raise ValueError('读取期间源文件发生变化')
             evidence_id=secrets.token_hex(16)
-            records[evidence_id]={"workspace":str(root),"baseline":before}
+            records[evidence_id]={"workspace":str(root),"baseline":before,"routes":value["routes"]}
             (evidence/(evidence_id+'-material-input.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
             return {"workspace":str(root),"evidence_id":evidence_id,"prompt_context":value['prompt_context']}
         except (ValueError,OSError) as exc:raise HTTPException(400,str(exc))
@@ -364,3 +314,4 @@ def main():
 
 
 if __name__=='__main__':main()
+

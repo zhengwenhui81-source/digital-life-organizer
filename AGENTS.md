@@ -340,3 +340,14 @@ production ownership. No Package/Document/Task Intelligence algorithms are
 transferred. Changes remain unmerged pending independent review; existing Demo
 services and data must remain intact. Real LLM acceptance must be reported
 separately from controlled Planner tests.
+
+
+## Runtime organization inputs (2026-11-03)
+
+The project owner authorized limited backend changes while preserving existing
+features, frontend files, and the recorded course demo. Organization input
+assembly now derives file sets and optional explicit routes from the selected
+workspace. Sample preparation remains a regression fixture. No public Agent API,
+approval gate, execution tool, model provider, or frontend contract is changed.
+Validation scope and the unchanged course-page presentation constraints are in
+[the runtime input validation record](docs/runtime-organization-inputs.md).
